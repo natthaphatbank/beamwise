@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>WiFi Planner TH — ออกแบบ Wi-Fi ด้วย Heatmap ฟรีบนเว็บ</title>
+  <meta name="description" content="วาง Access Point บนแบบแปลน ดู Heatmap สัญญาณ Wi-Fi 2.4/5 GHz ทันที ฟรี ใช้งานบนเว็บได้เลย สำหรับช่างติดตั้ง ร้านไอที และเจ้าของหอพัก — Free predictive Wi-Fi planner.">
+  <meta name="theme-color" content="#121829">
+  <meta name="color-scheme" content="dark">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="WiFi Planner TH — ออกแบบ Wi-Fi ด้วย Heatmap">
+  <meta property="og:description" content="วาง AP บนแบบแปลน ดูสัญญาณ Wi-Fi ทันที ฟรีบนเว็บ ไม่ต้องติดตั้ง">
+  <meta property="og:image" content="og-image.png">
+  <meta property="og:locale" content="th_TH">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icons/favicon.svg" width="24" height="24" alt="">
+      <span>WiFi Planner <b>TH</b></span>
+    </div>
+    <div class="actions">
+      <button id="btnNew" data-i18n="new"></button>
+      <button id="btnPlan" data-i18n="loadPlan"></button>
+      <button id="btnOpen" data-i18n="open"></button>
+      <button id="btnSave" data-i18n="save"></button>
+      <button id="btnExport" class="primary" data-i18n="exportPng"></button>
+      <button id="btnHelp" class="icon" data-i18n-title="help">?</button>
+      <label class="lang-sel" data-i18n-title="language">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+        <select id="langSel" aria-label="Language / ภาษา"></select>
+      </label>
+    </div>
+    <input type="file" id="filePlan" accept="image/*" hidden>
+    <input type="file" id="fileOpen" accept=".json,application/json" hidden>
+  </header>
+
+  <main class="layout">
+    <nav class="tools" id="tools">
+      <button data-tool="select" data-i18n-title="toolSelect"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><kbd>V</kbd></button>
+      <button data-tool="pan" data-i18n-title="toolPan"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg><kbd>H</kbd></button>
+      <button data-tool="scale" data-i18n-title="toolScale"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><kbd>S</kbd></button>
+      <button data-tool="wall" data-i18n-title="toolWall"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3zM3 12h18M9 5v7M15 12v7"/></svg><kbd>W</kbd></button>
+      <button data-tool="area" data-i18n-title="toolArea"><svg viewBox="0 0 24 24"><path d="M4 6l7-3 9 5-2 11-12 2z" stroke-dasharray="3 2.5"/><circle cx="4" cy="6" r="1.6"/><circle cx="20" cy="8" r="1.6"/><circle cx="6" cy="21" r="1.6"/></svg><kbd>B</kbd></button>
+      <button data-tool="ap" data-i18n-title="toolAp"><svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="2"/><path d="M8 11a6 6 0 0 1 8 0M5 8a10 10 0 0 1 14 0"/></svg><kbd>A</kbd></button>
+      <div class="sep"></div>
+      <button id="btnUndo" data-i18n-title="undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button id="btnRedo" data-i18n-title="redo"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+      <button id="btnFit" data-i18n-title="fit"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </nav>
+
+    <section class="stage" id="stage">
+      <canvas id="canvas"></canvas>
+      <div class="hint" id="hint"></div>
+      <button class="finish-wall" id="btnFinishWall" hidden></button>
+    </section>
+
+    <aside class="panel">
+      <section class="card" id="propsCard">
+        <h3 data-i18n="properties"></h3>
+        <div id="props"></div>
+      </section>
+
+      <section class="card ai-card">
+        <h3><span class="ai-badge">AI</span> <span data-i18n="aiTitle"></span></h3>
+        <label class="row"><span data-i18n="aiModelUsed"></span><select id="aiModel"></select></label>
+        <label class="row"><span data-i18n="aiTarget"></span>
+          <select id="aiTarget"><option value="0.9">90%</option><option value="0.95" selected>95%</option><option value="0.99">99%</option></select>
+        </label>
+        <label class="row"><span data-i18n="aiMaxAps"></span><input type="number" id="aiMax" min="1" max="50" value="12"></label>
+        <label class="row check"><span data-i18n="aiKeep"></span><input type="checkbox" id="aiKeep"></label>
+        <button class="btn primary" id="btnAutoPlace" data-i18n="aiAutoPlace"></button>
+        <div class="progress" id="aiProgress" hidden><div></div></div>
+        <button class="btn" id="btnChannels" data-i18n="aiChannels"></button>
+        <button class="btn ai-claude" id="btnAiReview" data-i18n="aiAnalyze"></button>
+      </section>
+
+      <section class="card">
+        <h3 data-i18n="display"></h3>
+        <label class="row"><span data-i18n="band"></span>
+          <div class="seg" id="bandSeg">
+            <button data-band="2.4">2.4 GHz</button>
+            <button data-band="5">5 GHz</button>
+          </div>
+        </label>
+        <label class="row"><span data-i18n="environment"></span>
+          <select id="envSel"></select>
+        </label>
+        <label class="row"><span data-i18n="opacity"></span>
+          <input type="range" id="opacity" min="0.1" max="0.9" step="0.05">
+        </label>
+        <label class="row"><span data-i18n="requirement"></span>
+          <select id="reqSel"></select>
+        </label>
+        <label class="row"><span data-i18n="minSignal"></span>
+          <select id="minSel"></select>
+        </label>
+        <label class="row check"><span data-i18n="capNbtc"></span><input type="checkbox" id="capNbtc"></label>
+        <label class="row check"><span data-i18n="waves"></span><input type="checkbox" id="wavesChk"></label>
+      </section>
+
+      <section class="card">
+        <h3 data-i18n="legend"></h3>
+        <div class="legend" id="legend"></div>
+      </section>
+
+      <section class="card">
+        <h3 data-i18n="summary"></h3>
+        <div class="stats" id="stats"></div>
+      </section>
+
+      <p class="disclaimer" data-i18n="disclaimer"></p>
+    </aside>
+  </main>
+
+  <footer class="status">
+    <span id="stCursor">—</span>
+    <span id="stScale"></span>
+    <span id="stMsg"></span>
+  </footer>
+
+  <div class="modal-back" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" id="modalBox"></div>
+  </div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/optimizer.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/sample.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
