@@ -1,4 +1,6 @@
-# WiFi Planner TH
+# Beamwise
+
+**See your Wi-Fi before you install it.** · ออกแบบ Wi-Fi แม่นยำ ก่อนติดตั้งจริง
 
 Predictive Wi-Fi design in the browser: import a floor plan, draw walls, place access points and see a live coverage heatmap. A simple, affordable alternative to tools like Ekahau for installers, IT shops and dorm owners in Thailand.
 
@@ -38,7 +40,7 @@ The installed app opens in its own window and works offline; it updates itself w
 | Space + drag, or middle mouse | Pan |
 | Mouse wheel | Zoom |
 
-The project autosaves in the browser.
+Every start (opening the app or refreshing the page) is a blank project. Use **Save** to keep your work as a `.json` file and **Open project** to continue later. Before New, Import floor plan, Open project or the sample replaces unsaved work, the app asks **Save first / Don't save / Cancel**; refreshing or closing the tab with unsaved work shows the browser's standard "Leave site?" warning.
 
 ## AP models
 

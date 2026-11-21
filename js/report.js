@@ -72,7 +72,7 @@ function buildDesignCsv() {
   const blank = () => rows.push([]);
   const section = title => { if (rows.length) blank(); rows.push([`# ${title}`]); };
 
-  rows.push([L.title, "WiFi Planner TH"]);
+  rows.push([L.title, "Beamwise"]);
   section(L.project);
   rows.push([L.item, L.value]);
   rows.push([L.date, new Date().toLocaleString(langLocale())]);
@@ -172,6 +172,6 @@ function buildDesignCsv() {
 }
 
 function exportDesignCsv() {
-  download(new Blob([buildDesignCsv()], { type: "text/csv;charset=utf-8" }), `wifi-design-data-${stamp()}.csv`);
+  download(new Blob([buildDesignCsv()], { type: "text/csv;charset=utf-8" }), `beamwise-design-data-${stamp()}.csv`);
   flash(t("dataExported"));
 }

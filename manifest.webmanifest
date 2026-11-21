@@ -1,6 +1,6 @@
 {
-  "name": "WiFi Planner TH",
-  "short_name": "WiFi Planner",
+  "name": "Beamwise — Wi-Fi Planner",
+  "short_name": "Beamwise",
   "description": "ออกแบบตำแหน่ง Access Point และดู Heatmap สัญญาณ Wi-Fi บนแบบแปลน",
   "lang": "th",
   "id": "./",

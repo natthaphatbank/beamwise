@@ -38,7 +38,7 @@ const I18N = {
     exportTitle: "แผนที่สัญญาณ Wi-Fi", noScale: "ยังไม่ได้ตั้งสเกล",
     help: "วิธีใช้", finishWall: "จบการวาดผนัง", cancel: "ยกเลิก", confirm: "ยืนยัน", language: "ภาษา",
     disclaimer: "ผลลัพธ์เป็นการคาดการณ์จากค่ามาตรฐานของวัสดุ ควรตรวจวัดหน้างานจริงก่อนติดตั้ง",
-    welcomeTitle: "ยินดีต้อนรับสู่ WiFi Planner TH",
+    welcomeTitle: "ยินดีต้อนรับสู่ Beamwise",
     welcomeIntro: "ออกแบบตำแหน่ง Access Point บนแบบแปลน และดูความแรงสัญญาณ Wi-Fi ได้ทันที — ฟรี ไม่ต้องติดตั้ง ข้อมูลอยู่ในเครื่องของคุณเท่านั้น",
     welcomeSteps: "<li><b>นำเข้าแบบแปลน</b> — รูป PNG/JPG/PDF หรือถ่ายรูปแบบแปลนด้วยมือถือ</li><li><b>ตั้งสเกล (S)</b> — คลิก 2 จุดที่รู้ระยะจริง</li><li><b>วาดผนัง (W)</b> — เลือกวัสดุ เช่น อิฐมวลเบา คอนกรีต กระจก</li><li><b>วาง AP (A)</b> — ลากย้ายได้ Heatmap อัปเดตทันที</li><li><b>ส่งออกภาพ</b> — แนบใบเสนอราคาให้ลูกค้า</li>",
     tryDemo: "ลองตัวอย่าง: หอพัก 14 ห้อง", startOwn: "เริ่มด้วยแบบแปลนของฉัน", startBlank: "เริ่มจากพื้นที่เปล่า",
@@ -75,7 +75,7 @@ const I18N = {
     exportTitle: "Wi-Fi coverage map", noScale: "Scale not set",
     help: "Help", finishWall: "Finish wall", cancel: "Cancel", confirm: "Confirm", language: "Language",
     disclaimer: "Results are predictions based on typical material values. Verify on site before installing.",
-    welcomeTitle: "Welcome to WiFi Planner TH",
+    welcomeTitle: "Welcome to Beamwise",
     welcomeIntro: "Plan access point placement on a floor plan and see Wi-Fi signal strength instantly. Free, no install, and your data stays on your device.",
     welcomeSteps: "<li><b>Import a floor plan</b>: a PNG/JPG/PDF, or a phone photo of the plan</li><li><b>Set scale (S)</b>: click 2 points with a known distance</li><li><b>Draw walls (W)</b>: pick materials like AAC block, concrete, glass</li><li><b>Place APs (A)</b>: drag them around; the heatmap updates live</li><li><b>Export image</b>: attach it to your customer quote</li>",
     tryDemo: "Try sample: 14-room dorm", startOwn: "Start with my floor plan", startBlank: "Start with a blank area",
@@ -112,7 +112,7 @@ const I18N = {
     exportTitle: "Wi-Fi 覆盖图", noScale: "尚未设置比例",
     help: "帮助", finishWall: "完成墙体", cancel: "取消", confirm: "确认", language: "语言",
     disclaimer: "结果基于常见材料参数的预测，安装前请进行现场测量验证。",
-    welcomeTitle: "欢迎使用 WiFi Planner TH",
+    welcomeTitle: "欢迎使用 Beamwise",
     welcomeIntro: "在平面图上规划接入点位置，即时查看 Wi-Fi 信号强度。免费、无需安装，数据仅保存在您的设备上。",
     welcomeSteps: "<li><b>导入平面图</b>：PNG/JPG/PDF 图片，或用手机拍摄的平面图</li><li><b>设置比例 (S)</b>：点击已知距离的两点</li><li><b>绘制墙体 (W)</b>：选择加气砖、混凝土、玻璃等材料</li><li><b>放置 AP (A)</b>：可拖动，热图实时更新</li><li><b>导出图片</b>：附在给客户的报价单中</li>",
     tryDemo: "试用示例：14 间房宿舍", startOwn: "使用我的平面图", startBlank: "从空白区域开始",
@@ -149,7 +149,7 @@ const I18N = {
     exportTitle: "Wi-Fi カバレッジマップ", noScale: "縮尺が未設定です",
     help: "使い方", finishWall: "壁の描画を終了", cancel: "キャンセル", confirm: "確認", language: "言語",
     disclaimer: "結果は一般的な材質の値に基づく予測です。設置前に現地で測定してください。",
-    welcomeTitle: "WiFi Planner TH へようこそ",
+    welcomeTitle: "Beamwise へようこそ",
     welcomeIntro: "図面上でアクセスポイントの配置を計画し、Wi-Fi の電波強度をすぐに確認できます。無料・インストール不要で、データはお使いの端末内にのみ保存されます。",
     welcomeSteps: "<li><b>図面をインポート</b>：PNG/JPG/PDF 画像、またはスマホで撮影した図面</li><li><b>縮尺を設定 (S)</b>：距離が分かる 2 点をクリック</li><li><b>壁を描く (W)</b>：ALC ブロック、コンクリート、ガラスなどを選択</li><li><b>AP を配置 (A)</b>：ドラッグで移動、ヒートマップが即時更新</li><li><b>画像を書き出す</b>：お客様への見積書に添付</li>",
     tryDemo: "サンプル：14 室の寮", startOwn: "自分の図面で始める", startBlank: "空白エリアから始める",
@@ -186,7 +186,7 @@ const I18N = {
     exportTitle: "Wi-Fi 커버리지 맵", noScale: "축척이 설정되지 않음",
     help: "도움말", finishWall: "벽 그리기 완료", cancel: "취소", confirm: "확인", language: "언어",
     disclaimer: "결과는 일반적인 재질 값에 기반한 예측입니다. 설치 전 현장에서 측정해 확인하세요.",
-    welcomeTitle: "WiFi Planner TH에 오신 것을 환영합니다",
+    welcomeTitle: "Beamwise에 오신 것을 환영합니다",
     welcomeIntro: "평면도에서 AP 위치를 계획하고 Wi-Fi 신호 세기를 바로 확인하세요. 무료이며 설치가 필요 없고, 데이터는 사용자 기기에만 저장됩니다.",
     welcomeSteps: "<li><b>평면도 가져오기</b>: PNG/JPG/PDF 또는 휴대폰으로 찍은 평면도</li><li><b>축척 설정 (S)</b>: 거리를 아는 두 점 클릭</li><li><b>벽 그리기 (W)</b>: 경량 블록, 콘크리트, 유리 등 재질 선택</li><li><b>AP 배치 (A)</b>: 드래그로 이동, 히트맵 실시간 갱신</li><li><b>이미지 내보내기</b>: 고객 견적서에 첨부</li>",
     tryDemo: "예제 보기: 14실 기숙사", startOwn: "내 평면도로 시작", startBlank: "빈 영역으로 시작",
@@ -223,7 +223,7 @@ const I18N = {
     exportTitle: "Bản đồ phủ sóng Wi-Fi", noScale: "Chưa đặt tỷ lệ",
     help: "Hướng dẫn", finishWall: "Kết thúc vẽ tường", cancel: "Hủy", confirm: "Xác nhận", language: "Ngôn ngữ",
     disclaimer: "Kết quả là dự đoán dựa trên thông số vật liệu thông dụng. Hãy đo kiểm tại hiện trường trước khi lắp đặt.",
-    welcomeTitle: "Chào mừng đến với WiFi Planner TH",
+    welcomeTitle: "Chào mừng đến với Beamwise",
     welcomeIntro: "Lập kế hoạch vị trí điểm truy cập trên bản vẽ mặt bằng và xem cường độ Wi-Fi ngay lập tức. Miễn phí, không cần cài đặt, dữ liệu chỉ lưu trên thiết bị của bạn.",
     welcomeSteps: "<li><b>Nhập bản vẽ</b>: ảnh PNG/JPG/PDF hoặc ảnh chụp bản vẽ bằng điện thoại</li><li><b>Đặt tỷ lệ (S)</b>: nhấp 2 điểm có khoảng cách đã biết</li><li><b>Vẽ tường (W)</b>: chọn vật liệu như gạch nhẹ, bê tông, kính</li><li><b>Đặt AP (A)</b>: kéo để di chuyển, heatmap cập nhật ngay</li><li><b>Xuất ảnh</b>: đính kèm vào báo giá cho khách hàng</li>",
     tryDemo: "Thử ví dụ: ký túc xá 14 phòng", startOwn: "Bắt đầu với bản vẽ của tôi", startBlank: "Bắt đầu với vùng trống",
@@ -260,7 +260,7 @@ const I18N = {
     exportTitle: "ແຜນທີ່ສັນຍານ Wi-Fi", noScale: "ຍັງບໍ່ໄດ້ຕັ້ງມາດຕາສ່ວນ",
     help: "ວິທີໃຊ້", finishWall: "ຈົບການແຕ້ມຝາ", cancel: "ຍົກເລີກ", confirm: "ຢືນຢັນ", language: "ພາສາ",
     disclaimer: "ຜົນລັບເປັນການຄາດຄະເນຈາກຄ່າມາດຕະຖານຂອງວັດສະດຸ ຄວນກວດວັດໜ້າງານຕົວຈິງກ່ອນຕິດຕັ້ງ",
-    welcomeTitle: "ຍິນດີຕ້ອນຮັບສູ່ WiFi Planner TH",
+    welcomeTitle: "ຍິນດີຕ້ອນຮັບສູ່ Beamwise",
     welcomeIntro: "ອອກແບບຕຳແໜ່ງ Access Point ເທິງແຜນຜັງ ແລະ ເບິ່ງຄວາມແຮງສັນຍານ Wi-Fi ໄດ້ທັນທີ — ຟຣີ ບໍ່ຕ້ອງຕິດຕັ້ງ ຂໍ້ມູນຢູ່ໃນເຄື່ອງຂອງທ່ານເທົ່ານັ້ນ",
     welcomeSteps: "<li><b>ນຳເຂົ້າແຜນຜັງ</b> — ຮູບ PNG/JPG/PDF ຫຼື ຖ່າຍຮູບແຜນຜັງດ້ວຍມືຖື</li><li><b>ຕັ້ງມາດຕາສ່ວນ (S)</b> — ຄລິກ 2 ຈຸດທີ່ຮູ້ໄລຍະຕົວຈິງ</li><li><b>ແຕ້ມຝາ (W)</b> — ເລືອກວັດສະດຸ ເຊັ່ນ ດິນຈີ່ເບົາ ຄອນກີດ ແກ້ວ</li><li><b>ວາງ AP (A)</b> — ລາກຍ້າຍໄດ້ Heatmap ອັບເດດທັນທີ</li><li><b>ສົ່ງອອກຮູບ</b> — ແນບໃບສະເໜີລາຄາໃຫ້ລູກຄ້າ</li>",
     tryDemo: "ລອງຕົວຢ່າງ: ຫໍພັກ 14 ຫ້ອງ", startOwn: "ເລີ່ມດ້ວຍແຜນຜັງຂອງຂ້ອຍ", startBlank: "ເລີ່ມຈາກພື້ນທີ່ຫວ່າງ",
@@ -297,7 +297,7 @@ const I18N = {
     exportTitle: "Wi-Fi လွှမ်းခြုံမှု မြေပုံ", noScale: "စကေး မသတ်မှတ်ရသေးပါ",
     help: "အကူအညီ", finishWall: "နံရံဆွဲခြင်း ပြီးပြီ", cancel: "မလုပ်တော့ပါ", confirm: "အတည်ပြု", language: "ဘာသာစကား",
     disclaimer: "ရလဒ်များသည် ပုံမှန် ပစ္စည်းတန်ဖိုးများအပေါ် အခြေခံသော ခန့်မှန်းချက်များ ဖြစ်သည်။ မတပ်ဆင်မီ နေရာတွင် တိုင်းတာ စစ်ဆေးပါ။",
-    welcomeTitle: "WiFi Planner TH မှ ကြိုဆိုပါသည်",
+    welcomeTitle: "Beamwise မှ ကြိုဆိုပါသည်",
     welcomeIntro: "အထပ်ပုံစံပေါ်တွင် Access Point နေရာချထားမှုကို စီစဉ်ပြီး Wi-Fi အချက်ပြ အားကောင်းမှုကို ချက်ချင်း ကြည့်ပါ။ အခမဲ့၊ ထည့်သွင်းရန် မလို၊ ဒေတာများသည် သင့်စက်ထဲတွင်သာ ရှိသည်။",
     welcomeSteps: "<li><b>အထပ်ပုံစံ တင်သွင်းပါ</b> — PNG/JPG/PDF ပုံ သို့မဟုတ် ဖုန်းဖြင့် ရိုက်ထားသော ပုံ</li><li><b>စကေး သတ်မှတ်ပါ (S)</b> — အကွာအဝေးသိသော အမှတ် ၂ ခု နှိပ်ပါ</li><li><b>နံရံ ဆွဲပါ (W)</b> — အုတ်ပေါ့၊ ကွန်ကရစ်၊ မှန် စသည့် ပစ္စည်း ရွေးပါ</li><li><b>AP ထားပါ (A)</b> — ဆွဲ၍ ရွှေ့နိုင်ပြီး Heatmap ချက်ချင်း ပြောင်းလဲသည်</li><li><b>ပုံ ထုတ်ပါ</b> — ဖောက်သည်အတွက် ဈေးနှုန်းစာတွင် ပူးတွဲပါ</li>",
     tryDemo: "နမူနာ စမ်းကြည့်ရန်: အခန်း ၁၄ ခန်း အဆောင်", startOwn: "ကျွန်ုပ်၏ အထပ်ပုံစံဖြင့် စတင်ရန်", startBlank: "နေရာလွတ်မှ စတင်ရန်",
@@ -776,6 +776,16 @@ Object.assign(I18N.ko, { installApp: "앱 설치", appInstalled: "앱이 설치�
 Object.assign(I18N.vi, { installApp: "Cài ứng dụng", appInstalled: "Đã cài ứng dụng — mở từ màn hình chính / desktop", installIos: "Trên iPhone / iPad: chạm <b>Chia sẻ</b> (hình vuông có mũi tên lên) trong Safari, rồi chọn <b>Thêm vào MH chính</b>. Ứng dụng sẽ mở từ màn hình chính và dùng được ngoại tuyến." });
 Object.assign(I18N.lo, { installApp: "ຕິດຕັ້ງແອັບ", appInstalled: "ຕິດຕັ້ງແອັບແລ້ວ — ເປີດໄດ້ຈາກໄອຄອນເທິງໜ້າຈໍ", installIos: "ເທິງ iPhone / iPad: ແຕະປຸ່ມ <b>ແບ່ງປັນ</b> (ສີ່ລ່ຽມມີລູກສອນຂຶ້ນ) ໃນ Safari ແລ້ວເລືອກ <b>ເພີ່ມໃສ່ໜ້າຈໍຫຼັກ</b> ແອັບຈະຢູ່ໜ້າຈໍຫຼັກ ແລະ ໃຊ້ອອຟລາຍໄດ້" });
 Object.assign(I18N.my, { installApp: "အက်ပ် ထည့်သွင်းရန်", appInstalled: "အက်ပ် ထည့်သွင်းပြီး — desktop / ပင်မစခရင်မှ ဖွင့်ပါ", installIos: "iPhone / iPad တွင်: Safari ရှိ <b>Share</b> (အပေါ်မြှားပါ စတုရန်း) ကို နှိပ်ပြီး <b>Add to Home Screen</b> ကို ရွေးပါ။ ပင်မစခရင်မှ ဖွင့်နိုင်ပြီး အော့ဖ်လိုင်း သုံးနိုင်သည်။" });
+
+// ---- unsaved work ----
+Object.assign(I18N.th, { unsavedTitle: "บันทึกงานก่อนไหม?", unsavedBody: "งานปัจจุบันยังไม่ได้บันทึก ถ้าดำเนินการต่อโดยไม่บันทึก งานนี้จะหายไป", saveFirst: "บันทึกก่อน", dontSave: "ไม่บันทึก" });
+Object.assign(I18N.en, { unsavedTitle: "Save your work first?", unsavedBody: "The current work hasn't been saved. If you continue without saving, it will be lost.", saveFirst: "Save first", dontSave: "Don't save" });
+Object.assign(I18N.zh, { unsavedTitle: "先保存工作吗？", unsavedBody: "当前工作尚未保存。如果不保存就继续，工作将会丢失。", saveFirst: "先保存", dontSave: "不保存" });
+Object.assign(I18N.ja, { unsavedTitle: "先に保存しますか？", unsavedBody: "現在の作業は保存されていません。保存せずに続けると失われます。", saveFirst: "先に保存", dontSave: "保存しない" });
+Object.assign(I18N.ko, { unsavedTitle: "먼저 저장할까요?", unsavedBody: "현재 작업이 저장되지 않았습니다. 저장하지 않고 계속하면 작업이 사라집니다.", saveFirst: "먼저 저장", dontSave: "저장 안 함" });
+Object.assign(I18N.vi, { unsavedTitle: "Lưu công việc trước?", unsavedBody: "Công việc hiện tại chưa được lưu. Nếu tiếp tục mà không lưu, công việc sẽ bị mất.", saveFirst: "Lưu trước", dontSave: "Không lưu" });
+Object.assign(I18N.lo, { unsavedTitle: "ບັນທຶກວຽກກ່ອນບໍ?", unsavedBody: "ວຽກປັດຈຸບັນຍັງບໍ່ໄດ້ບັນທຶກ ຖ້າດຳເນີນການຕໍ່ໂດຍບໍ່ບັນທຶກ ວຽກນີ້ຈະຫາຍໄປ", saveFirst: "ບັນທຶກກ່ອນ", dontSave: "ບໍ່ບັນທຶກ" });
+Object.assign(I18N.my, { unsavedTitle: "အလုပ်ကို အရင် သိမ်းမလား?", unsavedBody: "လက်ရှိ အလုပ်ကို မသိမ်းရသေးပါ။ မသိမ်းဘဲ ဆက်လုပ်ပါက ပျောက်သွားမည်။", saveFirst: "အရင် သိမ်းရန်", dontSave: "မသိမ်းပါ" });
 
 // ---- rulers ----
 I18N.th.rulers = "แสดงไม้บรรทัด (เมตร)";

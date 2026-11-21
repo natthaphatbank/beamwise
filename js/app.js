@@ -1,4 +1,4 @@
-// WiFi Planner TH — main app: state, canvas rendering, tools, files.
+// Beamwise — main app: state, canvas rendering, tools, files.
 
 const $ = sel => document.querySelector(sel);
 const canvas = $("#canvas");
@@ -1434,7 +1434,8 @@ const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 
 function saveProject() {
   project.customModels = customLibrary();
-  download(new Blob([JSON.stringify(project)], { type: "application/json" }), `wifi-plan-${stamp()}.json`);
+  markSaved();
+  download(new Blob([JSON.stringify(project)], { type: "application/json" }), `beamwise-project-${stamp()}.json`);
   flash(t("saved"));
 }
 
@@ -1453,7 +1454,7 @@ function loadProjectData(data) {
     img.onload = () => { planImg = img; res(); };
     img.onerror = () => { project.plan.image = null; res(); };
     img.src = project.plan.image;
-  }).then(() => { renderSettings(); fit(); changed(); });
+  }).then(() => { renderSettings(); fit(); changed(); markSaved(); });
 }
 
 // Downscale big floor plans so the heatmap stays fast and the project file stays small.
@@ -1510,7 +1511,7 @@ function exportPng() {
   c.fillStyle = "#d8dde6"; c.fillRect(0, y0, cv.width, Math.max(1, u));
   c.fillStyle = "#1b2333"; c.font = `600 ${15 * u}px "Segoe UI", "Leelawadee UI", sans-serif`; c.textBaseline = "middle";
   const env = ENVIRONMENTS[project.settings.env];
-  c.fillText(`WiFi Planner TH — ${t("exportTitle")} · ${project.settings.band} GHz · ${project.aps.length} AP · ${t("requirement")} ≥ ${reqDbm()} dBm`, 14 * u, y0 + 20 * u);
+  c.fillText(`Beamwise — ${t("exportTitle")} · ${project.settings.band} GHz · ${project.aps.length} AP · ${t("requirement")} ≥ ${reqDbm()} dBm`, 14 * u, y0 + 20 * u);
   let x = 14 * u;
   c.font = `${12 * u}px "Segoe UI", "Leelawadee UI", sans-serif`;
   for (const s of SIGNAL_STOPS) {
@@ -1523,41 +1524,54 @@ function exportPng() {
   c.fillStyle = "#5b6880";
   c.fillText(`${t(env.key)} · ${new Date().toLocaleDateString(langLocale())}`, x + 10 * u, y0 + 44 * u);
 
-  cv.toBlob(b => { download(b, `wifi-coverage-${stamp()}.png`); flash(t("exported")); }, "image/png");
+  cv.toBlob(b => { download(b, `beamwise-coverage-${stamp()}.png`); flash(t("exported")); }, "image/png");
 }
 
-// ---------- autosave ----------
-let autosaveTimer;
-function scheduleAutosave() {
-  clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(() => {
-    project.customModels = customLibrary();
-    try { localStorage.setItem("wpth-project", JSON.stringify(project)); }
-    catch (e) { flash(t("autosaveFull")); }
-  }, 800);
+// ---------- unsaved-changes tracking ----------
+// Every start (open / refresh) is a blank project; nothing is restored from the browser.
+// Work counts as unsaved when it differs from the last saved / opened state.
+function workSnapshot() {
+  const p = project;
+  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.survey, p.calib, p.mPerPx, p.scaleSet]);
 }
+let savedSnap = "";
+const markSaved = () => { savedSnap = workSnapshot(); };
+const isDirty = () => hasWork() && workSnapshot() !== savedSnap;
+function scheduleAutosave() {}             // kept for call sites; the project is no longer autosaved
+
+// Before replacing the current work: ask Save first / Don't save / Cancel (only if unsaved).
+// `action` runs inside the button's click, so it may open a file picker.
+function guardUnsaved(action) {
+  if (!isDirty()) { action(); return; }
+  openModal(`<h2>${t("unsavedTitle")}</h2><p>${t("unsavedBody")}</p>
+    <div class="btns inline">
+      <button data-act="cancel">${t("cancel")}</button>
+      <button data-act="discard" class="danger">${t("dontSave")}</button>
+      <button data-act="save" class="primary">${t("saveFirst")}</button>
+    </div>`);
+  const box = $("#modalBox");
+  box.querySelector('[data-act="cancel"]').onclick = closeModal;
+  box.querySelector('[data-act="discard"]').onclick = () => { closeModal(); action(); };
+  box.querySelector('[data-act="save"]').onclick = () => { saveProject(); closeModal(); action(); };
+}
+// Refresh / close tab with unsaved work: browsers only allow their own standard warning.
+window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault(); e.returnValue = ""; } });
 
 // ---------- top bar ----------
 function startBlank() {
   project = newProject(); planImg = null; selection = null; areaDraft = null; undoStack = []; redoStack = [];
-  renderSettings(); setTool("select"); fit(); changed();
+  renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));
 }
-const hasWork = () => project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0;
-$("#btnNew").addEventListener("click", () => {
-  if (!hasWork()) { startBlank(); return; }
-  confirmModal(t("newTitle"), t("newBody"), startBlank);
-});
-function pickPlan() {
-  if (!hasWork()) { $("#filePlan").click(); return; }
-  // file pickers must open from a user gesture, so the confirm button opens it directly
-  confirmModal(t("planTitle"), t("planBody"), () => $("#filePlan").click());
-}
+const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0;
+$("#btnNew").addEventListener("click", () => guardUnsaved(startBlank));
+// file pickers must open from a user gesture; guardUnsaved runs the action inside a click
+function pickPlan() { guardUnsaved(() => $("#filePlan").click()); }
 $("#btnPlan").addEventListener("click", pickPlan);
 $("#btnHelp").addEventListener("click", showWelcome);
 $("#btnTheme").addEventListener("click", () => setTheme(uiTheme === "dark" ? "light" : "dark"));
 $("#filePlan").addEventListener("change", e => { const f = e.target.files[0]; if (f) loadPlanFile(f); e.target.value = ""; });
-$("#btnOpen").addEventListener("click", () => $("#fileOpen").click());
+$("#btnOpen").addEventListener("click", () => guardUnsaved(() => $("#fileOpen").click()));
 $("#fileOpen").addEventListener("change", e => {
   const f = e.target.files[0]; e.target.value = "";
   if (!f) return;
@@ -1581,8 +1595,8 @@ $("#stage").addEventListener("dragover", e => e.preventDefault());
 $("#stage").addEventListener("drop", e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0]; if (!f) return;
-  if (f.type.startsWith("image/") || isPdfFile(f)) { if (hasWork()) confirmModal(t("planTitle"), t("planBody"), () => loadPlanFile(f)); else loadPlanFile(f); }
-  else f.text().then(txt => loadProjectData(JSON.parse(txt))).then(() => flash(t("loaded"))).catch(() => flash(t("badFile")));
+  if (f.type.startsWith("image/") || isPdfFile(f)) guardUnsaved(() => loadPlanFile(f));
+  else guardUnsaved(() => f.text().then(txt => loadProjectData(JSON.parse(txt))).then(() => flash(t("loaded"))).catch(() => flash(t("badFile"))));
 });
 
 // ---------- modals ----------
@@ -1625,10 +1639,10 @@ function showWelcome() {
   const box = $("#modalBox");
   box.querySelector('[data-act="demo"]').onclick = () => {
     closeModal();
-    if (hasWork()) confirmModal(t("newTitle"), t("newBody"), loadSample); else loadSample();
+    guardUnsaved(loadSample);
   };
   box.querySelector('[data-act="plan"]').onclick = () => { closeModal(); pickPlan(); };
-  box.querySelector('[data-act="blank"]').onclick = () => { closeModal(); if (hasWork()) confirmModal(t("newTitle"), t("newBody"), startBlank); };
+  box.querySelector('[data-act="blank"]').onclick = () => { closeModal(); guardUnsaved(startBlank); };
   try { localStorage.setItem("wpth-welcomed", "1"); } catch (e) {}
 }
 
@@ -1667,11 +1681,9 @@ try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by t
 applyI18n();
 setTheme(uiTheme);
 resize();
-(async () => {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("wpth-project")); } catch (e) {}
-  if (saved) { try { await loadProjectData(saved); } catch (e) { saved = null; } }
-  if (!saved) { renderSettings(); fit(); changed(); flash(t("blankPlan")); }
+try { localStorage.removeItem("wpth-project"); } catch (e) {}      // old autosave from earlier versions
+(() => {
+  renderSettings(); fit(); changed(); markSaved(); flash(t("blankPlan"));
   setTool("select");
   let welcomed = false;
   try { welcomed = !!localStorage.getItem("wpth-welcomed"); } catch (e) {}
