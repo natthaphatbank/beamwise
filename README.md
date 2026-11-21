@@ -2,7 +2,7 @@
 
 **See your Wi-Fi before you install it.** · ออกแบบ Wi-Fi แม่นยำ ก่อนติดตั้งจริง
 
-**Try it / install it:** https://bankker992.github.io/beamwise/
+**Try it / install it:** https://natthaphatbank.github.io/beamwise/
 
 Predictive Wi-Fi design in the browser: import a floor plan, draw walls, place access points and see a live coverage heatmap. A simple, affordable alternative to tools like Ekahau for installers, IT shops and dorm owners in Thailand.
 
