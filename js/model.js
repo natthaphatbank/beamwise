@@ -31,6 +31,8 @@ function fspl1m(mhz) { return 20 * Math.log10(mhz) - 27.55; }
 
 // Effective radiated power of an AP on a band, optionally capped to Thai NBTC limits.
 function apEirp(ap, band, capNbtc) {
+  const tx = band === "2.4" ? ap.tx24 : ap.tx5;
+  if (!(tx > 0)) return -Infinity;                    // Tx 0 = the AP has no radio on this band
   const raw = band === "2.4" ? ap.tx24 + ap.gain24 : ap.tx5 + ap.gain5;
   if (!capNbtc) return raw;
   const cap = band === "2.4" ? NBTC_CAP["2.4"] : (ap.ch5 >= 100 ? NBTC_CAP["5high"] : NBTC_CAP["5"]);
@@ -63,14 +65,18 @@ function rfContext(project, band) {
     W.minY[i] = Math.min(w.y1, w.y2); W.maxY[i] = Math.max(w.y1, w.y2);
     W.loss[i] = (MATERIALS[w.mat] || MATERIALS.brick)[lossKey];
   });
-  return { band, n: env.n, pl1: fspl1m(BANDS[band].mhz), mpp: project.mPerPx, W, cap: !!project.settings.capNbtc };
+  // site-survey calibration (survey.js) overrides n and adds a per-band offset
+  const cal = project.calib;
+  const n = cal && Number.isFinite(cal.n) ? cal.n : env.n;
+  const offset = cal ? (band === "2.4" ? cal.off24 : cal.off5) || 0 : 0;
+  return { band, n, offset, pl1: fspl1m(BANDS[band].mhz), mpp: project.mPerPx, W, cap: !!project.settings.capNbtc };
 }
 
 // RSSI (dBm) at world point (cx, cy) from a transmitter at (ax, ay) with the given EIRP.
 // `floor` lets callers stop counting walls once the result can no longer matter.
 function rssiAt(rf, eirp, ax, ay, cx, cy, floor = -Infinity) {
   const dm = Math.max(Math.hypot(cx - ax, cy - ay) * rf.mpp, 0.5);
-  let rssi = eirp - rf.pl1 - 10 * rf.n * Math.log10(dm);
+  let rssi = eirp + (rf.offset || 0) - rf.pl1 - 10 * rf.n * Math.log10(dm);
   if (rssi <= floor) return rssi;
   const W = rf.W;
   const minX = Math.min(ax, cx), maxX = Math.max(ax, cx), minY = Math.min(ay, cy), maxY = Math.max(ay, cy);

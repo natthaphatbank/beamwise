@@ -1,27 +1,38 @@
 # WiFi Planner TH
 
-Predictive Wi-Fi design in the browser: load a floor plan, draw walls, place access points and see a live coverage heatmap. A simple, affordable alternative to tools like Ekahau for installers, IT shops and dorm owners in Thailand.
+Predictive Wi-Fi design in the browser: import a floor plan, draw walls, place access points and see a live coverage heatmap. A simple, affordable alternative to tools like Ekahau for installers, IT shops and dorm owners in Thailand.
 
-เครื่องมือออกแบบ Wi-Fi บนเว็บ — โหลดแบบแปลน วาดผนัง วาง AP แล้วดู Heatmap สัญญาณได้ทันที
+เครื่องมือออกแบบ Wi-Fi บนเว็บ — นำเข้าแบบแปลน วาดผนัง วาง AP แล้วดู Heatmap สัญญาณได้ทันที
 
 ## Run
 
 No install or server needed. Open `index.html` in Chrome, Edge or Firefox.
 
+### Install as an app
+
+When the site is served over HTTPS (for example GitHub Pages), it is an installable Progressive Web App:
+
+- **Windows / Mac / ChromeOS / Android** (Chrome or Edge): click **Install app** in the top bar, or the install icon in the address bar.
+- **iPhone / iPad** (Safari): tap Share, then **Add to Home Screen**.
+
+The installed app opens in its own window and works offline; it updates itself when a new version is published.
+
 ## How to use
 
-1. **Load floor plan** (โหลดแบบแปลน): a PNG or JPG image. You can also drag it onto the canvas.
+1. **Import floor plan** (นำเข้าแบบแปลน): a PNG, JPG or PDF file. You can also drag it onto the canvas. For a PDF with several pages you pick the page; it is rendered to an image in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) (Apache 2.0, bundled in `js/vendor/pdfjs`, so it works offline).
 2. **Set scale (S)**: click both ends of something with a known length, then type its real length in metres.
 3. **Draw walls (W)**: pick a material, then click to draw connected walls. Double-click, Esc or right-click ends a chain. Hold Shift to lock angles; ends snap to existing walls.
-4. **Place APs (A)**: click to add. Select an AP to set its name, Tx power and antenna gain.
+4. **Place APs (A)**: click to add. Select an AP to set its name, Tx power and antenna gain. To edit several at once, Shift+click APs, Shift+drag a box around them, or press Ctrl+A; a field shows "Mixed" when the selected APs differ, and editing it sets them all. **Apply to all APs** copies one AP's model, power and gain to every AP (channels stay as they are). Dragging any selected AP moves the whole group.
 5. **Coverage boundary (B)** (ขอบเขตสัญญาณ): click points around the area that needs Wi-Fi, then click the first point, double-click or press Enter to close it. The heatmap is clipped to the boundary, and coverage %, area and AI auto-placement count only the inside. You can draw several. Select one to drag its points or move it; Delete removes it.
-6. Pick a language from the 🌐 menu: ไทย, English, 中文, 日本語, 한국어, Tiếng Việt, ລາວ, မြန်မာ. First-time visitors get their browser language automatically.
+6. Pick a language from the language menu: ไทย, English, 中文, 日本語, 한국어, Tiếng Việt, ລາວ, မြန်မာ. First-time visitors get their browser language automatically.
 7. Switch between **2.4 / 5 GHz**, choose the environment, then **Save** the project (.json) or **Export image** (.png) for your customer.
 
 | Shortcut | Action |
 |---|---|
-| V / H / S / W / B / A | Select, Pan, Scale, Wall, Boundary, AP |
-| Delete | Remove selected item |
+| V / H / S / W / B / A / M | Select, Pan, Scale, Wall, Boundary, AP, Survey point |
+| Delete | Remove selected item(s) |
+| Ctrl+A | Select all APs |
+| Shift+click / Shift+drag | Add APs to the selection / box-select |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
 | Ctrl+S | Save project |
 | Space + drag, or middle mouse | Pan |
@@ -31,7 +42,13 @@ The project autosaves in the browser.
 
 ## AP models
 
-`js/catalog.js` lists 32 models from Ubiquiti UniFi, TP-Link Omada / Deco, Ruijie Reyee, Aruba Instant On, Cisco Meraki, Ruckus, Huawei, MikroTik, Grandstream, plus generic and ISP routers. Values are typical datasheet maximums, so verify them. Add a model with one line. The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36–64 and 30 dBm on ch 100+.
+`js/catalog.js` lists 260+ models from 35 brands: Ubiquiti UniFi, TP-Link (Omada, Archer, Deco), Mercusys, Ruijie / Reyee, Aruba Instant On, HPE Aruba, Cisco (Meraki, Catalyst, Business), Ruckus, Huawei, H3C, Fortinet, Juniper Mist, Extreme, Cambium, Sophos, Zyxel, Netgear, D-Link, EnGenius, MikroTik, Grandstream, Cudy, Tenda, IP-COM, ASUS, Xiaomi, Linksys, Google, eero, the fiber routers ISPs install in Thailand, plus generic types (ceiling, wall-plate, outdoor, mesh, Wi-Fi 4–7). Type in the search box above the model list to filter by brand, model or standard.
+
+Values are typical maximum conducted Tx power and antenna gain per band, approximated from public datasheets, so check them against the datasheet of the exact model and region before quoting. A model with Tx 0 on a band has no radio there.
+
+**Add your own model**: a model that isn't listed can be added from the model picker (**+ Add your own model**) with values from its datasheet. These models are kept in the browser, saved inside project files, and added to the list when someone opens such a file. A catalogue model can also be added with one line in `js/catalog.js`.
+
+The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36–64 and 30 dBm on ch 100+.
 
 ## Required signal
 
@@ -41,7 +58,30 @@ The project autosaves in the browser.
 
 - **Auto-place APs** (runs in the browser, free and offline): a greedy coverage search over candidate positions inside the building, then a local refinement pass. It stops at the target coverage or the AP limit, then assigns non-overlapping channels (2.4 GHz: 1/6/11; 5 GHz: 36/44/149/157).
 - **Auto-assign channels**: re-plans channels for the current APs to reduce co-channel interference.
-- **AI analysis (Claude)**: sends a rendered image of the plan and a JSON summary (APs, walls, coverage, weak areas) to Claude (`claude-opus-5-5`) and streams a design review in the selected UI language. It uses the official Anthropic SDK from jsDelivr, in the browser, with the user's own API key (stored only in their browser if they tick "remember"). Server-side refusal fallback (`fallbacks: "default"`) is enabled.
+
+## Calibration with site measurements
+
+Predictions use typical values, so check them against real measurements:
+
+1. On site, measure RSSI with a phone app (WiFiman, NetSpot, …) at several points spread over the area, near and far from the APs (5+ points recommended).
+2. Pick **Survey point (M)**, click each place you measured and enter the value in dBm and its band.
+3. The **Calibration** card shows the error per band (predicted − measured): mean, RMS and max. An RMS under about 4–6 dB is a good match.
+4. **Fit model to measurements** searches the path-loss exponent n (1.5–4.5, with 3+ points) and a per-band offset that minimise the squared error. The heatmap, coverage %, auto-placement, channels and CSV all use the fitted model. **Remove calibration** goes back to the environment preset.
+
+A very large offset (over 10 dB) usually means a wrong scale, AP position, AP power or band rather than unusual walls.
+
+## Design data export
+
+**Export data (CSV)** downloads one CSV file (UTF-8, opens in Excel or Google Sheets) for whoever reviews the design:
+
+- project settings: environment, requirement, NBTC cap, design area, boundary
+- coverage on 2.4 and 5 GHz: % meeting the requirement, % dead zone, average and minimum signal
+- every AP: position (m), model, Tx power, antenna gain, EIRP and channels
+- walls by material: count, total length and loss
+- weak areas on each band: position, size and worst signal
+- signal distribution in 5 dB bins for both bands, ready to chart
+
+Headings are in Thai when the UI is Thai, otherwise English. **Export image** gives the heatmap picture.
 
 ## RF model
 
@@ -63,13 +103,15 @@ These are typical published values. Predictions are estimates, so check real ins
 
 ```
 index.html      layout
-css/style.css   dark UI
+css/style.css   UI (dark / light theme)
 js/i18n.js      UI text in 8 languages (add a language: one entry in LANGS + one block in I18N)
 js/sample.js    sample 14-room dorm project
 js/catalog.js   AP models, NBTC caps, requirement profiles, channel plans
 js/model.js     materials, propagation model, heatmap colours
 js/optimizer.js AP auto-placement, channel assignment, weak-area detection
-js/ai.js        Claude design review (BYOK, browser)
+js/survey.js    site-survey points, error stats, model calibration
+js/report.js    design data export (CSV)
+js/pdfplan.js   PDF floor plans (pdf.js, vendored in js/vendor/pdfjs)
 js/app.js       canvas, tools, editing, save / export
 ```
 

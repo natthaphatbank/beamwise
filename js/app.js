@@ -14,12 +14,15 @@ function newProject() {
     walls: [],                     // {id, x1, y1, x2, y2, mat}
     aps: [],                       // {id, name, x, y, model, tx24, tx5, gain24, gain5, ch24, ch5}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
+    survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
+    calib: null,                   // fitted model correction {n, off24, off5, ...} or null
     settings: {
       band: "5", env: 1, opacity: 0.55,
       minDbm: "auto",              // display floor: "auto" = requirement - 15 dB
       req: "auto",                 // required RSSI: "auto" = by building type
       capNbtc: true,
       waves: !matchMedia("(prefers-reduced-motion: reduce)").matches,
+      rulers: true,
     },
     newWallMat: "brick",
     newApModel: "generic-ax",
@@ -50,6 +53,18 @@ function makeAp(p, spec) {
            model: spec.id, tx24: spec.tx24, tx5: spec.tx5, gain24: spec.gain24, gain5: spec.gain5, ch24: null, ch5: null };
 }
 
+// UI theme: "dark" (default) or "light"; the <head> script applies it before first paint.
+let uiTheme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+function setTheme(th) {
+  uiTheme = th === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = uiTheme;
+  try { localStorage.setItem("wpth-theme", uiTheme); } catch (e) {}
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", uiTheme === "dark" ? "#161c26" : "#ffffff");
+  const b = document.querySelector("#btnTheme");
+  if (b) b.title = t(uiTheme === "dark" ? "themeLight" : "themeDark");
+  requestRender();
+}
+
 let project = newProject();
 let planImg = null;                // HTMLImageElement of plan.image
 let view = { s: 1, ox: 0, oy: 0 };
@@ -71,7 +86,7 @@ const uid = () => (nextId++).toString(36) + Date.now().toString(36).slice(-4);
 
 // ---------- history ----------
 function snapshot() {
-  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
+  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, survey: project.survey, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
 }
 function pushHistory() {
   undoStack.push(snapshot());
@@ -81,15 +96,35 @@ function pushHistory() {
 function restore(snap) {
   Object.assign(project, JSON.parse(snap));
   project.aps.forEach(normalizeAp);
+  if (selection?.type === "aps") selectAps(selection.ids);
   if (selection && !findSel()) selection = null;
   changed();
 }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
 function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); }
 
+// Several APs can be selected at once: selection = {type: "aps", ids: [...]}.
+function selectedAps() {
+  if (selection?.type === "ap") return project.aps.filter(a => a.id === selection.id);
+  if (selection?.type === "aps") return project.aps.filter(a => selection.ids.includes(a.id));
+  return [];
+}
+const isApSelected = ap => (selection?.type === "ap" && selection.id === ap.id) || (selection?.type === "aps" && selection.ids.includes(ap.id));
+function selectAps(ids) {
+  ids = [...new Set(ids)].filter(id => project.aps.some(a => a.id === id));
+  selection = !ids.length ? null : ids.length === 1 ? { type: "ap", id: ids[0] } : { type: "aps", ids };
+}
+function selectAllAps() {
+  if (!project.aps.length) return;
+  if (tool !== "select") setTool("select");
+  selectAps(project.aps.map(a => a.id)); renderPanel(); requestRender();
+}
+
 function findSel() {
   if (!selection) return null;
-  const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas : project.walls;
+  if (selection.type === "aps") { const l = selectedAps(); return l.length ? l : null; }
+  const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas
+    : selection.type === "survey" ? (project.survey || []) : project.walls;
   return list.find(o => o.id === selection.id) || null;
 }
 
@@ -110,9 +145,10 @@ function toWorld(e) {
 function fit() {
   const r = canvas.getBoundingClientRect();
   const { width: W, height: H } = project.plan;
-  view.s = Math.min(r.width / W, r.height / H) * 0.92;
-  view.ox = (r.width - W * view.s) / 2;
-  view.oy = (r.height - H * view.s) / 2;
+  const R = rulersOn() ? RULER : 0;
+  view.s = Math.min((r.width - R) / W, (r.height - R) / H) * 0.92;
+  view.ox = R + (r.width - R - W * view.s) / 2;
+  view.oy = R + (r.height - R - H * view.s) / 2;
   requestRender();
 }
 function resize() {
@@ -190,23 +226,24 @@ function drawWaves(c, px) {
 }
 
 // Draws the scene into any context. px = size of one screen pixel in world units.
-function drawScene(c, px, { interactive = true } = {}) {
+function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
+  P = CANVAS_THEMES[theme] || CANVAS_THEMES.light;
   const { width: W, height: H } = project.plan;
 
   // plan
   if (planImg) {
     c.drawImage(planImg, 0, 0, W, H);
   } else {
-    c.fillStyle = "#10162a";
+    c.fillStyle = P.plan;
     c.fillRect(0, 0, W, H);
     const step = 1 / project.mPerPx;              // 1 m grid
-    c.strokeStyle = "rgba(120,140,200,0.10)";
+    c.strokeStyle = P.grid;
     c.lineWidth = px;
     c.beginPath();
     for (let x = 0; x <= W; x += step) { c.moveTo(x, 0); c.lineTo(x, H); }
     for (let y = 0; y <= H; y += step) { c.moveTo(0, y); c.lineTo(W, y); }
     c.stroke();
-    c.strokeStyle = "rgba(120,140,200,0.35)";
+    c.strokeStyle = P.frame;
     c.strokeRect(0, 0, W, H);
   }
 
@@ -227,15 +264,12 @@ function drawScene(c, px, { interactive = true } = {}) {
     const m = MATERIALS[w.mat] || MATERIALS.brick;
     const isSel = interactive && selection?.type === "wall" && selection.id === w.id;
     if (isSel) {
-      c.strokeStyle = "#ffffff"; c.lineWidth = 8 * px;
+      c.strokeStyle = P.wallSel; c.lineWidth = 10 * px;
       c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
     }
     c.strokeStyle = m.color; c.lineWidth = 4 * px;
     c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
-    if (isSel) {
-      c.fillStyle = "#fff";
-      for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) { c.beginPath(); c.arc(x, y, 5 * px, 0, 7); c.fill(); }
-    }
+    if (isSel) for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
   }
 
   // coverage boundary
@@ -244,38 +278,19 @@ function drawScene(c, px, { interactive = true } = {}) {
     c.beginPath();
     a.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
     c.closePath();
-    c.strokeStyle = isSel ? "#ffffff" : AREA_COLOR; c.lineWidth = (isSel ? 3 : 2) * px;
+    c.strokeStyle = isSel ? P.sel : P.area; c.lineWidth = (isSel ? 3 : 2) * px;
     c.setLineDash([10 * px, 6 * px]); c.stroke(); c.setLineDash([]);
-    if (isSel) {
-      c.fillStyle = "#fff";
-      for (const q of a.pts) { c.beginPath(); c.arc(q.x, q.y, 5 * px, 0, 7); c.fill(); }
-    }
+    if (isSel) for (const q of a.pts) handle(c, px, q.x, q.y);
   }
 
   // broadcast waves (screen only)
   if (interactive && project.settings.waves) drawWaves(c, px);
 
+  // site-survey points
+  (project.survey || []).forEach((pt, i) => drawSurveyPoint(c, px, pt, i + 1, interactive && selection?.type === "survey" && selection.id === pt.id));
+
   // access points
-  for (const ap of project.aps) {
-    const isSel = interactive && selection?.type === "ap" && selection.id === ap.id;
-    const r = 11 * px;
-    c.fillStyle = isSel ? "#ffffff" : "#5b8cff";
-    c.strokeStyle = "#0b0f1a"; c.lineWidth = 2.5 * px;
-    c.beginPath(); c.arc(ap.x, ap.y, r, 0, 7); c.fill(); c.stroke();
-    // wifi glyph
-    c.strokeStyle = isSel ? "#3a63d6" : "#fff"; c.lineWidth = 1.6 * px;
-    for (const k of [0.35, 0.6]) { c.beginPath(); c.arc(ap.x, ap.y + r * 0.35, r * k * 1.2, -Math.PI * 0.78, -Math.PI * 0.22); c.stroke(); }
-    c.fillStyle = isSel ? "#3a63d6" : "#fff";
-    c.beginPath(); c.arc(ap.x, ap.y + r * 0.35, 1.8 * px, 0, 7); c.fill();
-    // label
-    c.font = `600 ${12 * px}px "Segoe UI", "Leelawadee UI", sans-serif`;
-    c.textAlign = "center"; c.textBaseline = "top";
-    c.lineWidth = 3 * px; c.strokeStyle = "rgba(11,15,26,0.9)";
-    const lbl = ap.ch24 || ap.ch5 ? `${ap.name} · ${ap.ch24 ?? "–"}/${ap.ch5 ?? "–"}` : ap.name;
-    c.strokeText(lbl, ap.x, ap.y + r + 3 * px);
-    c.fillStyle = "#fff";
-    c.fillText(lbl, ap.x, ap.y + r + 3 * px);
-  }
+  for (const ap of project.aps) drawAp(c, px, ap, interactive && isApSelected(ap));
 
   if (!interactive) return;
 
@@ -289,16 +304,24 @@ function drawScene(c, px, { interactive = true } = {}) {
     label(c, px, (wallChain.x + p.x) / 2, (wallChain.y + p.y) / 2, fmtLen(Math.hypot(p.x - wallChain.x, p.y - wallChain.y)));
   }
 
+  // box selection
+  if (drag?.type === "marquee") {
+    const x = Math.min(drag.a.x, drag.b.x), y = Math.min(drag.a.y, drag.b.y);
+    const w = Math.abs(drag.b.x - drag.a.x), h = Math.abs(drag.b.y - drag.a.y);
+    c.fillStyle = P.selFill; c.fillRect(x, y, w, h);
+    c.strokeStyle = P.sel; c.lineWidth = 1.5 * px; c.setLineDash([6 * px, 4 * px]); c.strokeRect(x, y, w, h); c.setLineDash([]);
+  }
+
   // boundary being drawn
   if (tool === "area" && areaDraft) {
     const pts = cursor ? [...areaDraft, snapArea(cursor, false)] : areaDraft;
     c.beginPath();
     pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
-    if (pts.length >= 3) { c.fillStyle = "rgba(77,224,255,0.10)"; c.fill(); }
-    c.strokeStyle = AREA_COLOR; c.lineWidth = 2.5 * px; c.setLineDash([8 * px, 6 * px]); c.stroke(); c.setLineDash([]);
+    if (pts.length >= 3) { c.fillStyle = P.areaFill; c.fill(); }
+    c.strokeStyle = P.area; c.lineWidth = 2.5 * px; c.setLineDash([8 * px, 6 * px]); c.stroke(); c.setLineDash([]);
     areaDraft.forEach((q, i) => {
-      c.fillStyle = i === 0 && areaDraft.length >= 3 ? "#ffffff" : AREA_COLOR;
-      c.beginPath(); c.arc(q.x, q.y, (i === 0 ? 6 : 4) * px, 0, 7); c.fill();
+      if (i === 0 && areaDraft.length >= 3) { handle(c, px, q.x, q.y, 6, P.area); return; }
+      c.fillStyle = P.area; c.beginPath(); c.arc(q.x, q.y, 4 * px, 0, 7); c.fill();
     });
     if (cursor) {
       const last = areaDraft[areaDraft.length - 1], q = snapArea(cursor, false);
@@ -310,15 +333,35 @@ function drawScene(c, px, { interactive = true } = {}) {
   if (scaleLine) {
     const b = scaleLine.b || cursor;
     if (b) {
-      c.strokeStyle = "#ffd84d"; c.lineWidth = 2.5 * px; c.setLineDash([6 * px, 4 * px]);
+      c.strokeStyle = P.scale; c.lineWidth = 2.5 * px; c.setLineDash([6 * px, 4 * px]);
       c.beginPath(); c.moveTo(scaleLine.a.x, scaleLine.a.y); c.lineTo(b.x, b.y); c.stroke(); c.setLineDash([]);
-      c.fillStyle = "#ffd84d";
+      c.fillStyle = P.scale;
       for (const p of [scaleLine.a, b]) { c.beginPath(); c.arc(p.x, p.y, 4 * px, 0, 7); c.fill(); }
     }
   }
 }
 
-const AREA_COLOR = "#4de0ff";
+// Canvas colours per UI theme. Exports and the AI snapshot always use "light".
+const CANVAS_THEMES = {
+  light: { stage: "#e5e8ee", plan: "#ffffff", grid: "rgba(30,50,90,0.07)", frame: "rgba(30,50,90,0.35)",
+           sel: "#1f5fbf", area: "#0b7fb0", areaFill: "rgba(11,127,176,0.10)", scale: "#c26a00",
+           text: "#1b2333", halo: "rgba(255,255,255,0.95)", wallSel: "rgba(31,95,191,0.35)",
+           selFill: "rgba(31,95,191,0.16)", apTop: "#3d7ae0", apBottom: "#1b4fa8",
+           tagBg: "rgba(255,255,255,0.94)", tagLine: "#c3cad6", tagMuted: "#5b6880",
+           rulerBg: "#f7f8fa", rulerPlan: "#ffffff", rulerTick: "#9aa5b6", rulerText: "#5b6880", rulerLine: "#c3cad6" },
+  dark:  { stage: "#0b0f15", plan: "#141a24", grid: "rgba(160,180,210,0.08)", frame: "rgba(160,180,210,0.35)",
+           sel: "#4f8ff7", area: "#3cc8f0", areaFill: "rgba(60,200,240,0.10)", scale: "#e0a23a",
+           text: "#ffffff", halo: "rgba(11,15,21,0.9)", wallSel: "rgba(79,143,247,0.45)",
+           selFill: "rgba(79,143,247,0.22)", apTop: "#4f8ff7", apBottom: "#2559b8",
+           tagBg: "rgba(18,24,34,0.92)", tagLine: "#3a4556", tagMuted: "#95a2b5",
+           rulerBg: "#161c26", rulerPlan: "#1d2532", rulerTick: "#5d6a7e", rulerText: "#95a2b5", rulerLine: "#2a3442" },
+};
+let P = CANVAS_THEMES.light;
+// Round drag handle: white fill with a coloured ring.
+function handle(c, px, x, y, r = 5, color = P.sel) {
+  c.fillStyle = "#ffffff"; c.strokeStyle = color; c.lineWidth = 2 * px;
+  c.beginPath(); c.arc(x, y, r * px, 0, 7); c.fill(); c.stroke();
+}
 // Adds all boundary polygons to the current path, wound the same way so the
 // nonzero clip is their union. Returns false when there is no boundary.
 function clipToAreas(c) {
@@ -333,11 +376,158 @@ function clipToAreas(c) {
   return true;
 }
 
+// Access point: a ceiling-unit puck with a Wi-Fi mark, plus a name / channel tag below.
+function drawAp(c, px, ap, isSel) {
+  const r = 15 * px, x = ap.x, y = ap.y;
+  // selection halo
+  if (isSel) {
+    c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 2 * px;
+    c.beginPath(); c.arc(x, y, r + 6 * px, 0, 7); c.fill(); c.stroke();
+  }
+  // soft drop shadow
+  c.fillStyle = "rgba(0,0,0,0.28)";
+  c.beginPath(); c.arc(x, y + 1.5 * px, r + 1.5 * px, 0, 7); c.fill();
+  // body: white rim + coloured face with a subtle top highlight
+  c.fillStyle = "#ffffff";
+  c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+  const g = c.createLinearGradient(x, y - r, x, y + r);
+  g.addColorStop(0, P.apTop); g.addColorStop(1, P.apBottom);
+  c.fillStyle = g;
+  c.beginPath(); c.arc(x, y, r - 2.2 * px, 0, 7); c.fill();
+  // Wi-Fi mark: dot + two arcs, centred in the puck
+  const cy = y + r * 0.36;
+  c.strokeStyle = "#ffffff"; c.fillStyle = "#ffffff"; c.lineCap = "round"; c.lineWidth = 1.9 * px;
+  for (const k of [0.42, 0.74]) { c.beginPath(); c.arc(x, cy, r * k, -Math.PI * 0.76, -Math.PI * 0.24); c.stroke(); }
+  c.beginPath(); c.arc(x, cy, 1.9 * px, 0, 7); c.fill();
+  // tag: name (bold) and channels 2.4/5 GHz
+  const name = ap.name || "AP";
+  const ch = ap.ch24 || ap.ch5 ? `${ap.ch24 ?? "–"} / ${ap.ch5 ?? "–"}` : "";
+  const fontB = `600 ${12 * px}px "Segoe UI", "Leelawadee UI", sans-serif`;
+  const fontN = `${11 * px}px "Segoe UI", "Leelawadee UI", sans-serif`;
+  c.font = fontB; const wName = c.measureText(name).width;
+  c.font = fontN; const wCh = ch ? c.measureText(ch).width + 7 * px : 0;
+  const padX = 7 * px, h = 19 * px, w = wName + wCh + padX * 2;
+  const tx = x - w / 2, ty = y + r + (isSel ? 9 : 5) * px;
+  c.fillStyle = P.tagBg; c.strokeStyle = isSel ? P.sel : P.tagLine; c.lineWidth = 1 * px;
+  roundRect(c, tx, ty, w, h, 4 * px); c.fill(); c.stroke();
+  c.textAlign = "left"; c.textBaseline = "middle";
+  c.font = fontB; c.fillStyle = P.text; c.fillText(name, tx + padX, ty + h / 2 + 0.5 * px);
+  if (ch) {
+    const sx = tx + padX + wName + 3.5 * px;
+    c.fillStyle = P.tagLine; c.fillRect(sx - 0.5 * px, ty + 4 * px, 1 * px, h - 8 * px);
+    c.font = fontN; c.fillStyle = P.tagMuted; c.fillText(ch, sx + 3.5 * px, ty + h / 2 + 0.5 * px);
+  }
+}
+// Measured point: a diamond filled with the measured signal colour, plus "value (Δ error)".
+function drawSurveyPoint(c, px, pt, num, isSel) {
+  const other = pt.band !== project.settings.band;
+  const has = Number.isFinite(pt.dbm);
+  const s = 8 * px, x = pt.x, y = pt.y;
+  c.save();
+  if (other) c.globalAlpha = 0.4;
+  if (isSel) { c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 2 * px; c.beginPath(); c.arc(x, y, s + 7 * px, 0, 7); c.fill(); c.stroke(); }
+  c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath();
+  c.fillStyle = has ? `rgb(${signalColor(pt.dbm)})` : P.plan; c.fill();
+  c.strokeStyle = isSel ? P.sel : P.text; c.lineWidth = 1.6 * px; c.stroke();
+  // tag
+  let txt = has ? `${pt.dbm}` : "?";
+  if (has && project.aps.length) {
+    const pred = predictBest(project, pt.band, x, y);
+    if (Number.isFinite(pred)) { const d = pred - pt.dbm; txt += `  Δ${d >= 0 ? "+" : ""}${d.toFixed(1)}`; }
+  }
+  if (other) txt += `  (${pt.band}G)`;
+  const label = `#${num}  ${txt}`;
+  c.font = `600 ${10.5 * px}px "Segoe UI", sans-serif`;
+  const w = c.measureText(label).width + 10 * px, h = 16 * px, tx = x + s + 4 * px, ty = y - h / 2;
+  c.fillStyle = P.tagBg; c.strokeStyle = isSel ? P.sel : P.tagLine; c.lineWidth = 1 * px;
+  roundRect(c, tx, ty, w, h, 3 * px); c.fill(); c.stroke();
+  c.fillStyle = P.text; c.textAlign = "left"; c.textBaseline = "middle";
+  c.fillText(label, tx + 5 * px, y + 0.5 * px);
+  c.restore();
+}
+function hitSurvey(p) {
+  const tol = 11 * touchK / view.s;
+  const list = project.survey || [];
+  for (let i = list.length - 1; i >= 0; i--) if (Math.hypot(p.x - list[i].x, p.y - list[i].y) <= tol) return list[i];
+  return null;
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+
+// ---------- rulers (screen space, metres from the plan origin) ----------
+const RULER = 22;   // CSS px
+const rulersOn = () => project.settings.rulers !== false;
+function niceStep(minM) {
+  for (const s of [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]) if (s >= minM) return s;
+  return 1000;
+}
+function drawRulers(c) {
+  const R = RULER, cw = canvas.clientWidth, chh = canvas.clientHeight;
+  const pxPerM = view.s / project.mPerPx;           // screen px per metre
+  const major = niceStep(70 / pxPerM);              // labelled ticks at least ~70 px apart
+  const minor = major / (String(major)[0] === "2" ? 4 : 5);
+  const fmt = v => (major < 1 ? v.toFixed(1) : String(Math.round(v)));
+  c.save();
+  c.font = `10px "Segoe UI", sans-serif`;
+  c.fillStyle = P.rulerBg;
+  c.fillRect(0, 0, cw, R); c.fillRect(0, 0, R, chh);
+  // plan extent shading
+  const x0 = view.ox, x1 = view.ox + project.plan.width * view.s, y0 = view.oy, y1 = view.oy + project.plan.height * view.s;
+  c.fillStyle = P.rulerPlan;
+  c.fillRect(Math.max(R, x0), 0, Math.max(0, Math.min(cw, x1) - Math.max(R, x0)), R);
+  c.fillRect(0, Math.max(R, y0), R, Math.max(0, Math.min(chh, y1) - Math.max(R, y0)));
+  c.strokeStyle = P.rulerTick; c.fillStyle = P.rulerText; c.lineWidth = 1;
+  c.beginPath();
+  // horizontal ruler
+  const mx0 = (R - view.ox) / pxPerM, mx1 = (cw - view.ox) / pxPerM;
+  for (let i = Math.ceil(mx0 / minor); i * minor <= mx1; i++) {
+    const m = i * minor, sx = Math.round(view.ox + m * pxPerM) + 0.5;
+    const isMajor = Math.abs(m / major - Math.round(m / major)) < 1e-6;
+    c.moveTo(sx, R); c.lineTo(sx, isMajor ? R - 10 : R - 5);
+  }
+  // vertical ruler
+  const my0 = (R - view.oy) / pxPerM, my1 = (chh - view.oy) / pxPerM;
+  for (let i = Math.ceil(my0 / minor); i * minor <= my1; i++) {
+    const m = i * minor, sy = Math.round(view.oy + m * pxPerM) + 0.5;
+    const isMajor = Math.abs(m / major - Math.round(m / major)) < 1e-6;
+    c.moveTo(R, sy); c.lineTo(isMajor ? R - 10 : R - 5, sy);
+  }
+  c.stroke();
+  // labels
+  c.textBaseline = "top"; c.textAlign = "left";
+  for (let i = Math.ceil(mx0 / major); i * major <= mx1; i++) {
+    const sx = view.ox + i * major * pxPerM;
+    c.fillText(fmt(i * major), sx + 3, 3);
+  }
+  for (let i = Math.ceil(my0 / major); i * major <= my1; i++) {
+    const sy = view.oy + i * major * pxPerM;
+    c.save(); c.translate(3, sy - 3); c.rotate(-Math.PI / 2); c.fillText(fmt(i * major), 0, 0); c.restore();
+  }
+  // cursor markers
+  if (cursor) {
+    const sx = view.ox + cursor.x * view.s, sy = view.oy + cursor.y * view.s;
+    c.strokeStyle = P.sel; c.lineWidth = 1.5; c.beginPath();
+    if (sx > R) { c.moveTo(sx, 0); c.lineTo(sx, R); }
+    if (sy > R) { c.moveTo(0, sy); c.lineTo(R, sy); }
+    c.stroke();
+  }
+  // borders + corner with unit
+  c.strokeStyle = P.rulerLine; c.lineWidth = 1; c.beginPath();
+  c.moveTo(0, R - 0.5); c.lineTo(cw, R - 0.5); c.moveTo(R - 0.5, 0); c.lineTo(R - 0.5, chh); c.stroke();
+  c.fillStyle = P.rulerBg; c.fillRect(0, 0, R - 1, R - 1);
+  c.fillStyle = P.rulerText; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("m", R / 2, R / 2);
+  c.restore();
+}
+
 function label(c, px, x, y, text) {
   c.font = `${12 * px}px "Segoe UI", sans-serif`;
   c.textAlign = "center"; c.textBaseline = "middle";
   const w = c.measureText(text).width + 10 * px;
-  c.fillStyle = "rgba(11,15,26,0.85)";
+  c.fillStyle = "rgba(27,35,51,0.88)";
   c.fillRect(x - w / 2, y - 9 * px, w, 18 * px);
   c.fillStyle = "#fff"; c.fillText(text, x, y);
 }
@@ -345,10 +535,11 @@ function label(c, px, x, y, text) {
 function draw() {
   const dpr = window.devicePixelRatio || 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = "#070a12";
+  ctx.fillStyle = (CANVAS_THEMES[uiTheme] || CANVAS_THEMES.light).stage;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(dpr * view.s, 0, 0, dpr * view.s, dpr * view.ox, dpr * view.oy);
   drawScene(ctx, 1 / view.s);
+  if (rulersOn()) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawRulers(ctx); }
 }
 
 // ---------- hit testing & snapping ----------
@@ -437,8 +628,9 @@ function setTool(name) {
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea" };
+  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey" };
   showHint(t(hints[name]));
+  if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
   canvas.style.cursor = name === "pan" ? "grab" : name === "select" ? "default" : "crosshair";
   renderPanel();
   requestRender();
@@ -457,7 +649,9 @@ function deleteSelection() {
   if (!o) return;
   pushHistory();
   if (selection.type === "ap") project.aps = project.aps.filter(a => a !== o);
+  else if (selection.type === "aps") project.aps = project.aps.filter(a => !o.includes(a));
   else if (selection.type === "area") project.areas = project.areas.filter(a => a !== o);
+  else if (selection.type === "survey") project.survey = project.survey.filter(q => q !== o);
   else project.walls = project.walls.filter(w => w !== o);
   selection = null;
   changed();
@@ -509,9 +703,27 @@ canvas.addEventListener("pointerdown", e => {
       if (i >= 0) { drag = { type: "areaPt", area: sel, i, pushed: false }; return; }
     }
     const ap = hitAp(p);
+    const multi = e.shiftKey || e.ctrlKey || e.metaKey;
+    if (ap && multi) {                                   // Shift/Ctrl+click: add or remove from the selection
+      const ids = selectedAps().map(a => a.id);
+      selectAps(ids.includes(ap.id) ? ids.filter(id => id !== ap.id) : [...ids, ap.id]);
+      renderPanel(); requestRender();
+      return;
+    }
     if (ap) {
-      selection = { type: "ap", id: ap.id };
-      drag = { type: "ap", ap, dx: p.x - ap.x, dy: p.y - ap.y, pushed: false };
+      if (!isApSelected(ap)) selection = { type: "ap", id: ap.id };   // dragging a selected AP moves the whole group
+      drag = { type: "aps", aps: selectedAps(), last: p, pushed: false };
+      renderPanel(); requestRender();
+      return;
+    }
+    if (multi) {                                         // Shift+drag on empty space: box-select APs
+      drag = { type: "marquee", a: p, b: p, base: selectedAps().map(a => a.id) };
+      return;
+    }
+    const sp = hitSurvey(p);
+    if (sp) {
+      selection = { type: "survey", id: sp.id };
+      drag = { type: "survey", pt: sp, last: p, pushed: false };
       renderPanel(); requestRender();
       return;
     }
@@ -574,12 +786,19 @@ canvas.addEventListener("pointermove", e => {
       requestRender();
       return;
     }
+    if (drag.type === "marquee") { drag.b = p; requestRender(); return; }
     if (!drag.pushed) { pushHistory(); drag.pushed = true; }
-    if (drag.type === "ap") { drag.ap.x = p.x - drag.dx; drag.ap.y = p.y - drag.dy; }
+    if (drag.type === "aps") {
+      const dx = p.x - drag.last.x, dy = p.y - drag.last.y;
+      for (const a of drag.aps) { a.x += dx; a.y += dy; }
+      drag.last = p;
+    }
     else if (drag.type === "wall") {
       const dx = p.x - drag.last.x, dy = p.y - drag.last.y;
       drag.wall.x1 += dx; drag.wall.y1 += dy; drag.wall.x2 += dx; drag.wall.y2 += dy;
       drag.last = p;
+    } else if (drag.type === "survey") {
+      drag.pt.x += p.x - drag.last.x; drag.pt.y += p.y - drag.last.y; drag.last = p;
     } else if (drag.type === "area") {
       const dx = p.x - drag.last.x, dy = p.y - drag.last.y;
       for (const q of drag.area.pts) { q.x += dx; q.y += dy; }
@@ -598,8 +817,9 @@ canvas.addEventListener("pointermove", e => {
   }
 
   if (tool === "select" && e.pointerType === "mouse") {
-    canvas.style.cursor = hitAp(p) || hitWall(p) || hitArea(p) ? "pointer" : "default";
+    canvas.style.cursor = hitAp(p) || hitSurvey(p) || hitWall(p) || hitArea(p) ? "pointer" : "default";
   }
+  if (rulersOn()) requestRender();
   if ((tool === "wall" && wallChain) || (tool === "area" && areaDraft) || (tool === "scale" && scaleLine && !scaleLine.b)) requestRender();
 });
 
@@ -607,16 +827,39 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   if (pinch) { if (pointers.size < 2) pinch = null; return; }
   if (pending && e.type === "pointerup") tapAction(pending);
+  if (drag?.type === "marquee") {
+    const x0 = Math.min(drag.a.x, drag.b.x), x1 = Math.max(drag.a.x, drag.b.x);
+    const y0 = Math.min(drag.a.y, drag.b.y), y1 = Math.max(drag.a.y, drag.b.y);
+    const inBox = project.aps.filter(a => a.x >= x0 && a.x <= x1 && a.y >= y0 && a.y <= y1).map(a => a.id);
+    selectAps([...drag.base, ...inBox]);
+    drag = null; renderPanel(); requestRender();
+    return;
+  }
   pending = null;
   if (drag && drag.type !== "pan" && drag.pushed) changed();   // fine heatmap after drag
   if (drag?.type === "pan") canvas.style.cursor = tool === "pan" ? "grab" : "default";
   drag = null;
 }
 canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointerleave", () => { if (!drag) { cursor = null; $("#stCursor").textContent = "—"; requestRender(); } });
 canvas.addEventListener("pointercancel", endPointer);
 
 function tapAction({ p, shift }) {
   if (tool === "ap") { addAp(p); return; }
+  if (tool === "survey") {
+    const hit = hitSurvey(p);
+    if (hit) selection = { type: "survey", id: hit.id };
+    else {
+      pushHistory();
+      const pt = { id: uid(), x: p.x, y: p.y, dbm: null, band: project.settings.band };
+      project.survey = [...(project.survey || []), pt];
+      selection = { type: "survey", id: pt.id };
+      scheduleAutosave();
+    }
+    renderPanel(); renderStats(); requestRender();
+    setTimeout(() => { const i = $("#surveyDbm"); if (i) { i.focus(); i.select(); } }, 0);
+    return;
+  }
   if (tool === "wall") {
     const q = snapWall(p, shift);
     if (wallChain && Math.hypot(q.x - wallChain.x, q.y - wallChain.y) * view.s > 3) {
@@ -699,8 +942,9 @@ window.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y" && !typing) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveProject(); return; }
   if (typing) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area" };
+  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { setTool(map[e.key.toLowerCase()]); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
   if (areaDraft && e.key === "Backspace") {                  // remove the last boundary point
@@ -733,21 +977,211 @@ function matButtons(active) {
        <span class="dot" style="background:${m.color}"></span>${esc(t("mat_" + k))}</button>`).join("")}</div>`;
 }
 
-function modelOptions(selected, withCustom) {
-  const brands = [...new Set(AP_MODELS.map(m => m.brand))];
+// <option>s for the model picker. `q` filters by brand / model / standard; the selected
+// model always stays in the list so filtering never changes the value silently.
+function modelOptions(selected, withCustom, q = "") {
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const match = m => m.id === selected || terms.every(w => `${m.brand} ${m.model} ${m.std}`.toLowerCase().includes(w));
+  const list = AP_MODELS.filter(match);
+  const opt = m => `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${esc(m.model)} · ${m.std}</option>`;
+  const mine = list.filter(m => m.custom);
+  const brands = [...new Set(list.filter(m => !m.custom).map(m => m.brand))];
   return (withCustom ? `<option value="custom" ${selected === "custom" ? "selected" : ""}>${t("custom")}</option>` : "") +
-    brands.map(b => `<optgroup label="${esc(b)}">` + AP_MODELS.filter(m => m.brand === b).map(m =>
-      `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${esc(m.model)} · ${m.std}</option>`).join("") + "</optgroup>").join("");
+    (mine.length ? `<optgroup label="${esc(t("myModels"))}">` + mine.map(m =>
+      `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${esc(m.brand)} ${esc(m.model)} · ${m.std}</option>`).join("") + "</optgroup>" : "") +
+    brands.map(b => `<optgroup label="${esc(b)}">` + list.filter(m => !m.custom && m.brand === b).map(opt).join("") + "</optgroup>").join("");
 }
+// Search box + manage button that sit above a model <select>.
+function modelSearchHtml(id) {
+  return `<div class="model-tools"><input type="search" id="${id}" class="model-search" placeholder="${esc(tf("searchModels", { n: AP_MODELS.length }))}" autocomplete="off">
+    <button type="button" class="link-btn" data-manage-models>${t("manageModels")}</button></div>`;
+}
+function wireModelSearch(input, select, getSelected, withCustom, extraTop = "") {
+  input.addEventListener("input", () => {
+    select.innerHTML = extraTop + modelOptions(getSelected(), withCustom, input.value);
+  });
+}
+
+// ---------- user-defined AP models ----------
+// Kept in this browser (wpth-custom-models) and copied into each saved project, so a project
+// opened on another computer brings its models along (and adds them to that browser's list).
+const CUSTOM_KEY = "wpth-custom-models";
+function customLibrary() {
+  try { const l = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+function saveCustomLibrary(list) { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch (e) {} }
+function registerCustomModels(list) {
+  for (const m of list || []) {
+    if (!m || !m.id || !m.model) continue;
+    const spec = { id: m.id, brand: m.brand || t("myModels"), model: m.model, std: m.std || "Wi-Fi 6",
+                   tx24: +m.tx24 || 0, tx5: +m.tx5 || 0, gain24: +m.gain24 || 0, gain5: +m.gain5 || 0, custom: true };
+    const i = AP_MODELS.findIndex(x => x.id === spec.id);
+    if (i >= 0) { if (AP_MODELS[i].custom) AP_MODELS[i] = spec; else continue; } else AP_MODELS.push(spec);
+    AP_BY_ID[spec.id] = spec;
+  }
+}
+function mergeIntoLibrary(list) {
+  const lib = customLibrary();
+  for (const m of list || []) if (m && m.id && !lib.some(x => x.id === m.id)) lib.push(m);
+  saveCustomLibrary(lib);
+}
+const plainModel = m => ({ id: m.id, brand: m.brand, model: m.model, std: m.std, tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 });
+
+function openModelManager(prefillId) {
+  const base = AP_BY_ID[prefillId] || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
+  const stds = ["Wi-Fi 4", "Wi-Fi 5", "Wi-Fi 6", "Wi-Fi 6E", "Wi-Fi 7"];
+  const render = () => {
+    const lib = customLibrary();
+    openModal(`<h2>${t("manageModels").replace(/^\+\s*/, "")}</h2>
+      <p>${t("customModelsHelp")}</p>
+      ${lib.length ? `<table class="calib-tbl model-tbl"><thead><tr><th>${t("brandLbl")}</th><th>${t("apModel")}</th><th>Std</th>
+        <th>Tx 2.4/5<br><span class="u">dBm</span></th><th>Gain 2.4/5<br><span class="u">dBi</span></th><th></th></tr></thead><tbody>
+        ${lib.map(m => `<tr><td>${esc(m.brand)}</td><td>${esc(m.model)}</td><td>${esc(m.std)}</td><td>${m.tx24} / ${m.tx5}</td><td>${m.gain24} / ${m.gain5}</td>
+          <td><button class="link-btn danger" data-del="${esc(m.id)}">${t("deleteShort")}</button></td></tr>`).join("")}</tbody></table>`
+        : `<p class="unit">${t("noCustomModels")}</p>`}
+      <h3 class="modal-sub">${t("addModel")}</h3>
+      <div class="model-form">
+        <label class="field"><span>${t("brandLbl")}</span><input id="cmBrand" value="${esc(base.custom ? base.brand : base.brand === "Generic" ? "" : base.brand)}"></label>
+        <label class="field"><span>${t("apModel")}</span><input id="cmModel" placeholder="${esc(t("modelNamePh"))}"></label>
+        <label class="field"><span>Standard</span><select id="cmStd">${stds.map(x => `<option ${x === base.std ? "selected" : ""}>${x}</option>`).join("")}</select></label>
+        <label class="field"><span>${t("tx24")} (dBm)</span><input id="cmTx24" type="number" step="1" min="0" max="36" value="${base.tx24}"></label>
+        <label class="field"><span>${t("tx5")} (dBm)</span><input id="cmTx5" type="number" step="1" min="0" max="36" value="${base.tx5}"></label>
+        <label class="field"><span>${t("gain24")} (dBi)</span><input id="cmG24" type="number" step="0.1" min="0" max="20" value="${base.gain24}"></label>
+        <label class="field"><span>${t("gain5")} (dBi)</span><input id="cmG5" type="number" step="0.1" min="0" max="20" value="${base.gain5}"></label>
+      </div>
+      <p class="unit">${t("customModelsNote")}</p>
+      <div class="btns inline"><button data-act="close">${t("close")}</button><button class="primary" data-act="add">${t("addModel")}</button></div>`, null, "wide");
+    const box = $("#modalBox");
+    box.querySelector('[data-act="close"]').onclick = closeModal;
+    box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      const id = b.dataset.del;
+      saveCustomLibrary(customLibrary().filter(m => m.id !== id));
+      const i = AP_MODELS.findIndex(m => m.id === id && m.custom);
+      if (i >= 0) AP_MODELS.splice(i, 1);
+      delete AP_BY_ID[id];                       // APs using it keep their values and show as "Custom"
+      if (project.newApModel === id) project.newApModel = "generic-ax";
+      project.customModels = customLibrary();
+      render(); renderPanel(); renderAiModel(); scheduleAutosave();
+    });
+    box.querySelector('[data-act="add"]').onclick = () => {
+      const model = $("#cmModel").value.trim();
+      if (!model) { $("#cmModel").focus(); return; }
+      const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+      const m = { id: "user-" + uid(), brand: $("#cmBrand").value.trim() || t("myModels"), model, std: $("#cmStd").value,
+                  tx24: num("#cmTx24"), tx5: num("#cmTx5"), gain24: num("#cmG24"), gain5: num("#cmG5") };
+      saveCustomLibrary([...customLibrary(), m]);
+      registerCustomModels([m]);
+      project.customModels = customLibrary();
+      project.newApModel = m.id;
+      flash(tf("modelAdded", { m: `${m.brand} ${m.model}` }));
+      render(); renderPanel(); renderAiModel(); scheduleAutosave();
+    };
+    setTimeout(() => $("#cmModel")?.focus(), 0);
+  };
+  render();
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-manage-models]");
+  if (!b) return;
+  const one = selectedAps();
+  openModelManager(one.length === 1 ? one[0].model : null);
+});
 function eirpText(o) {
   const cap = project.settings.capNbtc;
-  const part = (b, raw) => { const e = apEirp(o, b, cap); return e < raw ? `${raw}→<b>${e}</b>` : `<b>${raw}</b>`; };
+  const part = (b, raw) => { const e = apEirp(o, b, cap); return !Number.isFinite(e) ? "—" : e < raw ? `${raw}→<b>${e}</b>` : `<b>${raw}</b>`; };
   return `EIRP 2.4G ${part("2.4", o.tx24 + o.gain24)} · 5G ${part("5", o.tx5 + o.gain5)} dBm` + (cap ? " (NBTC)" : "");
+}
+
+// Card title follows what the panel is showing (no generic "Properties" heading).
+const noKey = label => label.replace(/\s*\([^)]*\)\s*$/, "");
+function panelTitle(o) {
+  if (tool === "scale") return noKey(t("toolScale"));
+  if (o && selection.type === "ap") return `Access Point: ${o.name || "AP"}`;
+  if (o && selection.type === "aps") return tf("apsSelected", { n: o.length });
+  if (o && selection.type === "wall") return t("tlWall");
+  if (o && selection.type === "area") return t("areaBoundary");
+  if (o && selection.type === "survey") return `${t("surveyPoint")} #${project.survey.indexOf(o) + 1}`;
+  if (tool === "survey") return noKey(t("toolSurvey"));
+  if (tool === "area") return noKey(t("toolArea"));
+  if (tool === "wall") return noKey(t("toolWall"));
+  return "";
+}
+
+// AP settings for one AP or several at once. With several, a field shows its value when
+// every selected AP agrees, otherwise it is blank ("mixed"); editing it sets all of them.
+const CH24_LIST = [1,2,3,4,5,6,7,8,9,10,11,12,13];
+const CH5_LIST = [36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165];
+function renderApPanel(el, aps) {
+  const one = aps.length === 1, o = aps[0];
+  const same = f => aps.every(a => a[f] === o[f]);
+  const val = f => same(f) ? o[f] : "";
+  const mixed = esc(t("mixedValues"));
+  const num = (f, max, step) => `<input type="number" data-f="${f}" min="0" max="${max}" step="${step}" value="${val(f) ?? ""}" ${same(f) ? "" : `placeholder="${mixed}"`}>`;
+  const chSel = (f, list) => `<select data-f="${f}">${same(f) ? "" : `<option value="__mixed" selected>${mixed}</option>`}<option value="" ${same(f) && o[f] == null ? "selected" : ""}>–</option>` +
+    list.map(c => `<option value="${c}" ${same(f) && c === o[f] ? "selected" : ""}>${c}</option>`).join("") + `</select>`;
+  const modelSame = same("model");
+  const spec = modelSame ? AP_BY_ID[o.model] : null;
+  const eirpLine = () => one ? eirpText(o) : "";
+  el.innerHTML = `
+    ${one ? `<label class="row"><span>${t("apName")}</span><input type="text" data-f="name" value="${esc(o.name)}"></label>`
+          : `<p class="unit">${t("multiHelp")}</p>`}
+    <label class="row"><span>${t("apModel")}</span><select id="apModelSel">${modelSame ? "" : `<option value="__mixed" selected>${mixed}</option>`}${modelOptions(modelSame ? o.model : "", true)}</select></label>
+    ${modelSearchHtml("apModelSearch")}
+    <p class="unit model-info">${spec ? `${esc(spec.brand)} · ${spec.std} · ${t("modelNote")}` : ""}</p>
+    <label class="row"><span>${t("tx24")} <span class="u">(dBm)</span></span>${num("tx24", 30, 1)}</label>
+    <label class="row"><span>${t("tx5")} <span class="u">(dBm)</span></span>${num("tx5", 30, 1)}</label>
+    <label class="row"><span>${t("gain24")} <span class="u">(dBi)</span></span>${num("gain24", 15, 0.1)}</label>
+    <label class="row"><span>${t("gain5")} <span class="u">(dBi)</span></span>${num("gain5", 15, 0.1)}</label>
+    <label class="row"><span>${t("ch24")}</span>${chSel("ch24", CH24_LIST)}</label>
+    <label class="row"><span>${t("ch5")}</span>${chSel("ch5", CH5_LIST)}</label>
+    <p class="unit eirp">${eirpLine()}</p>
+    ${one && project.aps.length > 1 ? `<button class="btn" id="applyAllBtn">${t("applyToAll")}</button>` : ""}
+    ${project.aps.length > aps.length ? `<button class="btn" id="selAllBtn">${t("selectAllAps")}</button>` : ""}
+    ${one ? `<p class="unit">${t("multiTip")}</p>` : ""}
+    <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+
+  wireModelSearch($("#apModelSearch"), $("#apModelSel"), () => modelSame ? o.model : "", true,
+    modelSame ? "" : `<option value="__mixed" selected>${mixed}</option>`);
+  $("#apModelSel").addEventListener("change", e => {
+    if (e.target.value === "__mixed") return;
+    const m = AP_BY_ID[e.target.value];
+    pushHistory();
+    for (const a of aps) {
+      a.model = e.target.value;
+      if (m) Object.assign(a, { tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 });
+    }
+    if (m) { project.newApModel = m.id; renderAiModel(); }
+    changed();
+  });
+  el.querySelectorAll("[data-f]").forEach(inp => {
+    inp.addEventListener("focus", pushHistory);
+    const apply = () => {
+      const f = inp.dataset.f;
+      if (inp.value === "__mixed") return;
+      if (f === "name") { o.name = inp.value; $("#propsTitle").textContent = panelTitle(o); }
+      else if (f === "ch24" || f === "ch5") for (const a of aps) a[f] = inp.value ? +inp.value : null;
+      else { const v = parseFloat(inp.value); if (!isFinite(v)) return; for (const a of aps) a[f] = v; }
+      el.querySelector(".eirp").innerHTML = eirpLine();
+      changed({ panel: false });
+    };
+    inp.addEventListener("input", apply);
+    if (inp.tagName === "SELECT") inp.addEventListener("change", apply);
+  });
+  $("#applyAllBtn")?.addEventListener("click", () => {
+    pushHistory();
+    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, gain24: o.gain24, gain5: o.gain5 });
+    changed();
+    flash(tf("appliedAll", { n: project.aps.length }));
+  });
+  $("#selAllBtn")?.addEventListener("click", selectAllAps);
 }
 
 function renderPanel() {
   const el = $("#props");
   const o = findSel();
+  const title = panelTitle(o);
+  $("#propsTitle").textContent = title;
+  $("#propsCard").hidden = !title;       // only shown while something is selected or a drawing tool needs options
 
   if (tool === "scale") {
     const len = scaleLine?.b ? Math.hypot(scaleLine.b.x - scaleLine.a.x, scaleLine.b.y - scaleLine.a.y) : 0;
@@ -770,41 +1204,8 @@ function renderPanel() {
     return;
   }
 
-  if (o && selection.type === "ap") {
-    const spec = AP_BY_ID[o.model];
-    const chOpts = (list, cur) => `<option value="">–</option>` + list.map(c => `<option value="${c}" ${c === cur ? "selected" : ""}>${c}</option>`).join("");
-    el.innerHTML = `
-      <label class="row"><span>${t("apName")}</span><input type="text" data-f="name" value="${esc(o.name)}"></label>
-      <label class="row"><span>${t("apModel")}</span><select id="apModelSel">${modelOptions(o.model, true)}</select></label>
-      <p class="unit model-info">${spec ? `${esc(spec.brand)} · ${spec.std} · ${t("modelNote")}` : ""}</p>
-      <label class="row"><span>${t("tx24")}</span><input type="number" data-f="tx24" min="0" max="30" step="1" value="${o.tx24}"></label>
-      <label class="row"><span>${t("tx5")}</span><input type="number" data-f="tx5" min="0" max="30" step="1" value="${o.tx5}"></label>
-      <label class="row"><span>${t("gain24")}</span><input type="number" data-f="gain24" min="0" max="15" step="0.1" value="${o.gain24}"></label>
-      <label class="row"><span>${t("gain5")}</span><input type="number" data-f="gain5" min="0" max="15" step="0.1" value="${o.gain5}"></label>
-      <label class="row"><span>${t("ch24")}</span><select data-f="ch24">${chOpts([1,2,3,4,5,6,7,8,9,10,11,12,13], o.ch24)}</select></label>
-      <label class="row"><span>${t("ch5")}</span><select data-f="ch5">${chOpts([36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165], o.ch5)}</select></label>
-      <p class="unit eirp">${eirpText(o)}</p>
-      <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
-    $("#apModelSel").addEventListener("change", e => {
-      const m = AP_BY_ID[e.target.value];
-      pushHistory();
-      o.model = e.target.value;
-      if (m) { Object.assign(o, { tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 }); project.newApModel = m.id; renderAiModel(); }
-      changed();
-    });
-    el.querySelectorAll("[data-f]").forEach(inp => {
-      inp.addEventListener("focus", pushHistory);
-      const apply = () => {
-        const f = inp.dataset.f;
-        if (f === "name") o.name = inp.value;
-        else if (f === "ch24" || f === "ch5") o[f] = inp.value ? +inp.value : null;
-        else { const v = parseFloat(inp.value); if (isFinite(v)) o[f] = v; }
-        el.querySelector(".eirp").innerHTML = eirpText(o);
-        changed({ panel: false });
-      };
-      inp.addEventListener("input", apply);
-      if (inp.tagName === "SELECT") inp.addEventListener("change", apply);
-    });
+  if (o && (selection.type === "ap" || selection.type === "aps")) {
+    renderApPanel(el, selection.type === "ap" ? [o] : o);
   } else if (o && selection.type === "wall") {
     el.innerHTML = `
       <div class="row"><span>${t("material")}</span></div>${matButtons(o.mat)}
@@ -813,6 +1214,37 @@ function renderPanel() {
     el.querySelectorAll("[data-mat]").forEach(b => b.addEventListener("click", () => {
       pushHistory(); o.mat = b.dataset.mat; project.newWallMat = o.mat; changed();
     }));
+  } else if (o && selection.type === "survey") {
+    const pred = project.aps.length ? predictBest(project, o.band, o.x, o.y) : -Infinity;
+    const has = Number.isFinite(o.dbm);
+    const errTxt = () => {
+      if (!Number.isFinite(o.dbm)) return t("noValue");
+      if (!Number.isFinite(pred)) return "—";
+      const d = pred - o.dbm; return `${d >= 0 ? "+" : ""}${d.toFixed(1)} dB`;
+    };
+    el.innerHTML = `
+      <label class="row"><span>${t("measured")} <span class="u">(dBm)</span></span>
+        <input type="number" id="surveyDbm" min="-110" max="-10" step="1" value="${has ? o.dbm : ""}" placeholder="-65"></label>
+      <div class="row"><span>${t("band")}</span>
+        <div class="seg" id="surveyBand"><button data-b="2.4" class="${o.band === "2.4" ? "active" : ""}">2.4 GHz</button><button data-b="5" class="${o.band === "5" ? "active" : ""}">5 GHz</button></div></div>
+      <div class="row"><span>${t("predicted")}</span><b>${Number.isFinite(pred) ? pred.toFixed(1) + " dBm" : "—"}</b></div>
+      <div class="row"><span>${t("errorLbl")}</span><b id="surveyErr">${errTxt()}</b></div>
+      <p class="unit">${t("surveyHowTo")}</p>
+      <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+    const inp = $("#surveyDbm");
+    inp.addEventListener("focus", pushHistory);
+    inp.addEventListener("input", () => {
+      const v = parseFloat(inp.value);
+      o.dbm = isFinite(v) ? Math.round(v * 10) / 10 : null;
+      $("#surveyErr").textContent = errTxt();
+      renderStats(); requestRender(); scheduleAutosave();
+    });
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") { inp.blur(); if (tool !== "survey") { selection = null; renderPanel(); requestRender(); } } });
+    el.querySelectorAll("#surveyBand [data-b]").forEach(b => b.addEventListener("click", () => {
+      pushHistory(); o.band = b.dataset.b; renderPanel(); renderStats(); requestRender(); scheduleAutosave();
+    }));
+  } else if (tool === "survey") {
+    el.innerHTML = `<p class="empty">${t("surveyHelp")}</p>`;
   } else if (o && selection.type === "area") {
     el.innerHTML = `
       <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
@@ -833,7 +1265,7 @@ function renderPanel() {
       project.newWallMat = b.dataset.mat; renderPanel(); scheduleAutosave();
     }));
   } else {
-    el.innerHTML = `<p class="empty">${t("nothingSelected")}</p>`;
+    el.innerHTML = "";          // nothing to edit: the card is hidden (see top of renderPanel)
   }
   $("#delBtn")?.addEventListener("click", deleteSelection);
 }
@@ -853,6 +1285,7 @@ function renderSettings() {
   $("#minSel").value = String(st.minDbm);
   $("#capNbtc").checked = !!st.capNbtc;
   $("#wavesChk").checked = !!st.waves;
+  $("#rulersChk").checked = st.rulers !== false;
   $("#legend").innerHTML = SIGNAL_STOPS.map(s =>
     `<div class="item"><span class="sw" style="background:rgb(${s.rgb})"></span><span class="lbl"><b>${s.label}</b> dBm · ${t(s.key)}</span></div>`).join("") +
     `<div class="req-line">${t("requirement")}: <b>≥ ${reqDbm()} dBm</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
@@ -879,8 +1312,46 @@ function renderStats() {
     <span class="k">${t("meetsReq")} (≥ ${req})</span><span class="v ${cls(cov.meet, 0.95, 0.8)}">${pct(cov.meet)}</span>
     <span class="k">${t("covNone")}</span><span class="v ${cov.none < 0.02 ? "good" : cov.none < 0.1 ? "warn" : "bad"}">${pct(cov.none)}</span>` : ""}
     ${project.aps.length ? `<div class="models"><b>${t("apModels")}:</b><br>${Object.entries(counts).map(([k, n]) => `${n} × ${esc(k)}`).join("<br>")}</div>` : ""}`;
+  renderCalib();
   $("#stScale").textContent = project.scaleSet || !project.plan.image
-    ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : "⚠ " + t("noScale");
+    ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : t("noScale");
+}
+
+// ---------- calibration card ----------
+function renderCalib() {
+  const card = $("#calibCard");
+  const pts = project.survey || [];
+  card.hidden = !pts.length && tool !== "survey" && !project.calib;
+  if (card.hidden) return;
+  const E = surveyErrors(project);
+  const f = v => (v >= 0 ? "+" : "") + v.toFixed(1);
+  const row = (label, st) => st ? `<tr><td>${label}</td><td>${st.n}</td><td>${f(st.bias)}</td><td>${st.rms.toFixed(1)}</td><td>${st.max.toFixed(1)}</td></tr>` : "";
+  const cal = project.calib;
+  const envN = (ENVIRONMENTS[project.settings.env] || ENVIRONMENTS[1]).n;
+  const bigOff = cal && Math.max(Math.abs(cal.off24), Math.abs(cal.off5)) > CALIB_WARN_OFFSET;
+  $("#calib").innerHTML = (E.all ? `
+    <table class="calib-tbl">
+      <thead><tr><th>${t("band")}</th><th>${t("calibPoints")}</th><th>${t("calibBias")}</th><th>RMS</th><th>${t("calibMax")}</th></tr></thead>
+      <tbody>${row("2.4 GHz", E["2.4"])}${row("5 GHz", E["5"])}${E["2.4"] && E["5"] ? row(t("calibAll"), E.all) : ""}</tbody>
+    </table>
+    <p class="unit">${t("calibNote")}</p>` : `<p class="empty">${t("calibNeed")}</p>`) + `
+    ${cal ? `<div class="calib-on">
+      <b>${t("calibActive")}</b><br>
+      n = ${cal.n} <span class="unit">(${t("calibEnvWas")} ${envN})</span><br>
+      ${t("calibOffset")}: 2.4G ${f(cal.off24)} dB · 5G ${f(cal.off5)} dB
+      ${cal.rmsBefore != null ? `<br>RMS ${cal.rmsBefore} → ${cal.rmsAfter} dB` : ""}
+    </div>${bigOff ? `<p class="unit warn-text">${t("calibWarnOffset")}</p>` : ""}` : ""}
+    <button class="btn primary" id="calibFit" ${E.all && project.aps.length ? "" : "disabled"}>${t("calibFit")}</button>
+    ${cal ? `<button class="btn" id="calibReset">${t("calibReset")}</button>` : ""}
+    ${!pts.length ? `<button class="btn" id="calibStart">${t("toolSurvey")}</button>` : ""}`;
+  $("#calibFit")?.addEventListener("click", () => {
+    const res = fitCalibration(project);
+    if (!res) { flash(t("calibNeed")); return; }
+    pushHistory(); project.calib = res; changed();
+    flash(tf("calibDone", { a: res.rmsBefore ?? "—", b: res.rmsAfter }));
+  });
+  $("#calibReset")?.addEventListener("click", () => { pushHistory(); project.calib = null; changed(); });
+  $("#calibStart")?.addEventListener("click", () => setTool("survey"));
 }
 
 $("#bandSeg").addEventListener("click", e => {
@@ -891,13 +1362,22 @@ $("#envSel").addEventListener("change", e => { project.settings.env = +e.target.
 $("#reqSel").addEventListener("change", e => { project.settings.req = e.target.value === "auto" ? "auto" : +e.target.value; renderSettings(); changed({ panel: false }); });
 $("#minSel").addEventListener("change", e => { project.settings.minDbm = e.target.value === "auto" ? "auto" : +e.target.value; changed({ panel: false }); });
 $("#capNbtc").addEventListener("change", e => { project.settings.capNbtc = e.target.checked; changed(); });
+$("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
 $("#wavesChk").addEventListener("change", e => { project.settings.waves = e.target.checked; requestRender(); scheduleAutosave(); });
 
 // ---------- AI assistant ----------
 function renderAiModel() {
   const sel = $("#aiModel");
-  sel.innerHTML = modelOptions(project.newApModel, false);
+  if (!AP_BY_ID[project.newApModel]) project.newApModel = "generic-ax";
+  sel.innerHTML = modelOptions(project.newApModel, false, $("#aiModelSearchBox input")?.value || "");
   sel.value = project.newApModel;
+  const box = $("#aiModelSearchBox");
+  if (!box.firstChild) {
+    box.innerHTML = modelSearchHtml("aiModelSearch");
+    wireModelSearch($("#aiModelSearch"), sel, () => project.newApModel, false);
+  }
+  $("#aiModelSearch").placeholder = tf("searchModels", { n: AP_MODELS.length });
+  $("#aiModelSearchBox [data-manage-models]").textContent = t("manageModels");
 }
 $("#aiModel").addEventListener("change", e => { project.newApModel = e.target.value; scheduleAutosave(); });
 
@@ -933,40 +1413,6 @@ $("#btnChannels").addEventListener("click", () => {
   pushHistory(); assignChannels(project); changed(); flash(t("aiChannelsDone"));
 });
 
-$("#btnAiReview").addEventListener("click", () => {
-  if (!project.aps.length) { flash(t("aiNeedAps")); return; }
-  let saved = "";
-  try { saved = localStorage.getItem("wpth-ai-key") || ""; } catch (e) {}
-  openModal(`<h2>${t("aiAnalyze")}</h2>
-    <p>${t("aiPrivacy")}</p>
-    <label class="field"><span>${t("aiKey")}</span>
-      <input type="password" id="aiKeyInput" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" value="${esc(saved)}"></label>
-    <p class="unit">${t("aiKeyHelp")}</p>
-    <label class="check"><input type="checkbox" id="aiRemember" ${saved ? "checked" : ""}> ${t("aiRemember")}</label>
-    <div class="ai-out" id="aiOut" hidden></div>
-    <div class="btns inline"><button data-act="close">${t("close")}</button><button class="primary" data-act="run">${t("aiRun")}</button></div>`, null, "wide");
-  const box = $("#modalBox"), out = $("#aiOut"), run = box.querySelector('[data-act="run"]');
-  box.querySelector('[data-act="close"]').onclick = closeModal;
-  run.onclick = async () => {
-    const key = $("#aiKeyInput").value.trim();
-    if (!key) { $("#aiKeyInput").focus(); return; }
-    try { if ($("#aiRemember").checked) localStorage.setItem("wpth-ai-key", key); else localStorage.removeItem("wpth-ai-key"); } catch (e) {}
-    run.disabled = true;
-    out.hidden = false;
-    out.innerHTML = `<p class="working">${t("aiWorking")}</p>`;
-    let text = "";
-    try {
-      const msg = await runAiReview(key, d => { text += d; out.innerHTML = renderMarkdown(text); out.scrollTop = out.scrollHeight; });
-      if (msg.stop_reason === "refusal") out.innerHTML += `<p class="err">${t("aiRefused")}</p>`;
-      else if (!text) out.innerHTML = renderMarkdown(msg.content.filter(b => b.type === "text").map(b => b.text).join("\n"));
-    } catch (err) {
-      out.innerHTML = (text ? renderMarkdown(text) : "") + `<p class="err">${esc(aiErrorMessage(err))}</p>`;
-    } finally {
-      run.disabled = false;
-    }
-  };
-  if (!saved) setTimeout(() => $("#aiKeyInput").focus(), 0);
-});
 $("#opacity").addEventListener("input", e => { project.settings.opacity = +e.target.value; requestRender(); scheduleAutosave(); });
 
 // ---------- files ----------
@@ -987,6 +1433,7 @@ function download(blob, name) {
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 
 function saveProject() {
+  project.customModels = customLibrary();
   download(new Blob([JSON.stringify(project)], { type: "application/json" }), `wifi-plan-${stamp()}.json`);
   flash(t("saved"));
 }
@@ -995,6 +1442,7 @@ function loadProjectData(data) {
   if (!data || !data.plan || !Array.isArray(data.walls) || !Array.isArray(data.aps)) throw new Error("bad");
   const base = newProject();
   project = { ...base, ...data, settings: { ...base.settings, ...(data.settings || {}) } };
+  if (Array.isArray(project.customModels)) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
   project.aps.forEach(normalizeAp);
   selection = null; wallChain = null; scaleLine = null; areaDraft = null;
   undoStack = []; redoStack = [];
@@ -1010,6 +1458,7 @@ function loadProjectData(data) {
 
 // Downscale big floor plans so the heatmap stays fast and the project file stays small.
 function loadPlanFile(file) {
+  if (isPdfFile(file)) { loadPdfPlan(file); return; }
   const img = new Image();
   img.onload = () => {
     const MAX = 3000;
@@ -1028,7 +1477,7 @@ function loadPlanFile(file) {
       project.plan = { image: dataUrl, width: w, height: h };
       project.mPerPx = 30 / Math.max(w, h);
       project.scaleSet = false;
-      project.walls = []; project.aps = []; project.areas = [];
+      project.walls = []; project.aps = []; project.areas = []; project.survey = []; project.calib = null;
       undoStack = []; redoStack = [];
       selection = null;
       planImg = plan;
@@ -1049,28 +1498,29 @@ function exportPng() {
   const cv = document.createElement("canvas");
   cv.width = Math.round(W * k); cv.height = Math.round(H * k + legendH);
   const c = cv.getContext("2d");
-  c.fillStyle = "#0b0f1a"; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = "#ffffff"; c.fillRect(0, 0, cv.width, cv.height);
   c.save(); c.scale(k, k);
   if (heatDirty) updateHeat();
-  drawScene(c, 1 / k * Math.max(1, k * 0.8), { interactive: false });
+  drawScene(c, 1 / k * Math.max(1, k * 0.8), { interactive: false, theme: "light" });
   c.restore();
 
   // footer legend
   const u = Math.max(1, k * 0.8), y0 = H * k + pad;
-  c.fillStyle = "#121829"; c.fillRect(0, y0, cv.width, legendH);
-  c.fillStyle = "#fff"; c.font = `600 ${15 * u}px "Segoe UI", "Leelawadee UI", sans-serif`; c.textBaseline = "middle";
+  c.fillStyle = "#f3f5f8"; c.fillRect(0, y0, cv.width, legendH);
+  c.fillStyle = "#d8dde6"; c.fillRect(0, y0, cv.width, Math.max(1, u));
+  c.fillStyle = "#1b2333"; c.font = `600 ${15 * u}px "Segoe UI", "Leelawadee UI", sans-serif`; c.textBaseline = "middle";
   const env = ENVIRONMENTS[project.settings.env];
   c.fillText(`WiFi Planner TH — ${t("exportTitle")} · ${project.settings.band} GHz · ${project.aps.length} AP · ${t("requirement")} ≥ ${reqDbm()} dBm`, 14 * u, y0 + 20 * u);
   let x = 14 * u;
   c.font = `${12 * u}px "Segoe UI", "Leelawadee UI", sans-serif`;
   for (const s of SIGNAL_STOPS) {
     c.fillStyle = `rgb(${s.rgb})`; c.fillRect(x, y0 + 38 * u, 18 * u, 12 * u);
-    c.fillStyle = "#c9d1e6";
+    c.fillStyle = "#3b475c";
     const txt = `${s.label} dBm`;
     c.fillText(txt, x + 24 * u, y0 + 44 * u);
     x += 24 * u + c.measureText(txt).width + 18 * u;
   }
-  c.fillStyle = "#8b95b3";
+  c.fillStyle = "#5b6880";
   c.fillText(`${t(env.key)} · ${new Date().toLocaleDateString(langLocale())}`, x + 10 * u, y0 + 44 * u);
 
   cv.toBlob(b => { download(b, `wifi-coverage-${stamp()}.png`); flash(t("exported")); }, "image/png");
@@ -1081,6 +1531,7 @@ let autosaveTimer;
 function scheduleAutosave() {
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
+    project.customModels = customLibrary();
     try { localStorage.setItem("wpth-project", JSON.stringify(project)); }
     catch (e) { flash(t("autosaveFull")); }
   }, 800);
@@ -1092,7 +1543,7 @@ function startBlank() {
   renderSettings(); setTool("select"); fit(); changed();
   flash(t("blankPlan"));
 }
-const hasWork = () => project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0;
+const hasWork = () => project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0;
 $("#btnNew").addEventListener("click", () => {
   if (!hasWork()) { startBlank(); return; }
   confirmModal(t("newTitle"), t("newBody"), startBlank);
@@ -1104,6 +1555,7 @@ function pickPlan() {
 }
 $("#btnPlan").addEventListener("click", pickPlan);
 $("#btnHelp").addEventListener("click", showWelcome);
+$("#btnTheme").addEventListener("click", () => setTheme(uiTheme === "dark" ? "light" : "dark"));
 $("#filePlan").addEventListener("change", e => { const f = e.target.files[0]; if (f) loadPlanFile(f); e.target.value = ""; });
 $("#btnOpen").addEventListener("click", () => $("#fileOpen").click());
 $("#fileOpen").addEventListener("change", e => {
@@ -1113,9 +1565,10 @@ $("#fileOpen").addEventListener("change", e => {
 });
 $("#btnSave").addEventListener("click", saveProject);
 $("#btnExport").addEventListener("click", exportPng);
+$("#btnExportData").addEventListener("click", exportDesignCsv);
 $("#langSel").addEventListener("change", e => {
   setLang(e.target.value);
-  renderSettings(); renderPanel(); renderStats(); setTool(tool);
+  renderSettings(); renderPanel(); renderStats(); setTool(tool); setTheme(uiTheme);
   if (!$("#modal").hidden && $("#modalBox [data-act=demo]")) showWelcome();   // re-render welcome in new language
 });
 $("#btnUndo").addEventListener("click", undo);
@@ -1128,7 +1581,7 @@ $("#stage").addEventListener("dragover", e => e.preventDefault());
 $("#stage").addEventListener("drop", e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0]; if (!f) return;
-  if (f.type.startsWith("image/")) { if (hasWork()) confirmModal(t("planTitle"), t("planBody"), () => loadPlanFile(f)); else loadPlanFile(f); }
+  if (f.type.startsWith("image/") || isPdfFile(f)) { if (hasWork()) confirmModal(t("planTitle"), t("planBody"), () => loadPlanFile(f)); else loadPlanFile(f); }
   else f.text().then(txt => loadProjectData(JSON.parse(txt))).then(() => flash(t("loaded"))).catch(() => flash(t("badFile")));
 });
 
@@ -1180,13 +1633,39 @@ function showWelcome() {
 }
 
 // ---------- offline / installable (PWA) ----------
+// "Install app" button: Chrome / Edge / Android offer a native install prompt; iPhone / iPad
+// Safari has none, so show how to use "Add to Home Screen". Hidden when already installed.
+let installPrompt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function updateInstallBtn() {
+  $("#btnInstall").hidden = isStandalone() || !(installPrompt || (isIos() && location.protocol === "https:"));
+}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installPrompt = e; updateInstallBtn(); });
+window.addEventListener("appinstalled", () => { installPrompt = null; updateInstallBtn(); flash(t("appInstalled")); });
+$("#btnInstall").addEventListener("click", async () => {
+  if (installPrompt) {
+    installPrompt.prompt();
+    try { await installPrompt.userChoice; } catch (e) {}
+    installPrompt = null; updateInstallBtn();
+  } else {
+    openModal(`<h2>${t("installApp")}</h2><p>${t("installIos")}</p>
+      <div class="btns inline"><button class="primary" data-act="close">${t("close")}</button></div>`);
+    $("#modalBox [data-act=close]").onclick = closeModal;
+  }
+});
+updateInstallBtn();
+
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 }
 
 // ---------- start ----------
 window.addEventListener("resize", () => { resize(); });
+registerCustomModels(customLibrary());
+try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by the removed AI review feature
 applyI18n();
+setTheme(uiTheme);
 resize();
 (async () => {
   let saved = null;
