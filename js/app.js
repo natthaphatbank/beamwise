@@ -1044,7 +1044,7 @@ window.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
   const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
-  if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { setTool(map[e.key.toLowerCase()]); return; }
+  if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
   if (areaDraft && e.key === "Backspace") {                  // remove the last boundary point
     areaDraft.pop(); if (!areaDraft.length) areaDraft = null;
@@ -1303,6 +1303,7 @@ function renderPanel() {
   const title = panelTitle(o);
   $("#propsTitle").textContent = title;
   $("#propsCard").hidden = !title;       // only shown while something is selected or a drawing tool needs options
+  if (title) openPanel();
 
   if (tool === "scale") {
     const len = scaleLine?.b ? Math.hypot(scaleLine.b.x - scaleLine.a.x, scaleLine.b.y - scaleLine.a.y) : 0;
@@ -1450,9 +1451,20 @@ function renderSettings() {
 // A card that has appeared stays (deleting one AP does not hide the legend) until the
 // project is empty again or another project is opened.
 const revealed = { owner: null, summary: false, ai: false, display: false, legend: false };
+// Until the user starts working, the side panel is folded away and the plan fills the page.
+// It slides in on the first tool / selection (or when the project already has content) and
+// stays open; a new empty project folds it again.
+let panelOpen = false;
+function openPanel(open = true) {
+  if (panelOpen === open) return;
+  panelOpen = open;
+  $("#layout").classList.toggle("collapsed", !open);
+}
 function renderPanelCards() {
   const hasWalls = project.walls.length > 0, hasAps = project.aps.length > 0;
   const started = hasWalls || hasAps;
+  if (revealed.owner !== project) openPanel(started);
+  else if (started || selection) openPanel();
   if (revealed.owner !== project || !started) Object.assign(revealed, { owner: project, summary: false, ai: false, display: false, legend: false });
   revealed.summary ||= started; revealed.display ||= started; revealed.ai ||= hasWalls; revealed.legend ||= hasAps;
   $("#summaryCard").hidden = !revealed.summary;
@@ -1827,7 +1839,7 @@ $("#langSel").addEventListener("change", e => {
 $("#btnUndo").addEventListener("click", undo);
 $("#btnRedo").addEventListener("click", redo);
 $("#btnFit").addEventListener("click", fit);
-document.querySelectorAll("#tools [data-tool]").forEach(b => b.addEventListener("click", () => setTool(b.dataset.tool)));
+document.querySelectorAll("#tools [data-tool]").forEach(b => b.addEventListener("click", () => { openPanel(); setTool(b.dataset.tool); }));
 
 // Drag & drop a floor plan image or project file onto the canvas.
 $("#stage").addEventListener("dragover", e => e.preventDefault());

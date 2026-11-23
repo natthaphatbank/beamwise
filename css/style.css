@@ -75,6 +75,10 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* ---------- main layout ---------- */
 .layout { flex: 1; display: grid; grid-template-columns: 68px minmax(0, 1fr) 300px; grid-template-rows: minmax(0, 1fr); min-height: 0; }
 .layout > * { min-width: 0; min-height: 0; }
+.layout { transition: grid-template-columns .28s ease, grid-template-rows .28s ease; }
+.layout.collapsed { grid-template-columns: 68px minmax(0, 1fr) 0px; }
+.layout.collapsed .panel { overflow: hidden; padding: 0; border: 0; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .layout { transition: none; } }
 .tools { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; overflow-y: auto; }
 .tools button { width: 60px; min-height: 50px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px 2px; background: transparent; border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; color: var(--muted); }
 .tools button:hover { background: var(--panel-2); color: var(--text); }
@@ -209,6 +213,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   .actions::-webkit-scrollbar { display: none; }
   .actions button { white-space: nowrap; padding: 6px 10px; }
   .layout { grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 38vh; }
+  .layout.collapsed { grid-template-columns: 64px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 0px; }
   .tools { grid-row: 1; }
   .tools button { width: 56px; }
   .panel { grid-column: 1 / -1; max-height: none; border-left: 0; border-top: 1px solid var(--line); }
