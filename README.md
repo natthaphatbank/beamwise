@@ -89,17 +89,23 @@ Headings are in Thai when the UI is Thai, otherwise English. **Export image** gi
 
 ## RF model
 
-Best-server RSSI per grid cell, using a multi-wall log-distance model:
+Best-server RSSI per grid cell. For every AP the model takes the strongest of the direct path and **dominant paths** that bend around wall ends, door jambs and outside corners (signal that runs down a corridor and turns into a room):
 
 ```
-RSSI = TxPower + AntennaGain − FSPL(1 m) − 10·n·log10(d) − Σ wall losses
+RSSI = EIRP + pattern(direction) + client offset − FSPL(1 m) − 10·n·log10(d3D)
+       − Σ wall loss × incidence factor − Σ diffraction loss per turn
 ```
 
 - `FSPL(1 m) = 20·log10(f MHz) − 27.55`, about 40 dB at 2.4 GHz and 47 dB at 5 GHz
-- `n` = path-loss exponent from the environment setting (2.0 open hall → 3.0 dense)
-- Wall losses per crossing (2.4 / 5 GHz, dB): drywall 3/4, glass 3/5, wood 4/6, AAC block 6/9, plastered brick 8/12, concrete 12/18, metal 20/26
+- `n` = path-loss exponent from the environment setting (2.0 open hall → 3.0 dense), or the value fitted from a site survey
+- **3D distance**: `d3D` includes the AP's mounting height above the client device (default 2.7 m ceiling, 1.0 m device), so the area under an AP is no longer predicted unrealistically hot
+- **Antenna pattern** by mounting: *ceiling* (down-tilted, about 3 dB weaker towards the horizon), *desk / wall omni* (null straight below), *directional* (aimed by azimuth with a set beamwidth, `−12·(φ/beamwidth)²` dB, max 20 dB)
+- **Wall losses** per crossing at normal incidence (2.4 / 5 GHz, dB): drywall 3/4, glass 3/5, low-E glass 25/32, wood 4/6, AAC block 6/9, plastered brick 8/12, concrete 12/18, heavy concrete 20/28, metal 20/26. A wall crossed at an angle costs more: × 1/√cos(incidence), at most × 2
+- **Diffraction** at each turn: 0.12 dB/° at 2.4 GHz, 0.15 dB/° at 5 GHz (about 11–14 dB for a right-angle turn), at most 25 dB per turn. Paths may turn several times (Dijkstra over corner nodes). Turn this off under *Signal bends along corridors / corners* to get the plain multi-wall model
+- **Client device**: laptop 0, tablet −3, phone −5 (default), IoT −8 dB
+- **Fade margin** (default 3 dB): real readings swing a few dB with multipath, people and device orientation, so an area counts as covered only when it beats the requirement by this margin
 
-These are typical published values. Predictions are estimates, so check real installations with a site survey and tune the materials or environment to match.
+These are typical published values. Predictions are estimates, so check real installations with a site survey: **Fit model to measurements** tunes `n` and a per-band offset on top of everything above.
 
 **Thai regulatory note (NBTC / กสทช.):** 2.4 GHz is limited to 100 mW EIRP (20 dBm). For 5 GHz, check the limit for each sub-band. The AP panel shows EIRP so you can check it.
 

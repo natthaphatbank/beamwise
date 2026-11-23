@@ -11,10 +11,9 @@ const CALIB_WARN_OFFSET = 10;
 
 // Best-server RSSI at a point, optionally with a different n / offset than the project uses.
 function predictBest(project, band, x, y, override = null) {
-  const rf = rfContext(project, band);
-  if (override) { rf.n = override.n; rf.offset = override.offset; }
+  const { rf, sources } = modelFor(project, band, override);
   let best = -Infinity;
-  for (const ap of project.aps) best = Math.max(best, rssiAt(rf, apEirp(ap, band, rf.cap), ap.x, ap.y, x, y));
+  for (const src of sources) best = Math.max(best, sourceRssi(rf, src, x, y, best));
   return best;
 }
 

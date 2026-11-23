@@ -13,6 +13,11 @@ const LANGS = [
 
 const I18N = {
   th: {
+    mat_lowe: "กระจก Low-E / เคลือบโลหะ", mat_concreteHeavy: "คอนกรีตหนา / ผนังรับแรง",
+    mount: "การติดตั้ง", mount_ceiling: "ติดเพดาน", mount_omni: "ตั้งโต๊ะ / ติดผนัง (รอบทิศ)", mount_directional: "เสาทิศทาง",
+    apHeight: "ความสูงติดตั้ง", azimuth: "หันไปทาง", beamwidth: "ความกว้างลำคลื่น",
+    clientDevice: "อุปกรณ์ผู้ใช้", client_laptop: "โน้ตบุ๊ก", client_tablet: "แท็บเล็ต", client_phone: "มือถือ", client_iot: "อุปกรณ์ IoT",
+    clientHeight: "ความสูงอุปกรณ์", margin: "เผื่อสัญญาณแกว่ง", marginShort: "เผื่อ", pathsOpt: "สัญญาณเลี้ยวตามทางเดิน / มุมผนัง",
     new: "ใหม่", loadPlan: "นำเข้าแบบแปลน", open: "เปิดโปรเจกต์", save: "บันทึก", exportPng: "ส่งออกภาพ",
     toolSelect: "เลือก / ย้าย (V)", toolPan: "เลื่อนมุมมอง (H)", toolScale: "กำหนดสเกล (S)",
     toolWall: "วาดผนัง (W)", toolAp: "วาง Access Point (A)",
@@ -50,6 +55,11 @@ const I18N = {
   },
 
   en: {
+    mat_lowe: "Low-E / coated glass", mat_concreteHeavy: "Heavy concrete / shear wall",
+    mount: "Mounting", mount_ceiling: "Ceiling", mount_omni: "Desk / wall (omni)", mount_directional: "Directional antenna",
+    apHeight: "Mount height", azimuth: "Pointing", beamwidth: "Beamwidth",
+    clientDevice: "Client device", client_laptop: "Laptop", client_tablet: "Tablet", client_phone: "Phone", client_iot: "IoT device",
+    clientHeight: "Device height", margin: "Fade margin", marginShort: "margin", pathsOpt: "Signal bends along corridors / corners",
     new: "New", loadPlan: "Import floor plan", open: "Open project", save: "Save", exportPng: "Export image",
     toolSelect: "Select / move (V)", toolPan: "Pan view (H)", toolScale: "Set scale (S)",
     toolWall: "Draw walls (W)", toolAp: "Place access point (A)",

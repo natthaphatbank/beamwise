@@ -11,6 +11,7 @@ const REPORT_TEXT = {
     coverage: "ผลการครอบคลุม", band: "ย่านความถี่", meets: "ผ่านเกณฑ์ (%)", below: "ต่ำกว่าที่แสดง / จุดอับ (%)",
     avg: "สัญญาณเฉลี่ย (dBm)", min: "สัญญาณต่ำสุด (dBm)",
     aps: "Access Point", name: "ชื่อ", model: "รุ่น", x: "x (m)", y: "y (m)",
+    client: "อุปกรณ์ผู้ใช้ (dB)", clientH: "ความสูงอุปกรณ์ (m)", margin: "เผื่อสัญญาณแกว่ง (dB)", paths: "คิดสัญญาณเลี้ยวตามทางเดิน", mount: "การติดตั้ง", height: "ความสูง (m)", az: "หันไปทาง (°)",
     tx24: "กำลังส่ง 2.4G (dBm)", gain24: "เกนเสา 2.4G (dBi)", eirp24: "EIRP 2.4G (dBm)", ch24: "ช่อง 2.4G",
     tx5: "กำลังส่ง 5G (dBm)", gain5: "เกนเสา 5G (dBi)", eirp5: "EIRP 5G (dBm)", ch5: "ช่อง 5G",
     walls: "ผนังแยกตามวัสดุ", material: "วัสดุ", count: "จำนวนเส้น", length: "ความยาวรวม (m)", loss24: "ลดทอน 2.4G (dB)", loss5: "ลดทอน 5G (dB)",
@@ -29,6 +30,7 @@ const REPORT_TEXT = {
     coverage: "Coverage", band: "Band", meets: "Meets requirement (%)", below: "Below display floor / dead zone (%)",
     avg: "Average signal (dBm)", min: "Minimum signal (dBm)",
     aps: "Access points", name: "Name", model: "Model", x: "x (m)", y: "y (m)",
+    client: "Client device (dB)", clientH: "Device height (m)", margin: "Fade margin (dB)", paths: "Corridor / corner paths", mount: "Mounting", height: "Height (m)", az: "Pointing (°)",
     tx24: "Tx power 2.4G (dBm)", gain24: "Antenna gain 2.4G (dBi)", eirp24: "EIRP 2.4G (dBm)", ch24: "Channel 2.4G",
     tx5: "Tx power 5G (dBm)", gain5: "Antenna gain 5G (dBi)", eirp5: "EIRP 5G (dBm)", ch5: "Channel 5G",
     walls: "Walls by material", material: "Material", count: "Segments", length: "Total length (m)", loss24: "Loss 2.4G (dB)", loss5: "Loss 5G (dB)",
@@ -82,9 +84,13 @@ function buildDesignCsv() {
   rows.push([L.scale, project.scaleSet || !project.plan.image ? L.yes : L.no]);
   rows.push([L.env, t(env.key)]);
   rows.push([L.pathLoss, env.n]);
-  rows.push([L.req, req]);
+  rows.push([L.req, `${baseReqDbm()}${st.margin ? ` (+${st.margin} = ${req})` : ""}`]);
   rows.push([L.floor, floor]);
   rows.push([L.nbtc, st.capNbtc ? L.yes : L.no]);
+  rows.push([L.client, `${t("client_" + st.client)} (${CLIENTS[st.client] ?? 0})`]);
+  rows.push([L.clientH, st.clientH]);
+  rows.push([L.margin, st.margin]);
+  rows.push([L.paths, st.paths !== false ? L.yes : L.no]);
   rows.push([L.bandShown, st.band]);
 
   section(L.coverage);
@@ -102,10 +108,11 @@ function buildDesignCsv() {
   }
 
   section(L.aps);
-  rows.push([L.name, L.model, L.x, L.y, L.tx24, L.gain24, L.eirp24, L.ch24, L.tx5, L.gain5, L.eirp5, L.ch5]);
+  rows.push([L.name, L.model, L.x, L.y, L.mount, L.height, L.az, L.tx24, L.gain24, L.eirp24, L.ch24, L.tx5, L.gain5, L.eirp5, L.ch5]);
   for (const ap of project.aps) {
     const spec = AP_BY_ID[ap.model];
     rows.push([ap.name, spec ? `${spec.brand} ${spec.model}` : t("custom"), m(ap.x), m(ap.y),
+      t("mount_" + ap.mount), ap.h, ap.mount === "directional" ? ap.az : "",
       ap.tx24, ap.gain24, eirpCell(ap, "2.4"), ap.ch24 ?? "",
       ap.tx5, ap.gain5, eirpCell(ap, "5"), ap.ch5 ?? ""]);
   }

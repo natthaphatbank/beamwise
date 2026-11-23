@@ -12,7 +12,7 @@ function newProject() {
     mPerPx: 30 / 1200,            // blank plan = 30 x 20 m
     scaleSet: false,
     walls: [],                     // {id, x1, y1, x2, y2, mat}
-    aps: [],                       // {id, name, x, y, model, tx24, tx5, gain24, gain5, ch24, ch5}
+    aps: [],                       // {id, name, x, y, model, tx24, tx5, gain24, gain5, ch24, ch5, mount, h, az, bw}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
     survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
     calib: null,                   // fitted model correction {n, off24, off5, ...} or null
@@ -21,6 +21,10 @@ function newProject() {
       minDbm: "auto",              // display floor: "auto" = requirement - 15 dB
       req: "auto",                 // required RSSI: "auto" = by building type
       capNbtc: true,
+      client: "phone",             // receiving device (CLIENTS in model.js)
+      clientH: DEFAULT_CLIENT_H,   // m above the floor
+      margin: 3,                   // dB design margin for signal fluctuation (fading, people, devices)
+      paths: true,                 // dominant paths around corners / along corridors
       waves: !matchMedia("(prefers-reduced-motion: reduce)").matches,
       rulers: true,
     },
@@ -30,13 +34,20 @@ function newProject() {
 }
 
 // Required RSSI and heatmap display floor (both can be automatic).
-function reqDbm() {
+// reqDbm() includes the design margin: an area counts as covered only with that much headroom.
+function baseReqDbm() {
   const st = project.settings;
   return st.req === "auto" ? (REQ_AUTO_BY_ENV[st.env] ?? -67) : +st.req;
 }
+function reqDbm() { return baseReqDbm() + (+project.settings.margin || 0); }
 function effMinDbm() {
   const st = project.settings;
-  return st.minDbm === "auto" ? reqDbm() - 15 : +st.minDbm;
+  return st.minDbm === "auto" ? baseReqDbm() - 15 : +st.minDbm;
+}
+// "≥ -67 dBm + 3 dB margin"
+function reqText() {
+  const mg = +project.settings.margin || 0;
+  return `≥ ${baseReqDbm()} dBm` + (mg ? ` + ${mg} dB ${t("marginShort")}` : "");
 }
 
 // Older projects stored a single `gain`; give every AP per-band gain and a model id.
@@ -45,12 +56,17 @@ function normalizeAp(ap) {
   if (ap.gain5 == null) ap.gain5 = ap.gain ?? 3;
   delete ap.gain;
   if (!ap.model) ap.model = "custom";
+  if (!MOUNTS[ap.mount]) Object.assign(ap, mountForModel(AP_BY_ID[ap.model]));
+  if (!(ap.h >= 0)) ap.h = MOUNTS[ap.mount].h;
+  if (!Number.isFinite(ap.az)) ap.az = 0;
+  if (!(ap.bw > 0)) ap.bw = DEFAULT_BW;
   return ap;
 }
 function makeAp(p, spec) {
   spec = spec || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
   return { id: uid(), name: "AP-" + (project.aps.length + 1), x: p.x, y: p.y,
-           model: spec.id, tx24: spec.tx24, tx5: spec.tx5, gain24: spec.gain24, gain5: spec.gain5, ch24: null, ch5: null };
+           model: spec.id, tx24: spec.tx24, tx5: spec.tx5, gain24: spec.gain24, gain5: spec.gain5, ch24: null, ch5: null,
+           ...mountForModel(spec), az: 0, bw: DEFAULT_BW };
 }
 
 // UI theme: "dark" (default) or "light"; the <head> script applies it before first paint.
@@ -195,7 +211,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) requ
 const WAVE_SPEED_M = 7, WAVE_RINGS = 3, WAVE_SEGS = 72;
 function drawWaves(c, px) {
   const band = project.settings.band;
-  const rf = rfContext(project, band);
+  const { rf, sources } = modelFor(project, band);
   const floor = effMinDbm();
   const now = performance.now() / 1000;
   const { width: W, height: H } = project.plan;
@@ -204,7 +220,8 @@ function drawWaves(c, px) {
   if (clipToAreas(c)) c.clip();                     // ...and inside the coverage boundary
   c.lineWidth = 2.4 * px; c.lineCap = "round";
   project.aps.forEach((ap, idx) => {
-    const eirp = apEirp(ap, band, rf.cap);
+    const src = sources[idx];
+    if (src.dead) return;
     const rMax = Math.max(Math.hypot(ap.x, ap.y), Math.hypot(W - ap.x, ap.y), Math.hypot(ap.x, H - ap.y), Math.hypot(W - ap.x, H - ap.y));
     const period = Math.max(1.5, rMax * rf.mpp / WAVE_SPEED_M);
     for (let k = 0; k < WAVE_RINGS; k++) {
@@ -216,7 +233,7 @@ function drawWaves(c, px) {
       for (let sgm = 1; sgm <= WAVE_SEGS; sgm++) {
         const a = (sgm / WAVE_SEGS) * Math.PI * 2;
         const px1 = ap.x + Math.cos(a) * r, py1 = ap.y + Math.sin(a) * r;
-        const db = rssiAt(rf, eirp, ap.x, ap.y, (px0 + px1) / 2, (py0 + py1) / 2, floor - 1);
+        const db = sourceRssi(rf, src, (px0 + px1) / 2, (py0 + py1) / 2, floor - 1);
         const vis = Math.max(0, Math.min(1, (db - floor) / 8));
         if (vis > 0.02) {
           const [R, G, B] = signalColor(db);
@@ -384,6 +401,12 @@ function clipToAreas(c) {
 // Access point: a ceiling-unit puck with a Wi-Fi mark, plus a name / channel tag below.
 function drawAp(c, px, ap, isSel) {
   const r = 15 * px, x = ap.x, y = ap.y;
+  // directional antenna: half-power beam as a wedge
+  if (ap.mount === "directional") {
+    const a = (ap.az || 0) * Math.PI / 180, h = ((ap.bw || DEFAULT_BW) / 2) * Math.PI / 180, R = r * 3.2;
+    c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 1.2 * px;
+    c.beginPath(); c.moveTo(x, y); c.arc(x, y, R, a - h, a + h); c.closePath(); c.fill(); c.stroke();
+  }
   // selection halo
   if (isSel) {
     c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 2 * px;
@@ -1147,6 +1170,11 @@ function renderApPanel(el, aps) {
     <label class="row"><span>${t("tx5")} <span class="u">(dBm)</span></span>${num("tx5", 30, 1)}</label>
     <label class="row"><span>${t("gain24")} <span class="u">(dBi)</span></span>${num("gain24", 15, 0.1)}</label>
     <label class="row"><span>${t("gain5")} <span class="u">(dBi)</span></span>${num("gain5", 15, 0.1)}</label>
+    <label class="row"><span>${t("mount")}</span><select data-f="mount">${same("mount") ? "" : `<option value="__mixed" selected>${mixed}</option>`}${Object.keys(MOUNTS).map(k => `<option value="${k}" ${same("mount") && o.mount === k ? "selected" : ""}>${t("mount_" + k)}</option>`).join("")}</select></label>
+    <label class="row"><span>${t("apHeight")} <span class="u">(m)</span></span>${num("h", 30, 0.1)}</label>
+    ${aps.some(a => a.mount === "directional") ? `
+    <label class="row"><span>${t("azimuth")} <span class="u">(°)</span></span><input type="number" data-f="az" min="-360" max="360" step="5" value="${val("az") ?? ""}" ${same("az") ? "" : `placeholder="${mixed}"`}></label>
+    <label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}
     <label class="row"><span>${t("ch24")}</span>${chSel("ch24", CH24_LIST)}</label>
     <label class="row"><span>${t("ch5")}</span>${chSel("ch5", CH5_LIST)}</label>
     <p class="unit eirp">${eirpLine()}</p>
@@ -1163,7 +1191,7 @@ function renderApPanel(el, aps) {
     pushHistory();
     for (const a of aps) {
       a.model = e.target.value;
-      if (m) Object.assign(a, { tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 });
+      if (m) Object.assign(a, { tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 }, mountForModel(m));
     }
     if (m) { project.newApModel = m.id; renderAiModel(); }
     changed();
@@ -1175,6 +1203,11 @@ function renderApPanel(el, aps) {
       if (inp.value === "__mixed") return;
       if (f === "name") { o.name = inp.value; $("#propsTitle").textContent = panelTitle(o); }
       else if (f === "ch24" || f === "ch5") for (const a of aps) a[f] = inp.value ? +inp.value : null;
+      else if (f === "mount") {
+        for (const a of aps) { a.mount = inp.value; a.h = MOUNTS[inp.value].h; }
+        changed();                                   // re-render: height default, azimuth fields
+        return;
+      }
       else { const v = parseFloat(inp.value); if (!isFinite(v)) return; for (const a of aps) a[f] = v; }
       el.querySelector(".eirp").innerHTML = eirpLine();
       changed({ panel: false });
@@ -1184,7 +1217,7 @@ function renderApPanel(el, aps) {
   });
   $("#applyAllBtn")?.addEventListener("click", () => {
     pushHistory();
-    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, gain24: o.gain24, gain5: o.gain5 });
+    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, gain24: o.gain24, gain5: o.gain5, mount: o.mount, h: o.h, bw: o.bw });
     changed();
     flash(tf("appliedAll", { n: project.aps.length }));
   });
@@ -1295,15 +1328,21 @@ function renderSettings() {
   $("#reqSel").innerHTML = `<option value="auto">${t("reqAuto")} (${autoReq} dBm)</option>` +
     REQ_PROFILES.map(p => `<option value="${p.dbm}">${p.dbm} dBm · ${t(p.key)}</option>`).join("");
   $("#reqSel").value = String(st.req);
-  $("#minSel").innerHTML = `<option value="auto">${t("autoShort")} (${reqDbm() - 15} dBm)</option>` +
+  $("#minSel").innerHTML = `<option value="auto">${t("autoShort")} (${baseReqDbm() - 15} dBm)</option>` +
     [-75, -80, -85, -90].map(v => `<option value="${v}">${v} dBm</option>`).join("");
   $("#minSel").value = String(st.minDbm);
   $("#capNbtc").checked = !!st.capNbtc;
+  $("#clientSel").innerHTML = Object.entries(CLIENTS).map(([k, v]) => `<option value="${k}">${t("client_" + k)} (${v > 0 ? "+" : ""}${v} dB)</option>`).join("");
+  $("#clientSel").value = st.client;
+  $("#clientH").value = st.clientH;
+  $("#marginSel").innerHTML = [0, 3, 5, 8, 10].map(v => `<option value="${v}">${v} dB</option>`).join("");
+  $("#marginSel").value = String(st.margin);
+  $("#pathsChk").checked = st.paths !== false;
   $("#wavesChk").checked = !!st.waves;
   $("#rulersChk").checked = st.rulers !== false;
   $("#legend").innerHTML = SIGNAL_STOPS.map(s =>
     `<div class="item"><span class="sw" style="background:rgb(${s.rgb})"></span><span class="lbl"><b>${s.label}</b> dBm · ${t(s.key)}</span></div>`).join("") +
-    `<div class="req-line">${t("requirement")}: <b>≥ ${reqDbm()} dBm</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
+    `<div class="req-line">${t("requirement")}: <b>${reqText()}</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
   renderAiModel();
   const ls = $("#langSel");
   if (!ls.options.length) ls.innerHTML = LANGS.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
@@ -1377,6 +1416,14 @@ $("#envSel").addEventListener("change", e => { project.settings.env = +e.target.
 $("#reqSel").addEventListener("change", e => { project.settings.req = e.target.value === "auto" ? "auto" : +e.target.value; renderSettings(); changed({ panel: false }); });
 $("#minSel").addEventListener("change", e => { project.settings.minDbm = e.target.value === "auto" ? "auto" : +e.target.value; changed({ panel: false }); });
 $("#capNbtc").addEventListener("change", e => { project.settings.capNbtc = e.target.checked; changed(); });
+$("#clientSel").addEventListener("change", e => { project.settings.client = e.target.value; changed({ panel: false }); });
+$("#clientH").addEventListener("change", e => {
+  const v = parseFloat(e.target.value);
+  if (Number.isFinite(v) && v >= 0 && v <= 10) project.settings.clientH = v; else e.target.value = project.settings.clientH;
+  changed({ panel: false });
+});
+$("#marginSel").addEventListener("change", e => { project.settings.margin = +e.target.value; renderSettings(); changed({ panel: false }); });
+$("#pathsChk").addEventListener("change", e => { project.settings.paths = e.target.checked; changed({ panel: false }); });
 $("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
 $("#wavesChk").addEventListener("change", e => { project.settings.waves = e.target.checked; requestRender(); scheduleAutosave(); });
 
@@ -1479,7 +1526,9 @@ function sanitizeProject(data) {
     aps: arr(data.aps).map(a => ({ id: strOr(a.id, uid()), name: strOr(a.name, "AP"), x: numOr(a.x, 0), y: numOr(a.y, 0), model: strOr(a.model, "custom"),
                                    tx24: numOr(a.tx24, 0), tx5: numOr(a.tx5, 0),
                                    gain24: numOr(a.gain24 ?? a.gain, 3), gain5: numOr(a.gain5 ?? a.gain, 3),
-                                   ch24: chOr(a.ch24), ch5: chOr(a.ch5) })),
+                                   ch24: chOr(a.ch24), ch5: chOr(a.ch5),
+                                   mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
+                                   az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))) })),
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
     survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
                                          band: p.band === "2.4" ? "2.4" : "5" })),
@@ -1496,6 +1545,10 @@ function sanitizeProject(data) {
       minDbm: autoOrNum(s.minDbm, bs.minDbm),
       req: autoOrNum(s.req, bs.req),
       capNbtc: s.capNbtc == null ? bs.capNbtc : !!s.capNbtc,
+      client: CLIENTS[s.client] != null ? s.client : bs.client,
+      clientH: Math.min(10, Math.max(0, numOr(s.clientH, bs.clientH))),
+      margin: Math.min(20, Math.max(0, numOr(s.margin, bs.margin))),
+      paths: s.paths == null ? bs.paths : !!s.paths,
       waves: s.waves == null ? bs.waves : !!s.waves,
       rulers: s.rulers == null ? bs.rulers : !!s.rulers,
     },
@@ -1575,7 +1628,7 @@ function exportPng() {
   c.fillStyle = "#d8dde6"; c.fillRect(0, y0, cv.width, Math.max(1, u));
   c.fillStyle = "#1b2333"; c.font = `600 ${15 * u}px "Segoe UI", "Leelawadee UI", sans-serif`; c.textBaseline = "middle";
   const env = ENVIRONMENTS[project.settings.env];
-  c.fillText(`Beamwise — ${t("exportTitle")} · ${project.settings.band} GHz · ${project.aps.length} AP · ${t("requirement")} ≥ ${reqDbm()} dBm`, 14 * u, y0 + 20 * u);
+  c.fillText(`Beamwise — ${t("exportTitle")} · ${project.settings.band} GHz · ${project.aps.length} AP · ${t("requirement")} ${reqText()}`, 14 * u, y0 + 20 * u);
   let x = 14 * u;
   c.font = `${12 * u}px "Segoe UI", "Leelawadee UI", sans-serif`;
   for (const s of SIGNAL_STOPS) {

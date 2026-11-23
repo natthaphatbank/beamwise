@@ -8,11 +8,14 @@ const tick = () => new Promise(r => setTimeout(r, 0));
  * Returns { aps: [{x, y}], coverage, evaluated }.
  */
 async function autoPlace(project, opts, onProgress = () => {}) {
-  const rf = rfContext(project, opts.band);
+  const { rf, sources: existing } = modelFor(project, opts.band);
   const box = buildingBox(project);
   const spec = AP_BY_ID[opts.modelId] || AP_BY_ID["generic-ax"];
   const probe = { ...spec, ch5: 36 };
-  const eirp = apEirp(probe, opts.band, rf.cap);
+  const mnt = mountForModel(spec);
+  const srcAt = (x, y) => buildSource(rf, { ...probe, ...mnt, x, y });
+  // best signal per cell from a set of prepared sources
+  const fill = (arr, srcs) => { for (const s of srcs) for (let i = 0; i < nc; i++) arr[i] = Math.max(arr[i], sourceRssi(rf, s, cells[2 * i], cells[2 * i + 1], arr[i])); };
   const mpp = project.mPerPx;
   const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
 
@@ -26,22 +29,22 @@ async function autoPlace(project, opts, onProgress = () => {}) {
   for (let y = box.y0 + step / 2; y < box.y1; y += step) for (let x = box.x0 + step / 2; x < box.x1; x += step) if (inAreas(project, x, y)) cands.push({ x, y });
   if (!nc || !cands.length) return { aps: [], coverage: 0, evaluated: 0 };
 
+  const hintPx = Math.max(1.5 / mpp, cell * 2);     // coarse corner-path hints: fast, close enough to rank candidates
+  for (const s of existing) ensureHint(rf, s, project.plan, hintPx);
+
   // current best signal per cell (existing APs if kept)
   const cover = new Float32Array(nc).fill(-Infinity);
-  if (opts.keep) {
-    for (const ap of project.aps) {
-      const e = apEirp(ap, opts.band, rf.cap);
-      for (let i = 0; i < nc; i++) cover[i] = Math.max(cover[i], rssiAt(rf, e, ap.x, ap.y, cells[2 * i], cells[2 * i + 1]));
-    }
-  }
+  if (opts.keep) fill(cover, existing);
 
   // signal map of every candidate (computed in chunks to keep the page responsive)
   const floor = opts.req - 25;
   for (let k = 0; k < cands.length; k++) {
     const v = new Float32Array(nc);
-    for (let i = 0; i < nc; i++) v[i] = rssiAt(rf, eirp, cands[k].x, cands[k].y, cells[2 * i], cells[2 * i + 1], floor);
+    const src = srcAt(cands[k].x, cands[k].y);
+    ensureHint(rf, src, project.plan, hintPx);
+    for (let i = 0; i < nc; i++) v[i] = sourceRssi(rf, src, cells[2 * i], cells[2 * i + 1], floor);
     cands[k].v = v;
-    if (k % 12 === 0) { onProgress(0.85 * k / cands.length); await tick(); }
+    if (k % 4 === 0) { onProgress(0.85 * k / cands.length); await tick(); }
   }
 
   const meets = c => { let m = 0; for (let i = 0; i < nc; i++) if (c[i] >= opts.req) m++; return m / nc; };
@@ -72,10 +75,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
     const base = new Float32Array(nc);
     for (let p = 0; p < placed.length; p++) {
       base.fill(-Infinity);
-      if (opts.keep) for (const ap of project.aps) {
-        const e = apEirp(ap, opts.band, rf.cap);
-        for (let i = 0; i < nc; i++) base[i] = Math.max(base[i], rssiAt(rf, e, ap.x, ap.y, cells[2 * i], cells[2 * i + 1]));
-      }
+      if (opts.keep) fill(base, existing);
       placed.forEach((q, j) => { if (j !== p) for (let i = 0; i < nc; i++) if (q.v[i] > base[i]) base[i] = q.v[i]; });
       const score = cd => { let m = 0; for (let i = 0; i < nc; i++) if (Math.max(base[i], cd.v[i]) >= opts.req) m++; return m; };
       let cur = score(placed[p]);
@@ -86,10 +86,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
       }
     }
     cover.fill(-Infinity);
-    if (opts.keep) for (const ap of project.aps) {
-      const e = apEirp(ap, opts.band, rf.cap);
-      for (let i = 0; i < nc; i++) cover[i] = Math.max(cover[i], rssiAt(rf, e, ap.x, ap.y, cells[2 * i], cells[2 * i + 1]));
-    }
+    if (opts.keep) fill(cover, existing);
     for (const q of placed) for (let i = 0; i < nc; i++) if (q.v[i] > cover[i]) cover[i] = q.v[i];
     coverage = meets(cover);
   }
@@ -104,11 +101,11 @@ async function autoPlace(project, opts, onProgress = () => {}) {
 function assignChannels(project) {
   const aps = project.aps;
   for (const band of ["2.4", "5"]) {
-    const rf = rfContext(project, band);
+    const { rf, sources } = modelFor(project, band);
     const chans = CHANNELS[band];
     const key = band === "2.4" ? "ch24" : "ch5";
     // interference matrix in mW (linear) so strong neighbours dominate
-    const I = aps.map(a => aps.map(b => a === b ? 0 : Math.pow(10, rssiAt(rf, apEirp(b, band, rf.cap), b.x, b.y, a.x, a.y) / 10)));
+    const I = aps.map((a, i) => aps.map((b, j) => i === j ? 0 : Math.pow(10, sourceRssi(rf, sources[j], a.x, a.y) / 10)));
     const order = aps.map((_, i) => i).sort((i, j) => I[j].reduce((s, v) => s + v, 0) - I[i].reduce((s, v) => s + v, 0));
     const done = new Set();
     for (const i of order) {

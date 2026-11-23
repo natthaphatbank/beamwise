@@ -47,8 +47,8 @@ function buildSampleProject() {
     scaleSet: true,
     walls,
     aps: [
-      { id: "ap1", name: "AP-1", x: m(8), y: m(10), model: "generic-ax", tx24: 20, tx5: 23, gain24: 3, gain5: 4, ch24: 1, ch5: 36 },
-      { id: "ap2", name: "AP-2", x: m(22), y: m(10), model: "generic-ax", tx24: 20, tx5: 23, gain24: 3, gain5: 4, ch24: 11, ch5: 149 },
+      { id: "ap1", name: "AP-1", x: m(8), y: m(10), model: "generic-ax", tx24: 20, tx5: 23, gain24: 3, gain5: 4, ch24: 1, ch5: 36, mount: "ceiling", h: 2.7 },
+      { id: "ap2", name: "AP-2", x: m(22), y: m(10), model: "generic-ax", tx24: 20, tx5: 23, gain24: 3, gain5: 4, ch24: 11, ch5: 149, mount: "ceiling", h: 2.7 },
     ],
     settings: { band: "5", env: 2, opacity: 0.55, minDbm: "auto", req: "auto", capNbtc: true },
     newWallMat: "brick",
