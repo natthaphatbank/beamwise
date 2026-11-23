@@ -200,6 +200,7 @@ function toWorld(e) {
   return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
 }
 let fitPending = false;
+let viewFitted = true;            // still the automatic "fit": re-fit when the canvas changes size
 function fit() {
   const r = canvas.getBoundingClientRect();
   const { width: W, height: H } = project.plan;
@@ -207,6 +208,7 @@ function fit() {
   // not laid out yet (zero-size canvas): a negative scale would break drawing, so fit on the next resize
   if (r.width <= R + 1 || r.height <= R + 1) { fitPending = true; return; }
   fitPending = false;
+  viewFitted = true;
   view.s = Math.min((r.width - R) / W, (r.height - R) / H) * 0.92;
   view.ox = R + (r.width - R - W * view.s) / 2;
   view.oy = R + (r.height - R - H * view.s) / 2;
@@ -217,7 +219,7 @@ function resize() {
   const r = canvas.getBoundingClientRect();
   canvas.width = Math.round(r.width * dpr);
   canvas.height = Math.round(r.height * dpr);
-  if (fitPending) fit();
+  if (fitPending || viewFitted) fit();
   requestRender();
 }
 
@@ -849,7 +851,7 @@ canvas.addEventListener("pointermove", e => {
     const s = Math.min(40, Math.max(0.05, pinch.view.s * d / pinch.d));
     const wx = (pinch.mx - r.left - pinch.view.ox) / pinch.view.s;   // world point under the start midpoint
     const wy = (pinch.my - r.top - pinch.view.oy) / pinch.view.s;
-    view.s = s;
+    view.s = s; viewFitted = false;
     view.ox = mx - r.left - wx * s;
     view.oy = my - r.top - wy * s;
     requestRender();
@@ -869,7 +871,7 @@ canvas.addEventListener("pointermove", e => {
 
   if (drag) {
     if (drag.type === "pan") {
-      view.ox = drag.ox + (e.clientX - drag.sx);
+      view.ox = drag.ox + (e.clientX - drag.sx); viewFitted = false;
       view.oy = drag.oy + (e.clientY - drag.sy);
       requestRender();
       return;
@@ -1026,7 +1028,7 @@ canvas.addEventListener("wheel", e => {
   const s = Math.min(40, Math.max(0.05, view.s * k));
   view.ox = mx - (mx - view.ox) * (s / view.s);
   view.oy = my - (my - view.oy) * (s / view.s);
-  view.s = s;
+  view.s = s; viewFitted = false;
   requestRender();
 }, { passive: false });
 
@@ -1923,6 +1925,12 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
 
 // ---------- start ----------
 window.addEventListener("resize", () => { resize(); });
+// The canvas also changes size without a window resize (top bar wrapping once fonts load,
+// panel height on phones, language change): keep its pixel buffer matched, or it stretches.
+if (window.ResizeObserver) new ResizeObserver(() => {
+  const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (Math.round(r.width * dpr) !== canvas.width || Math.round(r.height * dpr) !== canvas.height) resize();
+}).observe(canvas);
 registerCustomModels(customLibrary());
 try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by the removed AI review feature
 applyI18n();
