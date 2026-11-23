@@ -1442,7 +1442,35 @@ function renderSettings() {
   ls.value = LANG;
 }
 
+// Side panel shows only what can be used yet: a getting-started checklist on an empty
+// project, the AI once there are walls, summary / display once there is something drawn,
+// and the legend once there is a heatmap.
+function renderPanelCards() {
+  const hasWalls = project.walls.length > 0, hasAps = project.aps.length > 0;
+  const hasPlan = !!project.plan.image;
+  const started = hasWalls || hasAps;
+  $("#summaryCard").hidden = !started;
+  $("#aiCard").hidden = !hasWalls;
+  $("#displayCard").hidden = !started;
+  $("#legendCard").hidden = !hasAps;
+  $("#startCard").hidden = hasAps;
+  if (hasAps) return;
+  const steps = [
+    { k: "Plan", done: hasPlan, go: pickPlan },
+    { k: "Scale", done: project.scaleSet || !hasPlan, go: () => setTool("scale") },
+    { k: "Walls", done: hasWalls, go: () => setTool("wall") },
+    { k: "Aps", done: hasAps, go: () => setTool("ap") },
+  ];
+  const next = steps.findIndex(st => !st.done && st.k !== "Plan") ;
+  $("#startSteps").innerHTML = steps.map((st, i) =>
+    `<li class="${st.done ? "done" : i === next ? "next" : ""}"><button data-step="${i}"><span class="num">${st.done ? "✓" : i + 1}</span>` +
+    `<span>${t("step" + st.k)}<small>${t("step" + st.k + "Sub")}</small></span></button></li>`).join("");
+  $("#startSteps").querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => steps[+b.dataset.step].go()));
+  $("#startSample").hidden = started;
+}
+
 function renderStats() {
+  renderPanelCards();
   const box = buildingBox(project);
   const area = (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2;
   const req = reqDbm();
@@ -1832,6 +1860,7 @@ function confirmModal(title, body, onOk) {
   $("#modalBox").querySelector('[data-act="ok"]').onclick = () => { closeModal(); onOk(); };
 }
 
+$("#startSample").addEventListener("click", () => guardUnsaved(loadSample));
 function loadSample() {
   loadProjectData(buildSampleProject()).then(() => flash(t("sampleLoaded")));
 }

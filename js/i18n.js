@@ -13,6 +13,11 @@ const LANGS = [
 
 const I18N = {
   th: {
+    startTitle: "เริ่มต้น", startSample: "ลองเปิดโปรเจกต์ตัวอย่าง", advanced: "ตั้งค่าขั้นสูง",
+    stepPlan: "นำเข้าแบบแปลน", stepPlanSub: "PNG / JPG / PDF หรือรูปถ่าย (ข้ามได้)",
+    stepScale: "ตั้งสเกล", stepScaleSub: "คลิก 2 จุดที่รู้ระยะจริง",
+    stepWalls: "วาดผนัง", stepWallsSub: "เลือกวัสดุให้ตรงของจริง",
+    stepAps: "วาง AP", stepApsSub: "หรือให้ AI วางให้หลังวาดผนัง",
     wallsSelected: "เลือกผนัง {n} เส้น", itemsSelected: "เลือก AP {a} ตัว + ผนัง {w} เส้น",
     wallsSameMat: "ผนังที่เลือกเป็นวัสดุเดียวกัน", wallsMixedMat: "ผนังที่เลือกมีหลายวัสดุ กดวัสดุด้านล่างเพื่อเปลี่ยนทั้งหมด",
     materialAll: "เปลี่ยนวัสดุทั้งหมดเป็น", totalLength: "ความยาวรวม", selectSameMat: "เลือกผนัง{m}ทั้งหมด ({n} เส้น)",
@@ -61,6 +66,11 @@ const I18N = {
   },
 
   en: {
+    startTitle: "Get started", startSample: "Open the sample project", advanced: "Advanced settings",
+    stepPlan: "Import a floor plan", stepPlanSub: "PNG / JPG / PDF or a photo (optional)",
+    stepScale: "Set the scale", stepScaleSub: "Click 2 points with a known distance",
+    stepWalls: "Draw walls", stepWallsSub: "Pick the real materials",
+    stepAps: "Place APs", stepApsSub: "Or let the AI place them once walls exist",
     wallsSelected: "{n} walls selected", itemsSelected: "{a} APs + {w} walls selected",
     wallsSameMat: "The selected walls share one material", wallsMixedMat: "The selected walls have different materials; pick one below to change them all",
     materialAll: "Change all to", totalLength: "Total length", selectSameMat: "Select all {m} walls ({n})",

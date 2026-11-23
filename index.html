@@ -79,7 +79,13 @@
         <div id="props"></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="startCard" hidden>
+        <h3 data-i18n="startTitle"></h3>
+        <ol class="steps" id="startSteps"></ol>
+        <button class="btn" id="startSample" data-i18n="startSample"></button>
+      </section>
+
+      <section class="card" id="summaryCard">
         <h3 data-i18n="summary"></h3>
         <div class="stats" id="stats"></div>
       </section>
@@ -89,7 +95,7 @@
         <div id="calib"></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="aiCard">
         <h3 data-i18n="aiTitle"></h3>
         <label class="row"><span data-i18n="aiModelUsed"></span><select id="aiModel"></select></label>
         <div id="aiModelSearchBox"></div>
@@ -103,7 +109,7 @@
         <button class="btn" id="btnChannels" data-i18n="aiChannels"></button>
       </section>
 
-      <section class="card">
+      <section class="card" id="displayCard">
         <h3 data-i18n="display"></h3>
         <label class="row"><span data-i18n="band"></span>
           <div class="seg" id="bandSeg">
@@ -120,19 +126,22 @@
         <label class="row"><span data-i18n="requirement"></span>
           <select id="reqSel"></select>
         </label>
-        <label class="row"><span data-i18n="minSignal"></span>
-          <select id="minSel"></select>
-        </label>
-        <label class="row check"><span data-i18n="capNbtc"></span><input type="checkbox" id="capNbtc"></label>
-        <label class="row"><span data-i18n="clientDevice"></span><select id="clientSel"></select></label>
-        <label class="row"><span><span data-i18n="clientHeight"></span> <span class="u">(m)</span></span><input type="number" id="clientH" min="0" max="10" step="0.1"></label>
-        <label class="row"><span data-i18n="margin"></span><select id="marginSel"></select></label>
-        <label class="row check"><span data-i18n="pathsOpt"></span><input type="checkbox" id="pathsChk"></label>
         <label class="row check"><span data-i18n="waves"></span><input type="checkbox" id="wavesChk"></label>
-        <label class="row check"><span data-i18n="rulers"></span><input type="checkbox" id="rulersChk"></label>
+        <details class="adv" id="advBox">
+          <summary data-i18n="advanced"></summary>
+          <label class="row"><span data-i18n="minSignal"></span>
+            <select id="minSel"></select>
+          </label>
+          <label class="row"><span data-i18n="clientDevice"></span><select id="clientSel"></select></label>
+          <label class="row"><span><span data-i18n="clientHeight"></span> <span class="u">(m)</span></span><input type="number" id="clientH" min="0" max="10" step="0.1"></label>
+          <label class="row"><span data-i18n="margin"></span><select id="marginSel"></select></label>
+          <label class="row check"><span data-i18n="pathsOpt"></span><input type="checkbox" id="pathsChk"></label>
+          <label class="row check"><span data-i18n="capNbtc"></span><input type="checkbox" id="capNbtc"></label>
+          <label class="row check"><span data-i18n="rulers"></span><input type="checkbox" id="rulersChk"></label>
+        </details>
       </section>
 
-      <section class="card">
+      <section class="card" id="legendCard">
         <h3 data-i18n="legend"></h3>
         <div class="legend" id="legend"></div>
       </section>
