@@ -27,6 +27,8 @@ The installed app opens in its own window and works offline; it updates itself w
 2. **Set scale (S)**: click both ends of something with a known length, then type its real length in metres.
 3. **Draw walls (W)**: pick a material, then click to draw connected walls. Double-click, Esc or right-click ends a chain. Hold Shift to lock angles; ends snap to existing walls.
 4. **Place APs (A)**: click to add. Select an AP to set its name, Tx power and antenna gain. To edit several at once, Shift+click APs, Shift+drag a box around them, or press Ctrl+A; a field shows "Mixed" when the selected APs differ, and editing it sets them all. **Apply to all APs** copies one AP's model, power and gain to every AP (channels stay as they are). Dragging any selected AP moves the whole group.
+**Edit many walls at once**: drag a box on empty space (or Shift+click walls) to select several walls, then pick a material to change them all, drag one to move them together, or press Delete. A single wall's panel also has **Select all walls of this material**, so changing every brick wall to AAC is two clicks.
+
 5. **Coverage boundary (B)** (ขอบเขตสัญญาณ): click points around the area that needs Wi-Fi, then click the first point, double-click or press Enter to close it. The heatmap is clipped to the boundary, and coverage %, area and AI auto-placement count only the inside. You can draw several. Select one to drag its points or move it; Delete removes it.
 6. Pick a language from the language menu: ไทย, English, 中文, 日本語, 한국어, Tiếng Việt, ລາວ, မြန်မာ. First-time visitors get their browser language automatically.
 7. Switch between **2.4 / 5 GHz**, choose the environment, then **Save** the project (.json) or **Export image** (.png) for your customer.
@@ -36,10 +38,11 @@ The installed app opens in its own window and works offline; it updates itself w
 | V / H / S / W / B / A / M | Select, Pan, Scale, Wall, Boundary, AP, Survey point |
 | Delete | Remove selected item(s) |
 | Ctrl+A | Select all APs |
-| Shift+click / Shift+drag | Add APs to the selection / box-select |
+| Drag on empty space | Box-select APs and walls: drag right = fully inside the box, drag left = anything the box touches |
+| Shift+click / Shift+drag | Add to / remove from the selection, or add a box to it |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
 | Ctrl+S | Save project |
-| Space + drag, or middle mouse | Pan |
+| Space + drag, right or middle mouse drag | Pan |
 | Mouse wheel | Zoom |
 
 Every start (opening the app or refreshing the page) is a blank project. Use **Save** to keep your work as a `.json` file and **Open project** to continue later. Before New, Import floor plan, Open project or the sample replaces unsaved work, the app asks **Save first / Don't save / Cancel**; refreshing or closing the tab with unsaved work shows the browser's standard "Leave site?" warning.

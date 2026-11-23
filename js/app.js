@@ -85,7 +85,7 @@ let project = newProject();
 let planImg = null;                // HTMLImageElement of plan.image
 let view = { s: 1, ox: 0, oy: 0 };
 let tool = "select";
-let selection = null;              // {type: 'ap'|'wall', id}
+let selection = null;              // {type: 'ap'|'wall'|'area'|'survey', id} | {type: 'aps'|'walls', ids} | {type: 'mixed', aps, walls}
 let drag = null;
 let wallChain = null;              // {x, y} start of next wall segment
 let scaleLine = null;              // {a:{x,y}, b:{x,y}|null}
@@ -112,7 +112,7 @@ function pushHistory() {
 function restore(snap) {
   Object.assign(project, JSON.parse(snap));
   project.aps.forEach(normalizeAp);
-  if (selection?.type === "aps") selectAps(selection.ids);
+  if (selection?.type === "aps" || selection?.type === "walls" || selection?.type === "mixed") { const s = selIds(); setSelection(s.aps, s.walls); }
   if (selection && !findSel()) selection = null;
   changed();
 }
@@ -123,12 +123,51 @@ function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); res
 function selectedAps() {
   if (selection?.type === "ap") return project.aps.filter(a => a.id === selection.id);
   if (selection?.type === "aps") return project.aps.filter(a => selection.ids.includes(a.id));
+  if (selection?.type === "mixed") return project.aps.filter(a => selection.aps.includes(a.id));
   return [];
 }
-const isApSelected = ap => (selection?.type === "ap" && selection.id === ap.id) || (selection?.type === "aps" && selection.ids.includes(ap.id));
+const isApSelected = ap => (selection?.type === "ap" && selection.id === ap.id) || (selection?.type === "aps" && selection.ids.includes(ap.id)) ||
+  (selection?.type === "mixed" && selection.aps.includes(ap.id));
 function selectAps(ids) {
   ids = [...new Set(ids)].filter(id => project.aps.some(a => a.id === id));
   selection = !ids.length ? null : ids.length === 1 ? { type: "ap", id: ids[0] } : { type: "aps", ids };
+}
+// Walls can be multi-selected too, alone ({type: "walls", ids}) or with APs ({type: "mixed"}).
+function selIds() {
+  const s = selection;
+  if (!s) return { aps: [], walls: [] };
+  if (s.type === "ap") return { aps: [s.id], walls: [] };
+  if (s.type === "aps") return { aps: [...s.ids], walls: [] };
+  if (s.type === "wall") return { aps: [], walls: [s.id] };
+  if (s.type === "walls") return { aps: [], walls: [...s.ids] };
+  if (s.type === "mixed") return { aps: [...s.aps], walls: [...s.walls] };
+  return { aps: [], walls: [] };
+}
+function setSelection(apIds, wallIds) {
+  apIds = [...new Set(apIds)].filter(id => project.aps.some(a => a.id === id));
+  wallIds = [...new Set(wallIds)].filter(id => project.walls.some(w => w.id === id));
+  if (!wallIds.length) { selectAps(apIds); return; }
+  if (!apIds.length) { selection = wallIds.length === 1 ? { type: "wall", id: wallIds[0] } : { type: "walls", ids: wallIds }; return; }
+  selection = { type: "mixed", aps: apIds, walls: wallIds };
+}
+function selectedWalls() {
+  const ids = selIds().walls;
+  return project.walls.filter(w => ids.includes(w.id));
+}
+const isWallSelected = w => (selection?.type === "wall" && selection.id === w.id) ||
+  (selection?.type === "walls" && selection.ids.includes(w.id)) || (selection?.type === "mixed" && selection.walls.includes(w.id));
+const isGroupSel = () => selection && (selection.type === "aps" || selection.type === "walls" || selection.type === "mixed");
+// Does segment (x1,y1)-(x2,y2) touch the rectangle?
+function segTouchesRect(x1, y1, x2, y2, rx0, ry0, rx1, ry1) {
+  const inR = (x, y) => x >= rx0 && x <= rx1 && y >= ry0 && y <= ry1;
+  if (inR(x1, y1) || inR(x2, y2)) return true;
+  const edges = [[rx0, ry0, rx1, ry0], [rx1, ry0, rx1, ry1], [rx1, ry1, rx0, ry1], [rx0, ry1, rx0, ry0]];
+  return edges.some(([a, b, c, d]) => {
+    const den = (x2 - x1) * (d - b) - (y2 - y1) * (c - a);
+    if (den === 0) return false;
+    const u = ((a - x1) * (d - b) - (b - y1) * (c - a)) / den, v = ((a - x1) * (y2 - y1) - (b - y1) * (x2 - x1)) / den;
+    return u >= 0 && u <= 1 && v >= 0 && v <= 1;
+  });
 }
 function selectAllAps() {
   if (!project.aps.length) return;
@@ -139,6 +178,8 @@ function selectAllAps() {
 function findSel() {
   if (!selection) return null;
   if (selection.type === "aps") { const l = selectedAps(); return l.length ? l : null; }
+  if (selection.type === "walls") { const l = selectedWalls(); return l.length ? l : null; }
+  if (selection.type === "mixed") { const a = selectedAps(), w = selectedWalls(); return a.length || w.length ? { aps: a, walls: w } : null; }
   const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas
     : selection.type === "survey" ? (project.survey || []) : project.walls;
   return list.find(o => o.id === selection.id) || null;
@@ -284,14 +325,14 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
   c.lineCap = "round";
   for (const w of project.walls) {
     const m = MATERIALS[w.mat] || MATERIALS.brick;
-    const isSel = interactive && selection?.type === "wall" && selection.id === w.id;
+    const isSel = interactive && isWallSelected(w);
     if (isSel) {
       c.strokeStyle = P.wallSel; c.lineWidth = 10 * px;
       c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
     }
     c.strokeStyle = m.color; c.lineWidth = 4 * px;
     c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
-    if (isSel) for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
+    if (isSel && selection.type === "wall") for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
   }
 
   // coverage boundary
@@ -330,8 +371,11 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
   if (drag?.type === "marquee") {
     const x = Math.min(drag.a.x, drag.b.x), y = Math.min(drag.a.y, drag.b.y);
     const w = Math.abs(drag.b.x - drag.a.x), h = Math.abs(drag.b.y - drag.a.y);
-    c.fillStyle = P.selFill; c.fillRect(x, y, w, h);
-    c.strokeStyle = P.sel; c.lineWidth = 1.5 * px; c.setLineDash([6 * px, 4 * px]); c.strokeRect(x, y, w, h); c.setLineDash([]);
+    const crossing = drag.b.x < drag.a.x;           // right-to-left: anything the box touches
+    c.fillStyle = crossing ? "rgba(60,200,120,0.12)" : P.selFill; c.fillRect(x, y, w, h);
+    c.strokeStyle = crossing ? "rgb(60,200,120)" : P.sel; c.lineWidth = 1.5 * px;
+    if (crossing) c.setLineDash([6 * px, 4 * px]);
+    c.strokeRect(x, y, w, h); c.setLineDash([]);
   }
 
   // boundary being drawn
@@ -678,6 +722,8 @@ function deleteSelection() {
   pushHistory();
   if (selection.type === "ap") project.aps = project.aps.filter(a => a !== o);
   else if (selection.type === "aps") project.aps = project.aps.filter(a => !o.includes(a));
+  else if (selection.type === "walls") project.walls = project.walls.filter(w => !o.includes(w));
+  else if (selection.type === "mixed") { project.aps = project.aps.filter(a => !o.aps.includes(a)); project.walls = project.walls.filter(w => !o.walls.includes(w)); }
   else if (selection.type === "area") project.areas = project.areas.filter(a => a !== o);
   else if (selection.type === "survey") project.survey = project.survey.filter(q => q !== o);
   else project.walls = project.walls.filter(w => w !== o);
@@ -718,7 +764,7 @@ canvas.addEventListener("pointerdown", e => {
 
   const p = toWorld(e);
   if (e.button === 1 || spaceDown || tool === "pan") { startPan(e); return; }
-  if (e.button === 2) { if (tool === "wall") finishWall(); if (tool === "area") finishArea(); return; }
+  if (e.button === 2) { if (tool === "wall") finishWall(); else if (tool === "area") finishArea(); else if (tool === "select") startPan(e); return; }
 
   if (tool === "select") {
     const sel = findSel();
@@ -732,20 +778,34 @@ canvas.addEventListener("pointerdown", e => {
     }
     const ap = hitAp(p);
     const multi = e.shiftKey || e.ctrlKey || e.metaKey;
+    const toggle = (list, id) => list.includes(id) ? list.filter(x => x !== id) : [...list, id];
     if (ap && multi) {                                   // Shift/Ctrl+click: add or remove from the selection
-      const ids = selectedAps().map(a => a.id);
-      selectAps(ids.includes(ap.id) ? ids.filter(id => id !== ap.id) : [...ids, ap.id]);
+      const ids = selIds();
+      setSelection(toggle(ids.aps, ap.id), ids.walls);
       renderPanel(); requestRender();
       return;
     }
     if (ap) {
-      if (!isApSelected(ap)) selection = { type: "ap", id: ap.id };   // dragging a selected AP moves the whole group
-      drag = { type: "aps", aps: selectedAps(), last: p, pushed: false };
+      if (!isApSelected(ap)) selection = { type: "ap", id: ap.id };   // dragging a selected item moves the whole group
+      drag = { type: "group", aps: selectedAps(), walls: selection.type === "mixed" ? selectedWalls() : [], last: p, pushed: false };
       renderPanel(); requestRender();
       return;
     }
-    if (multi) {                                         // Shift+drag on empty space: box-select APs
-      drag = { type: "marquee", a: p, b: p, base: selectedAps().map(a => a.id) };
+    const wHit = !hitSurvey(p) && hitWall(p);
+    if (wHit && multi) {
+      const ids = selIds();
+      setSelection(ids.aps, toggle(ids.walls, wHit.id));
+      renderPanel(); requestRender();
+      return;
+    }
+    if (wHit && isGroupSel() && isWallSelected(wHit)) {  // drag a selected wall: move the whole selection
+      drag = { type: "group", aps: selectedAps(), walls: selectedWalls(), last: p, pushed: false };
+      return;
+    }
+    // Shift+drag, or any mouse drag on empty space: box-select APs and walls
+    if (multi || (e.pointerType === "mouse" && !wHit && !hitSurvey(p) && !hitArea(p))) {
+      const ids = multi ? selIds() : { aps: [], walls: [] };
+      drag = { type: "marquee", a: p, b: p, sx: e.clientX, sy: e.clientY, base: ids };
       return;
     }
     const sp = hitSurvey(p);
@@ -816,9 +876,10 @@ canvas.addEventListener("pointermove", e => {
     }
     if (drag.type === "marquee") { drag.b = p; requestRender(); return; }
     if (!drag.pushed) { pushHistory(); drag.pushed = true; }
-    if (drag.type === "aps") {
+    if (drag.type === "group") {
       const dx = p.x - drag.last.x, dy = p.y - drag.last.y;
       for (const a of drag.aps) { a.x += dx; a.y += dy; }
+      for (const w of drag.walls) { w.x1 += dx; w.y1 += dy; w.x2 += dx; w.y2 += dy; }
       drag.last = p;
     }
     else if (drag.type === "wall") {
@@ -858,8 +919,16 @@ function endPointer(e) {
   if (drag?.type === "marquee") {
     const x0 = Math.min(drag.a.x, drag.b.x), x1 = Math.max(drag.a.x, drag.b.x);
     const y0 = Math.min(drag.a.y, drag.b.y), y1 = Math.max(drag.a.y, drag.b.y);
-    const inBox = project.aps.filter(a => a.x >= x0 && a.x <= x1 && a.y >= y0 && a.y <= y1).map(a => a.id);
-    selectAps([...drag.base, ...inBox]);
+    const moved = Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > TAP_SLOP;
+    if (!moved) setSelection(drag.base.aps, drag.base.walls);       // a plain click on empty space
+    else {
+      const inR = (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+      const crossing = drag.b.x < drag.a.x;
+      const aps = project.aps.filter(a => inR(a.x, a.y)).map(a => a.id);
+      const walls = project.walls.filter(w => crossing ? segTouchesRect(w.x1, w.y1, w.x2, w.y2, x0, y0, x1, y1)
+                                                       : inR(w.x1, w.y1) && inR(w.x2, w.y2)).map(w => w.id);
+      setSelection([...drag.base.aps, ...aps], [...drag.base.walls, ...walls]);
+    }
     drag = null; renderPanel(); requestRender();
     return;
   }
@@ -1137,6 +1206,8 @@ function panelTitle(o) {
   if (o && selection.type === "ap") return `Access Point: ${o.name || "AP"}`;
   if (o && selection.type === "aps") return tf("apsSelected", { n: o.length });
   if (o && selection.type === "wall") return t("tlWall");
+  if (o && selection.type === "walls") return tf("wallsSelected", { n: o.length });
+  if (o && selection.type === "mixed") return tf("itemsSelected", { a: o.aps.length, w: o.walls.length });
   if (o && selection.type === "area") return t("areaBoundary");
   if (o && selection.type === "survey") return `${t("surveyPoint")} #${project.survey.indexOf(o) + 1}`;
   if (tool === "survey") return noKey(t("toolSurvey"));
@@ -1254,14 +1325,36 @@ function renderPanel() {
 
   if (o && (selection.type === "ap" || selection.type === "aps")) {
     renderApPanel(el, selection.type === "ap" ? [o] : o);
-  } else if (o && selection.type === "wall") {
+  } else if (o && (selection.type === "wall" || selection.type === "walls")) {
+    const ws = selection.type === "wall" ? [o] : o;
+    const mats = [...new Set(ws.map(w => w.mat))];
+    const one = mats.length === 1 ? mats[0] : null;
+    const sameMat = one ? project.walls.filter(w => w.mat === one) : [];
+    const len = ws.reduce((a, w) => a + Math.hypot(w.x2 - w.x1, w.y2 - w.y1), 0);
     el.innerHTML = `
-      <div class="row"><span>${t("material")}</span></div>${matButtons(o.mat)}
-      <div class="row"><span>${t("length")}</span><b>${fmtLen(Math.hypot(o.x2 - o.x1, o.y2 - o.y1))}</b></div>
-      <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+      ${ws.length > 1 ? `<p class="unit">${t(one ? "wallsSameMat" : "wallsMixedMat")}</p>` : ""}
+      <div class="row"><span>${t(ws.length > 1 ? "materialAll" : "material")}</span></div>${matButtons(one)}
+      <div class="row"><span>${t(ws.length > 1 ? "totalLength" : "length")}</span><b>${fmtLen(len)}</b></div>
+      ${one && sameMat.length > ws.length ? `<button class="btn" id="selMatBtn">${tf("selectSameMat", { m: esc(t("mat_" + one)), n: sameMat.length })}</button>` : ""}
+      <p class="unit">${t("wallSelTip")}</p>
+      <button class="btn danger" id="delBtn">${ws.length > 1 ? tf("deleteN", { n: ws.length }) : t("deleteItem")}</button>`;
     el.querySelectorAll("[data-mat]").forEach(b => b.addEventListener("click", () => {
-      pushHistory(); o.mat = b.dataset.mat; project.newWallMat = o.mat; changed();
+      pushHistory();
+      for (const w of ws) w.mat = b.dataset.mat;
+      project.newWallMat = b.dataset.mat;
+      changed();
+      if (ws.length > 1) flash(tf("wallsChanged", { n: ws.length, m: t("mat_" + b.dataset.mat) }));
     }));
+    $("#selMatBtn")?.addEventListener("click", () => { setSelection([], sameMat.map(w => w.id)); renderPanel(); requestRender(); });
+  } else if (o && selection.type === "mixed") {
+    el.innerHTML = `
+      <p class="unit">${t("mixedSelHelp")}</p>
+      <button class="btn" id="onlyWallsBtn">${tf("onlyWalls", { n: o.walls.length })}</button>
+      <button class="btn" id="onlyApsBtn">${tf("onlyAps", { n: o.aps.length })}</button>
+      <p class="unit">${t("wallSelTip")}</p>
+      <button class="btn danger" id="delBtn">${tf("deleteN", { n: o.aps.length + o.walls.length })}</button>`;
+    $("#onlyWallsBtn").addEventListener("click", () => { setSelection([], o.walls.map(w => w.id)); renderPanel(); requestRender(); });
+    $("#onlyApsBtn").addEventListener("click", () => { setSelection(o.aps.map(a => a.id), []); renderPanel(); requestRender(); });
   } else if (o && selection.type === "survey") {
     const pred = project.aps.length ? predictBest(project, o.band, o.x, o.y) : -Infinity;
     const has = Number.isFinite(o.dbm);
