@@ -1445,14 +1445,19 @@ function renderSettings() {
 // Side panel shows only what can be used yet: a getting-started checklist on an empty
 // project, the AI once there are walls, summary / display once there is something drawn,
 // and the legend once there is a heatmap.
+// A card that has appeared stays (deleting one AP does not hide the legend) until the
+// project is empty again or another project is opened.
+const revealed = { owner: null, summary: false, ai: false, display: false, legend: false };
 function renderPanelCards() {
   const hasWalls = project.walls.length > 0, hasAps = project.aps.length > 0;
   const hasPlan = !!project.plan.image;
   const started = hasWalls || hasAps;
-  $("#summaryCard").hidden = !started;
-  $("#aiCard").hidden = !hasWalls;
-  $("#displayCard").hidden = !started;
-  $("#legendCard").hidden = !hasAps;
+  if (revealed.owner !== project || !started) Object.assign(revealed, { owner: project, summary: false, ai: false, display: false, legend: false });
+  revealed.summary ||= started; revealed.display ||= started; revealed.ai ||= hasWalls; revealed.legend ||= hasAps;
+  $("#summaryCard").hidden = !revealed.summary;
+  $("#aiCard").hidden = !revealed.ai;
+  $("#displayCard").hidden = !revealed.display;
+  $("#legendCard").hidden = !revealed.legend;
   $("#startCard").hidden = hasAps;
   if (hasAps) return;
   const steps = [
