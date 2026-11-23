@@ -1442,15 +1442,14 @@ function renderSettings() {
   ls.value = LANG;
 }
 
-// Side panel shows only what can be used yet: a getting-started checklist on an empty
-// project, the AI once there are walls, summary / display once there is something drawn,
+// Side panel shows only what can be used yet: shortcuts on a project without APs,
+// the AI once there are walls, summary / display once there is something drawn,
 // and the legend once there is a heatmap.
 // A card that has appeared stays (deleting one AP does not hide the legend) until the
 // project is empty again or another project is opened.
 const revealed = { owner: null, summary: false, ai: false, display: false, legend: false };
 function renderPanelCards() {
   const hasWalls = project.walls.length > 0, hasAps = project.aps.length > 0;
-  const hasPlan = !!project.plan.image;
   const started = hasWalls || hasAps;
   if (revealed.owner !== project || !started) Object.assign(revealed, { owner: project, summary: false, ai: false, display: false, legend: false });
   revealed.summary ||= started; revealed.display ||= started; revealed.ai ||= hasWalls; revealed.legend ||= hasAps;
@@ -1458,20 +1457,15 @@ function renderPanelCards() {
   $("#aiCard").hidden = !revealed.ai;
   $("#displayCard").hidden = !revealed.display;
   $("#legendCard").hidden = !revealed.legend;
-  $("#startCard").hidden = hasAps;
+  $("#keysCard").hidden = hasAps;
   if (hasAps) return;
-  const steps = [
-    { k: "Plan", done: hasPlan, go: pickPlan },
-    { k: "Scale", done: project.scaleSet || !hasPlan, go: () => setTool("scale") },
-    { k: "Walls", done: hasWalls, go: () => setTool("wall") },
-    { k: "Aps", done: hasAps, go: () => setTool("ap") },
+  const K = k => `<kbd>${k}</kbd>`;
+  const rows = [
+    [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
+    [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
+    [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
-  const next = steps.findIndex(st => !st.done && st.k !== "Plan") ;
-  $("#startSteps").innerHTML = steps.map((st, i) =>
-    `<li class="${st.done ? "done" : i === next ? "next" : ""}"><button data-step="${i}"><span class="num">${st.done ? "✓" : i + 1}</span>` +
-    `<span>${t("step" + st.k)}<small>${t("step" + st.k + "Sub")}</small></span></button></li>`).join("");
-  $("#startSteps").querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => steps[+b.dataset.step].go()));
-  $("#startSample").hidden = started;
+  $("#keysList").innerHTML = rows.map(([k, d]) => `<dt>${k}</dt><dd>${t(d)}</dd>`).join("");
 }
 
 function renderStats() {
@@ -1865,7 +1859,7 @@ function confirmModal(title, body, onOk) {
   $("#modalBox").querySelector('[data-act="ok"]').onclick = () => { closeModal(); onOk(); };
 }
 
-$("#startSample").addEventListener("click", () => guardUnsaved(loadSample));
+$("#keysHelp").addEventListener("click", showWelcome);
 function loadSample() {
   loadProjectData(buildSampleProject()).then(() => flash(t("sampleLoaded")));
 }

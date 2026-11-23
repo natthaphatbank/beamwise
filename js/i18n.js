@@ -13,11 +13,11 @@ const LANGS = [
 
 const I18N = {
   th: {
-    startTitle: "เริ่มต้น", startSample: "ลองเปิดโปรเจกต์ตัวอย่าง", advanced: "ตั้งค่าขั้นสูง",
-    stepPlan: "นำเข้าแบบแปลน", stepPlanSub: "PNG / JPG / PDF หรือรูปถ่าย (ข้ามได้)",
-    stepScale: "ตั้งสเกล", stepScaleSub: "คลิก 2 จุดที่รู้ระยะจริง",
-    stepWalls: "วาดผนัง", stepWallsSub: "เลือกวัสดุให้ตรงของจริง",
-    stepAps: "วาง AP", stepApsSub: "หรือให้ AI วางให้หลังวาดผนัง",
+    keysTitle: "คีย์ลัดและวิธีใช้", keysMore: "วิธีใช้ทั้งหมด",
+    k_wall: "วาดผนัง • ดับเบิลคลิก / Esc เพื่อจบ • Shift ล็อกมุม", k_ap: "วาง Access Point", k_scale: "ตั้งสเกล (คลิก 2 จุดที่รู้ระยะ)",
+    k_area: "ขอบเขต / จุดวัดสัญญาณ", k_select: "เลือก / ย้าย", k_box: "คลุมเลือก (ลากขวา = ทั้งเส้นในกรอบ, ลากซ้าย = แค่แตะ)",
+    k_shift: "เพิ่ม / ลดสิ่งที่เลือก", k_pan: "เลื่อนมุมมอง • ล้อเมาส์ซูม", k_del: "ลบที่เลือก", k_undo: "ย้อนกลับ / ทำซ้ำ", k_save: "บันทึกโปรเจกต์",
+    k_drag: "ลากพื้นที่ว่าง", k_rdrag: "คลิกขวาลาก หรือ Space+ลาก", k_click: "Shift+คลิก",
     wallsSelected: "เลือกผนัง {n} เส้น", itemsSelected: "เลือก AP {a} ตัว + ผนัง {w} เส้น",
     wallsSameMat: "ผนังที่เลือกเป็นวัสดุเดียวกัน", wallsMixedMat: "ผนังที่เลือกมีหลายวัสดุ กดวัสดุด้านล่างเพื่อเปลี่ยนทั้งหมด",
     materialAll: "เปลี่ยนวัสดุทั้งหมดเป็น", totalLength: "ความยาวรวม", selectSameMat: "เลือกผนัง{m}ทั้งหมด ({n} เส้น)",
@@ -66,11 +66,11 @@ const I18N = {
   },
 
   en: {
-    startTitle: "Get started", startSample: "Open the sample project", advanced: "Advanced settings",
-    stepPlan: "Import a floor plan", stepPlanSub: "PNG / JPG / PDF or a photo (optional)",
-    stepScale: "Set the scale", stepScaleSub: "Click 2 points with a known distance",
-    stepWalls: "Draw walls", stepWallsSub: "Pick the real materials",
-    stepAps: "Place APs", stepApsSub: "Or let the AI place them once walls exist",
+    keysTitle: "Shortcuts & how to", keysMore: "Full guide",
+    k_wall: "Draw walls • double-click / Esc to finish • Shift locks the angle", k_ap: "Place an access point", k_scale: "Set the scale (click 2 points with a known distance)",
+    k_area: "Coverage boundary / survey point", k_select: "Select / move", k_box: "Box select (drag right = fully inside, drag left = touching)",
+    k_shift: "Add to / remove from the selection", k_pan: "Pan • scroll to zoom", k_del: "Delete selection", k_undo: "Undo / redo", k_save: "Save project",
+    k_drag: "Drag empty space", k_rdrag: "Right-drag or Space+drag", k_click: "Shift+click",
     wallsSelected: "{n} walls selected", itemsSelected: "{a} APs + {w} walls selected",
     wallsSameMat: "The selected walls share one material", wallsMixedMat: "The selected walls have different materials; pick one below to change them all",
     materialAll: "Change all to", totalLength: "Total length", selectSameMat: "Select all {m} walls ({n})",

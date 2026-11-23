@@ -217,15 +217,11 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 }
 .update-bar { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 60; padding: 10px 18px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.3); cursor: pointer; max-width: calc(100vw - 32px); }
 
-/* getting-started checklist */
-.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.steps button { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; background: var(--input); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 8px 10px; cursor: pointer; color: var(--text); }
-.steps button:hover { border-color: var(--accent); }
-.steps .num { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--panel); border: 1px solid var(--line-strong); color: var(--muted); }
-.steps .next .num { background: var(--accent); border-color: var(--accent); color: #fff; }
-.steps .done button { color: var(--muted); }
-.steps .done .num { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.steps small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 1px; }
+/* shortcuts card */
+.keys { display: grid; grid-template-columns: minmax(0, 38%) 1fr; gap: 7px 10px; margin: 0; align-items: baseline; }
+.keys dt { text-align: right; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.keys dd { margin: 0; color: var(--muted); line-height: 1.35; font-size: 12.5px; }
+.keys kbd { display: inline-block; min-width: 20px; margin: 1px 0; padding: 0 6px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--input); color: var(--text); font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 1.6; text-align: center; white-space: nowrap; }
 /* advanced settings fold */
 .adv { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
 .adv summary { cursor: pointer; color: var(--muted); font-size: 12.5px; padding: 4px 0; user-select: none; }
