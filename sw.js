@@ -1,6 +1,6 @@
 // Offline support: cache the app shell, serve from cache, refresh in the background.
 // Bump VERSION when releasing so old caches are cleared.
-const VERSION = "wpth-v18";
+const VERSION = "wpth-v19";
 const ASSETS = [
   "./", "index.html", "css/style.css",
   "js/i18n.js", "js/catalog.js", "js/model.js", "js/optimizer.js", "js/survey.js", "js/report.js", "js/pdfplan.js", "js/vendor/pdfjs/pdf.min.js", "js/vendor/pdfjs/pdf.worker.min.js", "js/sample.js", "js/app.js",
@@ -8,7 +8,8 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: "reload" skips the HTTP cache (GitHub Pages: max-age=600), so a new version never caches old files
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {

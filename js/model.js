@@ -39,14 +39,19 @@ function apEirp(ap, band, capNbtc) {
   return Math.min(raw, cap);
 }
 
-// Does segment p1-p2 cross segment p3-p4? (proper intersection)
+// Where does segment p1-p2 cross wall p3-p4? Returns 0 (no crossing), 1 (crosses the wall's
+// interior) or 2 (passes exactly through one of the wall's end points). Sets segCross.u to the
+// position along p1-p2 so callers can tell when two walls are hit at the same shared corner.
 function segCross(x1, y1, x2, y2, x3, y3, x4, y4) {
   const d = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3);
-  if (d === 0) return false;
+  if (d === 0) return 0;
   const u = ((x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)) / d;
   const v = ((x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)) / d;
-  return u > 0 && u < 1 && v >= 0 && v <= 1;
+  if (!(u > 0 && u < 1 && v >= 0 && v <= 1)) return 0;
+  segCross.u = u;
+  return v < 1e-9 || v > 1 - 1e-9 ? 2 : 1;
 }
+segCross.u = 0;
 
 // Everything the per-point model needs, prepared once per computation.
 function rfContext(project, band) {
@@ -79,13 +84,23 @@ function rssiAt(rf, eirp, ax, ay, cx, cy, floor = -Infinity) {
   let rssi = eirp + (rf.offset || 0) - rf.pl1 - 10 * rf.n * Math.log10(dm);
   if (rssi <= floor) return rssi;
   const W = rf.W;
+  let corners = null;              // wall end points already crossed (rare)
   const minX = Math.min(ax, cx), maxX = Math.max(ax, cx), minY = Math.min(ay, cy), maxY = Math.max(ay, cy);
   for (let i = 0; i < W.n; i++) {
     if (W.maxX[i] < minX || W.minX[i] > maxX || W.maxY[i] < minY || W.minY[i] > maxY) continue;
-    if (segCross(ax, ay, cx, cy, W.x1[i], W.y1[i], W.x2[i], W.y2[i])) {
-      rssi -= W.loss[i];
-      if (rssi <= floor) return rssi;
+    const hit = segCross(ax, ay, cx, cy, W.x1[i], W.y1[i], W.x2[i], W.y2[i]);
+    if (!hit) continue;
+    let loss = W.loss[i];
+    if (hit === 2) {
+      // Through a corner shared by several walls: one wall is crossed, not each of them.
+      // Count the corner once, with the strongest material meeting there.
+      corners = corners || [];
+      const c = corners.find(k => Math.abs(k.u - segCross.u) < 1e-7);
+      if (c) { const extra = Math.max(0, loss - c.loss); c.loss += extra; loss = extra; }
+      else corners.push({ u: segCross.u, loss });
     }
+    rssi -= loss;
+    if (rssi <= floor) return rssi;
   }
   return rssi;
 }
@@ -175,7 +190,7 @@ function buildingBox(project) {
 
 // Signal colour scale (dBm -> rgb). Below minDbm is transparent.
 const SIGNAL_STOPS = [
-  { db: -45, rgb: [0, 200, 120],  key: "sGood",  label: "≥ -55" },
+  { db: -55, rgb: [0, 200, 120],  key: "sGood",  label: "≥ -55" },
   { db: -60, rgb: [70, 210, 80],  key: "sGood2", label: "-60" },
   { db: -67, rgb: [190, 220, 50], key: "sOk",    label: "-67" },
   { db: -75, rgb: [250, 170, 40], key: "sWeak",  label: "-75" },

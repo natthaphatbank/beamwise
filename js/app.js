@@ -142,10 +142,14 @@ function toWorld(e) {
   const r = canvas.getBoundingClientRect();
   return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s };
 }
+let fitPending = false;
 function fit() {
   const r = canvas.getBoundingClientRect();
   const { width: W, height: H } = project.plan;
   const R = rulersOn() ? RULER : 0;
+  // not laid out yet (zero-size canvas): a negative scale would break drawing, so fit on the next resize
+  if (r.width <= R + 1 || r.height <= R + 1) { fitPending = true; return; }
+  fitPending = false;
   view.s = Math.min((r.width - R) / W, (r.height - R) / H) * 0.92;
   view.ox = R + (r.width - R - W * view.s) / 2;
   view.oy = R + (r.height - R - H * view.s) / 2;
@@ -156,6 +160,7 @@ function resize() {
   const r = canvas.getBoundingClientRect();
   canvas.width = Math.round(r.width * dpr);
   canvas.height = Math.round(r.height * dpr);
+  if (fitPending) fit();
   requestRender();
 }
 
@@ -983,12 +988,12 @@ function modelOptions(selected, withCustom, q = "") {
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const match = m => m.id === selected || terms.every(w => `${m.brand} ${m.model} ${m.std}`.toLowerCase().includes(w));
   const list = AP_MODELS.filter(match);
-  const opt = m => `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${esc(m.model)} · ${m.std}</option>`;
+  const opt = m => `<option value="${esc(m.id)}" ${m.id === selected ? "selected" : ""}>${esc(m.model)} · ${esc(m.std)}</option>`;
   const mine = list.filter(m => m.custom);
   const brands = [...new Set(list.filter(m => !m.custom).map(m => m.brand))];
   return (withCustom ? `<option value="custom" ${selected === "custom" ? "selected" : ""}>${t("custom")}</option>` : "") +
     (mine.length ? `<optgroup label="${esc(t("myModels"))}">` + mine.map(m =>
-      `<option value="${m.id}" ${m.id === selected ? "selected" : ""}>${esc(m.brand)} ${esc(m.model)} · ${m.std}</option>`).join("") + "</optgroup>" : "") +
+      `<option value="${esc(m.id)}" ${m.id === selected ? "selected" : ""}>${esc(m.brand)} ${esc(m.model)} · ${esc(m.std)}</option>`).join("") + "</optgroup>" : "") +
     brands.map(b => `<optgroup label="${esc(b)}">` + list.filter(m => !m.custom && m.brand === b).map(opt).join("") + "</optgroup>").join("");
 }
 // Search box + manage button that sit above a model <select>.
@@ -1006,15 +1011,25 @@ function wireModelSearch(input, select, getSelected, withCustom, extraTop = "") 
 // Kept in this browser (wpth-custom-models) and copied into each saved project, so a project
 // opened on another computer brings its models along (and adds them to that browser's list).
 const CUSTOM_KEY = "wpth-custom-models";
-function customLibrary() {
-  try { const l = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+const WIFI_STDS = ["Wi-Fi 4", "Wi-Fi 5", "Wi-Fi 6", "Wi-Fi 6E", "Wi-Fi 7"];
+// Custom models arrive from project files and localStorage: keep known fields with the right types.
+function cleanModel(m) {
+  if (!m || typeof m !== "object") return null;
+  const id = strOr(m.id, "", 64), model = strOr(m.model, "", 80);
+  if (!id || !model) return null;
+  const n = v => { const x = +v; return Number.isFinite(x) ? x : 0; };
+  return { id, brand: strOr(m.brand, "", 60), model, std: WIFI_STDS.includes(m.std) ? m.std : "Wi-Fi 6",
+           tx24: n(m.tx24), tx5: n(m.tx5), gain24: n(m.gain24), gain5: n(m.gain5) };
 }
-function saveCustomLibrary(list) { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch (e) {} }
+function customLibrary() {
+  try { const l = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]"); return Array.isArray(l) ? l.map(cleanModel).filter(Boolean) : []; } catch (e) { return []; }
+}
+function saveCustomLibrary(list) { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.map(cleanModel).filter(Boolean))); } catch (e) {} }
 function registerCustomModels(list) {
-  for (const m of list || []) {
-    if (!m || !m.id || !m.model) continue;
-    const spec = { id: m.id, brand: m.brand || t("myModels"), model: m.model, std: m.std || "Wi-Fi 6",
-                   tx24: +m.tx24 || 0, tx5: +m.tx5 || 0, gain24: +m.gain24 || 0, gain5: +m.gain5 || 0, custom: true };
+  for (const raw of list || []) {
+    const m = cleanModel(raw);
+    if (!m) continue;
+    const spec = { ...m, brand: m.brand || t("myModels"), custom: true };
     const i = AP_MODELS.findIndex(x => x.id === spec.id);
     if (i >= 0) { if (AP_MODELS[i].custom) AP_MODELS[i] = spec; else continue; } else AP_MODELS.push(spec);
     AP_BY_ID[spec.id] = spec;
@@ -1029,14 +1044,14 @@ const plainModel = m => ({ id: m.id, brand: m.brand, model: m.model, std: m.std,
 
 function openModelManager(prefillId) {
   const base = AP_BY_ID[prefillId] || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
-  const stds = ["Wi-Fi 4", "Wi-Fi 5", "Wi-Fi 6", "Wi-Fi 6E", "Wi-Fi 7"];
+  const stds = WIFI_STDS;
   const render = () => {
     const lib = customLibrary();
     openModal(`<h2>${t("manageModels").replace(/^\+\s*/, "")}</h2>
       <p>${t("customModelsHelp")}</p>
       ${lib.length ? `<table class="calib-tbl model-tbl"><thead><tr><th>${t("brandLbl")}</th><th>${t("apModel")}</th><th>Std</th>
         <th>Tx 2.4/5<br><span class="u">dBm</span></th><th>Gain 2.4/5<br><span class="u">dBi</span></th><th></th></tr></thead><tbody>
-        ${lib.map(m => `<tr><td>${esc(m.brand)}</td><td>${esc(m.model)}</td><td>${esc(m.std)}</td><td>${m.tx24} / ${m.tx5}</td><td>${m.gain24} / ${m.gain5}</td>
+        ${lib.map(m => `<tr><td>${esc(m.brand)}</td><td>${esc(m.model)}</td><td>${esc(m.std)}</td><td>${esc(m.tx24)} / ${esc(m.tx5)}</td><td>${esc(m.gain24)} / ${esc(m.gain5)}</td>
           <td><button class="link-btn danger" data-del="${esc(m.id)}">${t("deleteShort")}</button></td></tr>`).join("")}</tbody></table>`
         : `<p class="unit">${t("noCustomModels")}</p>`}
       <h3 class="modal-sub">${t("addModel")}</h3>
@@ -1127,7 +1142,7 @@ function renderApPanel(el, aps) {
           : `<p class="unit">${t("multiHelp")}</p>`}
     <label class="row"><span>${t("apModel")}</span><select id="apModelSel">${modelSame ? "" : `<option value="__mixed" selected>${mixed}</option>`}${modelOptions(modelSame ? o.model : "", true)}</select></label>
     ${modelSearchHtml("apModelSearch")}
-    <p class="unit model-info">${spec ? `${esc(spec.brand)} · ${spec.std} · ${t("modelNote")}` : ""}</p>
+    <p class="unit model-info">${spec ? `${esc(spec.brand)} · ${esc(spec.std)} · ${t("modelNote")}` : ""}</p>
     <label class="row"><span>${t("tx24")} <span class="u">(dBm)</span></span>${num("tx24", 30, 1)}</label>
     <label class="row"><span>${t("tx5")} <span class="u">(dBm)</span></span>${num("tx5", 30, 1)}</label>
     <label class="row"><span>${t("gain24")} <span class="u">(dBi)</span></span>${num("gain24", 15, 0.1)}</label>
@@ -1439,11 +1454,61 @@ function saveProject() {
   flash(t("saved"));
 }
 
+// A project file comes from outside (shared by someone else, edited by hand), and many of its
+// values end up in innerHTML. Keep only known fields, coerced to the expected types.
+// (function declarations, so they are hoisted: cleanModel above uses them too)
+function numOr(v, d) { const n = +v; return v !== null && v !== "" && Number.isFinite(n) ? n : d; }
+function strOr(v, d = "", max = 120) { return typeof v === "string" ? v.slice(0, max) : typeof v === "number" ? String(v) : d; }
+function chOr(v) { return v == null || v === "" ? null : numOr(v, null); }
+function sanitizeProject(data) {
+  const base = newProject();
+  const arr = a => Array.isArray(a) ? a.filter(o => o && typeof o === "object") : [];
+  const plan = data.plan || {};
+  const img = typeof plan.image === "string" && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(plan.image) ? plan.image : null;
+  const s = data.settings || {}, bs = base.settings;
+  const autoOrNum = (v, d) => v === "auto" ? "auto" : numOr(v, d);
+  const cal = data.calib && typeof data.calib === "object" ? data.calib : null;
+  return {
+    ...base,
+    version: numOr(data.version, 1),
+    plan: { image: img, width: Math.max(1, numOr(plan.width, base.plan.width)), height: Math.max(1, numOr(plan.height, base.plan.height)) },
+    mPerPx: numOr(data.mPerPx, 0) > 0 ? +data.mPerPx : base.mPerPx,
+    scaleSet: !!data.scaleSet,
+    walls: arr(data.walls).map(w => ({ id: strOr(w.id, uid()), x1: numOr(w.x1, 0), y1: numOr(w.y1, 0), x2: numOr(w.x2, 0), y2: numOr(w.y2, 0),
+                                      mat: MATERIALS[w.mat] ? w.mat : "brick" })),
+    aps: arr(data.aps).map(a => ({ id: strOr(a.id, uid()), name: strOr(a.name, "AP"), x: numOr(a.x, 0), y: numOr(a.y, 0), model: strOr(a.model, "custom"),
+                                   tx24: numOr(a.tx24, 0), tx5: numOr(a.tx5, 0),
+                                   gain24: numOr(a.gain24 ?? a.gain, 3), gain5: numOr(a.gain5 ?? a.gain, 3),
+                                   ch24: chOr(a.ch24), ch5: chOr(a.ch5) })),
+    areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
+    survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
+                                         band: p.band === "2.4" ? "2.4" : "5" })),
+    calib: cal && Number.isFinite(+cal.n) ? {
+      n: +cal.n, off24: numOr(cal.off24, 0), off5: numOr(cal.off5, 0),
+      rmsBefore: numOr(cal.rmsBefore, null), rmsAfter: numOr(cal.rmsAfter, null),
+      count: numOr(cal.count, 0), date: strOr(cal.date, "", 40),
+    } : null,
+    settings: {
+      ...bs,
+      band: s.band === "2.4" ? "2.4" : s.band === "5" ? "5" : bs.band,
+      env: ENVIRONMENTS[s.env] ? +s.env : bs.env,
+      opacity: Math.min(0.9, Math.max(0.1, numOr(s.opacity, bs.opacity))),
+      minDbm: autoOrNum(s.minDbm, bs.minDbm),
+      req: autoOrNum(s.req, bs.req),
+      capNbtc: s.capNbtc == null ? bs.capNbtc : !!s.capNbtc,
+      waves: s.waves == null ? bs.waves : !!s.waves,
+      rulers: s.rulers == null ? bs.rulers : !!s.rulers,
+    },
+    newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
+    newApModel: strOr(data.newApModel, base.newApModel),
+    customModels: arr(data.customModels).map(cleanModel).filter(Boolean),
+  };
+}
+
 function loadProjectData(data) {
   if (!data || !data.plan || !Array.isArray(data.walls) || !Array.isArray(data.aps)) throw new Error("bad");
-  const base = newProject();
-  project = { ...base, ...data, settings: { ...base.settings, ...(data.settings || {}) } };
-  if (Array.isArray(project.customModels)) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
+  project = sanitizeProject(data);
+  if (project.customModels.length) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
   project.aps.forEach(normalizeAp);
   selection = null; wallChain = null; scaleLine = null; areaDraft = null;
   undoStack = []; redoStack = [];
@@ -1473,7 +1538,6 @@ function loadPlanFile(file) {
     const dataUrl = cv.toDataURL("image/jpeg", 0.88);
     const plan = new Image();
     plan.onload = () => {
-      pushHistory();
       // keep the old metres-per-pixel ratio meaningful: assume the long side is ~30 m until the user sets scale
       project.plan = { image: dataUrl, width: w, height: h };
       project.mPerPx = 30 / Math.max(w, h);
@@ -1672,6 +1736,15 @@ updateInstallBtn();
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  // The page was served from the old cache; once a new version has taken over, offer a reload.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || $("#updateBar")) return;
+    const b = document.createElement("button");
+    b.id = "updateBar"; b.className = "update-bar"; b.textContent = t("updateReady");
+    b.onclick = () => location.reload();
+    document.body.appendChild(b);
+  });
 }
 
 // ---------- start ----------

@@ -776,6 +776,14 @@ Object.assign(I18N.ko, { installApp: "앱 설치", appInstalled: "앱이 설치�
 Object.assign(I18N.vi, { installApp: "Cài ứng dụng", appInstalled: "Đã cài ứng dụng — mở từ màn hình chính / desktop", installIos: "Trên iPhone / iPad: chạm <b>Chia sẻ</b> (hình vuông có mũi tên lên) trong Safari, rồi chọn <b>Thêm vào MH chính</b>. Ứng dụng sẽ mở từ màn hình chính và dùng được ngoại tuyến." });
 Object.assign(I18N.lo, { installApp: "ຕິດຕັ້ງແອັບ", appInstalled: "ຕິດຕັ້ງແອັບແລ້ວ — ເປີດໄດ້ຈາກໄອຄອນເທິງໜ້າຈໍ", installIos: "ເທິງ iPhone / iPad: ແຕະປຸ່ມ <b>ແບ່ງປັນ</b> (ສີ່ລ່ຽມມີລູກສອນຂຶ້ນ) ໃນ Safari ແລ້ວເລືອກ <b>ເພີ່ມໃສ່ໜ້າຈໍຫຼັກ</b> ແອັບຈະຢູ່ໜ້າຈໍຫຼັກ ແລະ ໃຊ້ອອຟລາຍໄດ້" });
 Object.assign(I18N.my, { installApp: "အက်ပ် ထည့်သွင်းရန်", appInstalled: "အက်ပ် ထည့်သွင်းပြီး — desktop / ပင်မစခရင်မှ ဖွင့်ပါ", installIos: "iPhone / iPad တွင်: Safari ရှိ <b>Share</b> (အပေါ်မြှားပါ စတုရန်း) ကို နှိပ်ပြီး <b>Add to Home Screen</b> ကို ရွေးပါ။ ပင်မစခရင်မှ ဖွင့်နိုင်ပြီး အော့ဖ်လိုင်း သုံးနိုင်သည်။" });
+Object.assign(I18N.th, { updateReady: "มีเวอร์ชันใหม่ — แตะเพื่อโหลดใหม่" });
+Object.assign(I18N.en, { updateReady: "New version available — tap to reload" });
+Object.assign(I18N.zh, { updateReady: "有新版本 — 点击重新加载" });
+Object.assign(I18N.ja, { updateReady: "新しいバージョンがあります — タップして再読み込み" });
+Object.assign(I18N.ko, { updateReady: "새 버전이 있습니다 — 탭하여 새로고침" });
+Object.assign(I18N.vi, { updateReady: "Đã có phiên bản mới — chạm để tải lại" });
+Object.assign(I18N.lo, { updateReady: "ມີເວີຊັນໃໝ່ — ແຕະເພື່ອໂຫຼດໃໝ່" });
+Object.assign(I18N.my, { updateReady: "ဗားရှင်းအသစ် ရနိုင်ပါပြီ — ပြန်ဖွင့်ရန် နှိပ်ပါ" });
 
 // ---- unsaved work ----
 Object.assign(I18N.th, { unsavedTitle: "บันทึกงานก่อนไหม?", unsavedBody: "งานปัจจุบันยังไม่ได้บันทึก ถ้าดำเนินการต่อโดยไม่บันทึก งานนี้จะหายไป", saveFirst: "บันทึกก่อน", dontSave: "ไม่บันทึก" });
