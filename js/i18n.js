@@ -13,6 +13,8 @@ const LANGS = [
 
 const I18N = {
   th: {
+    orthoOn: "เส้นตรง: เปิด", orthoOff: "เส้นตรง: ปิด", orthoShiftFree: "Shift ค้าง = เอียงได้", orthoShiftLock: "Shift ค้าง = ล็อกตรง",
+    k_ortho: "เปิด/ปิดเส้นตรง (แนวนอน/แนวตั้ง) • Shift ค้าง = สลับชั่วคราว",
     keysTitle: "คีย์ลัดและวิธีใช้", keysMore: "วิธีใช้ทั้งหมด",
     k_wall: "วาดผนัง • ดับเบิลคลิก / Esc เพื่อจบ • Shift ล็อกมุม", k_ap: "วาง Access Point", k_scale: "ตั้งสเกล (คลิก 2 จุดที่รู้ระยะ)",
     k_area: "ขอบเขต / จุดวัดสัญญาณ", k_select: "เลือก / ย้าย", k_box: "คลุมเลือก (ลากขวา = ทั้งเส้นในกรอบ, ลากซ้าย = แค่แตะ)",
@@ -45,7 +47,7 @@ const I18N = {
     hintSelect: "ลาก AP เพื่อย้าย • คลิกผนังเพื่อเปลี่ยนวัสดุ • ลากพื้นที่ว่างเพื่อคลุมเลือก • คลิกขวาหรือ Space+ลากเพื่อเลื่อน • ล้อเมาส์เพื่อซูม",
     hintPan: "ลากเพื่อเลื่อนมุมมอง • ล้อเมาส์เพื่อซูม",
     hintScale: "คลิกจุดเริ่มต้นและจุดสิ้นสุดของระยะที่รู้ความยาว",
-    hintWall: "คลิกเพื่อวาดผนังต่อเนื่อง • ดับเบิลคลิก / Esc / คลิกขวา เพื่อจบ • กด Shift เพื่อล็อกมุม",
+    hintWall: "คลิกเพื่อวาดผนังต่อเนื่อง • ดับเบิลคลิก / Esc / คลิกขวา เพื่อจบ • เส้นตรงเปิดอยู่ กด Shift ค้างเพื่อวาดเอียง (กด O สลับ)",
     hintAp: "คลิกบนแบบแปลนเพื่อวาง Access Point",
     sGood: "ดีมาก — วิดีโอคอล / VoIP", sGood2: "ดี — ใช้งานทั่วไป", sOk: "พอใช้ — เว็บ / แชท", sWeak: "อ่อน — ไม่เสถียร", sBad: "แย่มาก",
     saved: "บันทึกแล้ว", loaded: "เปิดโปรเจกต์แล้ว", exported: "ส่งออกภาพแล้ว", planLoaded: "นำเข้าแบบแปลนแล้ว — ต่อไปให้ตั้งสเกล (S)",
@@ -66,6 +68,8 @@ const I18N = {
   },
 
   en: {
+    orthoOn: "Straight lines: on", orthoOff: "Straight lines: off", orthoShiftFree: "hold Shift = any angle", orthoShiftLock: "hold Shift = straight",
+    k_ortho: "Straight lines on/off (horizontal / vertical) • hold Shift to flip it",
     keysTitle: "Shortcuts & how to", keysMore: "Full guide",
     k_wall: "Draw walls • double-click / Esc to finish • Shift locks the angle", k_ap: "Place an access point", k_scale: "Set the scale (click 2 points with a known distance)",
     k_area: "Coverage boundary / survey point", k_select: "Select / move", k_box: "Box select (drag right = fully inside, drag left = touching)",
@@ -98,7 +102,7 @@ const I18N = {
     hintSelect: "Drag APs to move • Click a wall to change material • Drag empty space to box-select • Right-drag or Space+drag to pan • Scroll to zoom",
     hintPan: "Drag to pan • Scroll to zoom",
     hintScale: "Click the start and end of a distance you know",
-    hintWall: "Click to draw connected walls • Double-click / Esc / right-click to finish • Hold Shift to lock angle",
+    hintWall: "Click to draw connected walls • Double-click / Esc / right-click to finish • Straight lines are on: hold Shift for any angle (O toggles)",
     hintAp: "Click on the plan to place an access point",
     sGood: "Excellent — video calls / VoIP", sGood2: "Good — general use", sOk: "Fair — web / chat", sWeak: "Weak — unstable", sBad: "Very poor",
     saved: "Saved", loaded: "Project opened", exported: "Image exported", planLoaded: "Floor plan imported — next, set the scale (S)",
@@ -135,7 +139,7 @@ const I18N = {
     hintSelect: "拖动 AP 移动 • 点击墙体更换材料 • 拖动空白处框选 • 右键拖动或空格+拖动平移 • 滚轮缩放",
     hintPan: "拖动平移 • 滚轮缩放",
     hintScale: "点击已知距离的起点和终点",
-    hintWall: "点击连续绘制墙体 • 双击 / Esc / 右键结束 • 按住 Shift 锁定角度",
+    hintWall: "点击连续绘制墙体 • 双击 / Esc / 右键结束 • 默认水平/垂直，按住 Shift 可任意角度（O 切换）",
     hintAp: "在平面图上点击以放置接入点",
     sGood: "极佳 — 视频通话 / VoIP", sGood2: "良好 — 日常使用", sOk: "一般 — 网页 / 聊天", sWeak: "较弱 — 不稳定", sBad: "极差",
     saved: "已保存", loaded: "项目已打开", exported: "图片已导出", planLoaded: "平面图已导入 — 下一步请设置比例 (S)",
@@ -172,7 +176,7 @@ const I18N = {
     hintSelect: "AP をドラッグで移動 • 壁をクリックで材質変更 • 空白をドラッグで範囲選択 • 右ドラッグか Space+ドラッグで移動 • ホイールでズーム",
     hintPan: "ドラッグで移動 • ホイールでズーム",
     hintScale: "距離が分かる区間の始点と終点をクリック",
-    hintWall: "クリックで壁を連続描画 • ダブルクリック / Esc / 右クリックで終了 • Shift で角度固定",
+    hintWall: "クリックで壁を連続描画 • ダブルクリック / Esc / 右クリックで終了 • 水平・垂直に固定中、Shift を押す間は自由な角度（O で切替）",
     hintAp: "図面をクリックしてアクセスポイントを配置",
     sGood: "非常に良い — ビデオ通話 / VoIP", sGood2: "良い — 一般的な利用", sOk: "普通 — Web / チャット", sWeak: "弱い — 不安定", sBad: "非常に悪い",
     saved: "保存しました", loaded: "プロジェクトを開きました", exported: "画像を書き出しました", planLoaded: "図面をインポートしました — 次に縮尺を設定してください (S)",
@@ -209,7 +213,7 @@ const I18N = {
     hintSelect: "AP 드래그로 이동 • 벽 클릭으로 재질 변경 • 빈 곳 드래그로 영역 선택 • 오른쪽 드래그 또는 Space+드래그로 화면 이동 • 휠로 확대/축소",
     hintPan: "드래그로 이동 • 휠로 확대/축소",
     hintScale: "길이를 아는 구간의 시작점과 끝점을 클릭",
-    hintWall: "클릭해 벽을 연속으로 그리기 • 더블클릭 / Esc / 우클릭으로 종료 • Shift로 각도 고정",
+    hintWall: "클릭해 벽을 연속으로 그리기 • 더블클릭 / Esc / 우클릭으로 종료 • 수평/수직 고정 중, Shift를 누르는 동안 자유 각도 (O로 전환)",
     hintAp: "평면도를 클릭해 AP 배치",
     sGood: "매우 좋음 — 영상 통화 / VoIP", sGood2: "좋음 — 일반 사용", sOk: "보통 — 웹 / 채팅", sWeak: "약함 — 불안정", sBad: "매우 나쁨",
     saved: "저장됨", loaded: "프로젝트를 열었습니다", exported: "이미지를 내보냈습니다", planLoaded: "평면도를 가져왔습니다 — 다음으로 축척을 설정하세요 (S)",
@@ -246,7 +250,7 @@ const I18N = {
     hintSelect: "Kéo AP để di chuyển • Nhấp tường để đổi vật liệu • Kéo vùng trống để chọn theo khung • Kéo chuột phải hoặc Space+kéo để di chuyển • Cuộn chuột để phóng to",
     hintPan: "Kéo để di chuyển • Cuộn chuột để phóng to",
     hintScale: "Nhấp điểm đầu và điểm cuối của một khoảng cách đã biết",
-    hintWall: "Nhấp để vẽ tường liên tục • Nhấp đúp / Esc / chuột phải để kết thúc • Giữ Shift để khóa góc",
+    hintWall: "Nhấp để vẽ tường liên tục • Nhấp đúp / Esc / chuột phải để kết thúc • Đang khóa ngang/dọc, giữ Shift để vẽ góc bất kỳ (O để bật/tắt)",
     hintAp: "Nhấp lên bản vẽ để đặt điểm truy cập",
     sGood: "Rất tốt — gọi video / VoIP", sGood2: "Tốt — sử dụng chung", sOk: "Khá — web / chat", sWeak: "Yếu — không ổn định", sBad: "Rất kém",
     saved: "Đã lưu", loaded: "Đã mở dự án", exported: "Đã xuất ảnh", planLoaded: "Đã nhập bản vẽ — tiếp theo hãy đặt tỷ lệ (S)",
@@ -283,7 +287,6 @@ const I18N = {
 
     hintPan: "ລາກເພື່ອເລື່ອນ • ໝຸນເມົ້າເພື່ອຊູມ",
     hintScale: "ຄລິກຈຸດເລີ່ມ ແລະ ຈຸດສິ້ນສຸດຂອງໄລຍະທີ່ຮູ້ຄວາມຍາວ",
-    hintWall: "ຄລິກເພື່ອແຕ້ມຝາຕໍ່ເນື່ອງ • ຄລິກສອງເທື່ອ / Esc / ຄລິກຂວາ ເພື່ອຈົບ • ກົດ Shift ເພື່ອລັອກມຸມ",
     hintAp: "ຄລິກເທິງແຜນຜັງເພື່ອວາງ Access Point",
     sGood: "ດີຫຼາຍ — ວິດີໂອຄອລ / VoIP", sGood2: "ດີ — ໃຊ້ງານທົ່ວໄປ", sOk: "ພໍໃຊ້ — ເວັບ / ແຊັດ", sWeak: "ອ່ອນ — ບໍ່ໝັ້ນຄົງ", sBad: "ບໍ່ດີຫຼາຍ",
     saved: "ບັນທຶກແລ້ວ", loaded: "ເປີດໂປຣເຈັກແລ້ວ", exported: "ສົ່ງອອກຮູບແລ້ວ", planLoaded: "ນຳເຂົ້າແຜນຜັງແລ້ວ — ຕໍ່ໄປໃຫ້ຕັ້ງມາດຕາສ່ວນ (S)",
@@ -320,7 +323,6 @@ const I18N = {
 
     hintPan: "ရွှေ့ရန် ဆွဲပါ • ချဲ့ရန် mouse wheel လှည့်ပါ",
     hintScale: "အရှည်သိသော အကွာအဝေး၏ အစနှင့် အဆုံးကို နှိပ်ပါ",
-    hintWall: "နံရံ ဆက်တိုက်ဆွဲရန် နှိပ်ပါ • ပြီးရန် နှစ်ချက်နှိပ် / Esc / ညာဘက်နှိပ် • ထောင့်သော့ခတ်ရန် Shift ဖိထားပါ",
     hintAp: "Access Point ထားရန် အထပ်ပုံစံပေါ်တွင် နှိပ်ပါ",
     sGood: "အလွန်ကောင်း — ဗီဒီယိုခေါ်ဆိုမှု / VoIP", sGood2: "ကောင်း — ယေဘုယျ သုံးစွဲမှု", sOk: "အသင့်အတင့် — ဝက်ဘ် / ချတ်", sWeak: "အားနည်း — မတည်ငြိမ်", sBad: "အလွန်ညံ့",
     saved: "သိမ်းပြီးပါပြီ", loaded: "ပရောဂျက် ဖွင့်ပြီးပါပြီ", exported: "ပုံ ထုတ်ပြီးပါပြီ", planLoaded: "အထပ်ပုံစံ တင်သွင်းပြီးပါပြီ — နောက်တစ်ဆင့် စကေး သတ်မှတ်ပါ (S)",

@@ -36,6 +36,8 @@ The installed app opens in its own window and works offline; it updates itself w
 | Shortcut | Action |
 |---|---|
 | V / H / S / W / B / A / M | Select, Pan, Scale, Wall, Boundary, AP, Survey point |
+| O | Straight lines on/off (walls and boundaries go only horizontal / vertical; on by default) |
+| Hold Shift while drawing | Flip straight lines for that point (any angle while on, straight while off) |
 | Delete | Remove selected item(s) |
 | Ctrl+A | Select all APs |
 | Drag on empty space | Box-select APs and walls: drag right = fully inside the box, drag left = anything the box touches |

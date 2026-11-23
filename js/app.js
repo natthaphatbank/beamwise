@@ -663,25 +663,48 @@ function hitWallEnd(p, w) {
   return 0;
 }
 // Snap to existing wall endpoints; Shift locks angle to 45° steps from `anchor`.
-function snapPoint(p, anchor, shift, skip = null) {
+// lock: keep the segment from `anchor` exactly horizontal or vertical. Wall end points nearby
+// still snap, but only along the locked direction, so the line never comes out slanted.
+function snapPoint(p, anchor, lock, skip = null) {
   const tol = 10 * touchK / view.s;
   let q = { x: p.x, y: p.y };
-  if (shift && anchor) {
-    const dx = p.x - anchor.x, dy = p.y - anchor.y;
-    const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
-    const len = Math.hypot(dx, dy);
-    q = { x: anchor.x + Math.cos(ang) * len, y: anchor.y + Math.sin(ang) * len };
+  const locked = lock && anchor;
+  if (locked) {
+    if (Math.abs(p.x - anchor.x) >= Math.abs(p.y - anchor.y)) q.y = anchor.y; else q.x = anchor.x;
   }
+  const horiz = locked && q.y === anchor.y;
   for (const w of project.walls) {
     if (w === skip) continue;
     for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) {
-      if (Math.hypot(q.x - x, q.y - y) <= tol) return { x, y };
+      if (Math.hypot(q.x - x, q.y - y) > tol) continue;
+      if (!locked) return { x, y };
+      return horiz ? { x, y: anchor.y } : { x: anchor.x, y };
     }
   }
   return q;
 }
-const snapWall = (p, shift = window.__shift) => snapPoint(p, wallChain, shift);
-const snapArea = (p, shift = window.__shift) => snapPoint(p, areaDraft?.[areaDraft.length - 1], shift);
+
+// Straight-line mode (on by default): walls and boundaries go horizontal / vertical.
+// Holding Shift flips it for that point (free angle while on, locked while off). O toggles it.
+let orthoOn = true;
+try { orthoOn = localStorage.getItem("bw-ortho") !== "0"; } catch (e) {}
+const lockAngle = shift => orthoOn !== !!shift;
+function setOrtho(on) {
+  orthoOn = on;
+  try { localStorage.setItem("bw-ortho", on ? "1" : "0"); } catch (e) {}
+  updateOrthoBtn(); requestRender();
+}
+function updateOrthoBtn() {
+  const b = $("#btnOrtho");
+  if (!b) return;
+  b.hidden = !(tool === "wall" || tool === "area" || selection?.type === "wall");
+  b.classList.toggle("on", orthoOn);
+  b.setAttribute("aria-pressed", String(orthoOn));
+  b.innerHTML = `${t(orthoOn ? "orthoOn" : "orthoOff")} <small>${t(orthoOn ? "orthoShiftFree" : "orthoShiftLock")}</small>`;
+}
+$("#btnOrtho").addEventListener("click", () => setOrtho(!orthoOn));
+const snapWall = (p, shift = window.__shift) => snapPoint(p, wallChain, lockAngle(shift));
+const snapArea = (p, shift = window.__shift) => snapPoint(p, areaDraft?.[areaDraft.length - 1], lockAngle(shift));
 
 const fmtLen = px => (px * project.mPerPx).toFixed(2) + " m";
 const fmtArea = px2 => (px2 * project.mPerPx ** 2).toFixed(1) + " m²";
@@ -704,6 +727,7 @@ function setTool(name) {
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
   const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey" };
   showHint(t(hints[name]));
+  updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
   canvas.style.cursor = name === "pan" ? "grab" : name === "select" ? "default" : "crosshair";
   renderPanel();
@@ -900,7 +924,7 @@ canvas.addEventListener("pointermove", e => {
     } else if (drag.type === "wallEnd") {
       const w = drag.wall;
       const anchor = drag.end === 1 ? { x: w.x2, y: w.y2 } : { x: w.x1, y: w.y1 };
-      const q = snapPoint(p, anchor, e.shiftKey, w);
+      const q = snapPoint(p, anchor, lockAngle(e.shiftKey), w);
       if (drag.end === 1) { w.x1 = q.x; w.y1 = q.y; } else { w.x2 = q.x; w.y2 = q.y; }
     }
     changed({ coarse: true, panel: false });
@@ -1045,6 +1069,7 @@ window.addEventListener("keydown", e => {
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
   const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
+  if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
   if (areaDraft && e.key === "Backspace") {                  // remove the last boundary point
     areaDraft.pop(); if (!areaDraft.length) areaDraft = null;
@@ -1304,6 +1329,7 @@ function renderPanel() {
   $("#propsTitle").textContent = title;
   $("#propsCard").hidden = !title;       // only shown while something is selected or a drawing tool needs options
   if (title) openPanel();
+  updateOrthoBtn();
 
   if (tool === "scale") {
     const len = scaleLine?.b ? Math.hypot(scaleLine.b.x - scaleLine.a.x, scaleLine.b.y - scaleLine.a.y) : 0;
@@ -1477,7 +1503,7 @@ function renderPanelCards() {
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
-    [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
+    [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
   $("#keysList").innerHTML = rows.map(([k, d]) => `<dt>${k}</dt><dd>${t(d)}</dd>`).join("");
 }
