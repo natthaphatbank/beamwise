@@ -275,3 +275,13 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 /* shortcuts inside the Help window */
 .help-keys { margin: 0 0 16px; }
 .help-keys .keys { margin-top: 8px; }
+
+/* Help / welcome window: wide, two-column shortcuts, buttons pinned to the bottom so they never scroll away */
+.modal.help { width: min(760px, 100%); padding-bottom: 0; }
+.modal.help .help-note { margin: 0 0 4px; font-size: 11px; }
+.modal.help .help-btns { position: sticky; bottom: 0; flex-direction: row; flex-wrap: wrap; gap: 8px; margin: 0 -24px; padding: 12px 24px 18px; background: var(--panel); border-top: 1px solid var(--line); }
+.modal.help .help-btns button { flex: 1 1 180px; }
+@media (min-width: 700px) {
+  .help-keys .keys { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); column-gap: 12px; }
+  .help-keys .keys dt { text-align: right; }
+}

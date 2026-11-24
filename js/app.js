@@ -1971,12 +1971,12 @@ function showWelcome() {
     <p>${t("welcomeIntro")}</p>
     <ol>${t("welcomeSteps")}</ol>
     ${shortcutsHtml()}
-    <div class="btns">
+    <p class="help-note">${t("disclaimer")}</p>
+    <div class="btns help-btns">
       <button class="primary" data-act="demo">${t("tryDemo")}</button>
       <button data-act="plan">${t("startOwn")}</button>
       <button data-act="blank">${t("startBlank")}</button>
-    </div>
-    <p style="margin:14px 0 0;font-size:11px">${t("disclaimer")}</p>`);
+    </div>`, null, "help");
   const box = $("#modalBox");
   box.querySelector('[data-act="demo"]').onclick = () => {
     closeModal();
