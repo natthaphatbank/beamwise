@@ -285,3 +285,20 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   .help-keys .keys { grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr); column-gap: 12px; }
   .help-keys .keys dt { text-align: right; }
 }
+
+/* signal check (probe) panel */
+.probe-main { padding: 10px 12px; margin-bottom: 8px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); }
+.probe-val { display: flex; align-items: center; gap: 8px; }
+.probe-val b { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.probe-val span { color: var(--muted); margin-left: auto; }
+.probe-grade { margin-top: 4px; font-weight: 600; }
+.probe-grade.good { color: var(--good); } .probe-grade.warn { color: var(--warn); } .probe-grade.bad { color: var(--danger); }
+.probe-sub { margin-top: 2px; color: var(--muted); font-size: 12px; }
+#props .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; flex-shrink: 0; }
+.probe-aps { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.probe-aps th { text-align: right; color: var(--muted); font-weight: 500; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.probe-aps td { text-align: right; padding: 4px; border-bottom: 1px solid var(--line); }
+.probe-aps th:first-child, .probe-aps td:first-child { text-align: left; }
+.probe-aps tr.best td { font-weight: 700; color: var(--text); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-row .btn { flex: 1 1 auto; width: auto; }

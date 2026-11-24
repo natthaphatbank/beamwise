@@ -91,6 +91,7 @@ let drag = null;
 let wallChain = null;              // {x, y} start of next wall segment
 let scaleLine = null;              // {a:{x,y}, b:{x,y}|null}
 let areaDraft = null;              // [{x,y}] points of the boundary being drawn
+let probes = [], probeActive = -1; // signal check pins [{x, y}] (not saved), index of the one shown in the panel
 let heatMask = null;               // Uint8Array from areaMask(), null = no boundary
 let cursor = null;                 // world coords
 let spaceDown = false;
@@ -361,6 +362,8 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
 
   if (!interactive) return;
 
+  probes.forEach((pt, i) => drawProbe(c, px, pt, tool === "probe" && i === probeActive));
+
   // wall preview
   if (tool === "wall" && wallChain && cursor) {
     const p = snapWall(cursor, false);
@@ -527,6 +530,71 @@ function hitSurvey(p) {
   for (let i = list.length - 1; i >= 0; i--) if (Math.hypot(p.x - list[i].x, p.y - list[i].y) <= tol) return list[i];
   return null;
 }
+
+// ---------- signal check (probe) ----------
+// Predicted signal at a point from every AP on both bands, using the same model as the heatmap.
+let probeMemo = { heat: null, map: new Map() };
+function probeAt(x, y) {
+  if (probeMemo.heat !== heat) probeMemo = { heat, map: new Map() };   // heatmap recomputed = project changed
+  const key = x.toFixed(2) + "," + y.toFixed(2);
+  let r = probeMemo.map.get(key);
+  if (r) return r;
+  const perAp = project.aps.map(ap => ({ ap, "2.4": -Infinity, "5": -Infinity }));
+  for (const band of ["2.4", "5"]) {
+    if (!project.aps.length) break;
+    const { rf, sources } = modelFor(project, band);
+    sources.forEach((src, i) => { perAp[i][band] = sourceRssi(rf, src, x, y); });
+  }
+  const best = b => perAp.reduce((m, a) => Math.max(m, a[b]), -Infinity);
+  r = { "2.4": best("2.4"), "5": best("5"), perAp };
+  probeMemo.map.set(key, r);
+  return r;
+}
+// Quality against the requirement: [class, i18n key]
+function probeGrade(v) {
+  if (!Number.isFinite(v)) return ["bad", "probeNone"];
+  if (v >= reqDbm()) return ["good", "probeOk"];
+  if (v >= baseReqDbm()) return ["warn", "probeTight"];
+  if (v >= effMinDbm()) return ["bad", "probeWeak"];
+  return ["bad", "probeDead"];
+}
+const fmtDbm = v => Number.isFinite(v) ? `${Math.round(v)} dBm` : "—";
+// heatmap value under a world point (fast, for the live status-bar readout)
+function heatAt(p) {
+  if (!heat || heatDirty || !project.aps.length) return null;   // stale grid: skip until the next frame
+  const c = Math.floor(p.x / heat.cell), r = Math.floor(p.y / heat.cell);
+  if (c < 0 || r < 0 || c >= heat.cols || r >= heat.rows) return null;
+  return heat.data[r * heat.cols + c];
+}
+function hitProbe(p) {
+  const tol = 12 * touchK / view.s;
+  for (let i = probes.length - 1; i >= 0; i--) if (Math.hypot(probes[i].x - p.x, probes[i].y - p.y) <= tol) return i;
+  return -1;
+}
+function drawProbe(c, px, pt, isActive) {
+  const band = project.settings.band, v = probeAt(pt.x, pt.y)[band];
+  const col = Number.isFinite(v) ? `rgb(${signalColor(v)})` : P.plan;
+  const x = pt.x, y = pt.y, r = 7 * px;
+  c.save();
+  // crosshair pin
+  c.strokeStyle = isActive ? P.sel : P.text; c.lineWidth = 1.5 * px;
+  c.beginPath(); c.moveTo(x - r * 1.9, y); c.lineTo(x - r * 0.6, y); c.moveTo(x + r * 0.6, y); c.lineTo(x + r * 1.9, y);
+  c.moveTo(x, y - r * 1.9); c.lineTo(x, y - r * 0.6); c.moveTo(x, y + r * 0.6); c.lineTo(x, y + r * 1.9); c.stroke();
+  c.fillStyle = col; c.beginPath(); c.arc(x, y, r * 0.55, 0, 7); c.fill(); c.stroke();
+  // value tag
+  const txt = fmtDbm(v);
+  c.font = `700 ${12 * px}px "Segoe UI", sans-serif`;
+  const w = c.measureText(txt).width + 22 * px, h = 20 * px, ty = y - h - r * 0.6;
+  let tx = x + r * 2.2;
+  if (view.ox + (tx + w) * view.s > canvas.clientWidth - 8) tx = x - r * 2.2 - w;   // near the right edge: tag on the left
+  c.fillStyle = P.tagBg; c.strokeStyle = isActive ? P.sel : P.tagLine; c.lineWidth = (isActive ? 1.6 : 1) * px;
+  roundRect(c, tx, ty, w, h, 4 * px); c.fill(); c.stroke();
+  c.fillStyle = col; c.beginPath(); c.arc(tx + 8 * px, ty + h / 2, 4 * px, 0, 7); c.fill();
+  c.fillStyle = P.text; c.textAlign = "left"; c.textBaseline = "middle";
+  c.fillText(txt, tx + 15 * px, ty + h / 2 + 0.5 * px);
+  c.restore();
+}
+function clearProbes() { probes = []; probeActive = -1; }
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath();
@@ -762,7 +830,7 @@ function setTool(name) {
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey" };
+  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey", probe: "hintProbe" };
   showHint(t(hints[name]));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
@@ -923,7 +991,9 @@ canvas.addEventListener("pointermove", e => {
   cursor = p;
   window.__shift = e.shiftKey;
   const inside = p.x >= 0 && p.y >= 0 && p.x <= project.plan.width && p.y <= project.plan.height;
-  $("#stCursor").textContent = inside ? `x ${(p.x * project.mPerPx).toFixed(1)} m, y ${(p.y * project.mPerPx).toFixed(1)} m` : "—";
+  const hv = inside ? heatAt(p) : null;
+  $("#stCursor").textContent = inside ? `x ${(p.x * project.mPerPx).toFixed(1)} m, y ${(p.y * project.mPerPx).toFixed(1)} m` +
+    (hv != null ? ` · ≈ ${fmtDbm(hv)} (${project.settings.band} GHz)` : "") : "—";
 
   if (pending && Math.hypot(e.clientX - pending.sx, e.clientY - pending.sy) > TAP_SLOP) {
     drag = { type: "pan", sx: pending.sx, sy: pending.sy, ox: pending.ox, oy: pending.oy };
@@ -1006,6 +1076,14 @@ canvas.addEventListener("pointercancel", endPointer);
 
 function tapAction({ p, shift }) {
   if (tool === "ap") { addAp(p); return; }
+  if (tool === "probe") {
+    const i = hitProbe(p);
+    if (i >= 0) probeActive = i;
+    else { probes.push({ x: p.x, y: p.y }); probeActive = probes.length - 1; }
+    selection = null;
+    renderPanel(); requestRender();
+    return;
+  }
   if (tool === "survey") {
     const hit = hitSurvey(p);
     if (hit) selection = { type: "survey", id: hit.id };
@@ -1105,19 +1183,23 @@ window.addEventListener("keydown", e => {
   if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
   if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
     if (e.key === "Escape") View3D.close();
-    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
+    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey", p: "probe" };
     if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
     View3D.close();
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
+  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey", p: "probe" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
   if (areaDraft && e.key === "Backspace") {                  // remove the last boundary point
     areaDraft.pop(); if (!areaDraft.length) areaDraft = null;
     updateFinishBtn(); requestRender(); return;
+  }
+  if ((e.key === "Delete" || e.key === "Backspace") && tool === "probe") {
+    if (probes[probeActive]) { probes.splice(probeActive, 1); probeActive = probes.length - 1; renderPanel(); requestRender(); }
+    return;
   }
   if (e.key === "Delete" || e.key === "Backspace") { deleteSelection(); return; }
   if (e.key === "Escape") {
@@ -1274,6 +1356,7 @@ function eirpText(o) {
 const noKey = label => label.replace(/\s*\([^)]*\)\s*$/, "");
 function panelTitle(o) {
   if (tool === "scale") return noKey(t("toolScale"));
+  if (tool === "probe") return noKey(t("toolProbe"));
   if (o && selection.type === "ap") return `Access Point: ${o.name || "AP"}`;
   if (o && selection.type === "aps") return tf("apsSelected", { n: o.length });
   if (o && selection.type === "wall") return t("tlWall");
@@ -1407,6 +1490,8 @@ function renderPanel() {
     return;
   }
 
+  if (tool === "probe") { renderProbePanel(el); return; }
+
   if (o && (selection.type === "ap" || selection.type === "aps")) {
     renderApPanel(el, selection.type === "ap" ? [o] : o);
   } else if (o && (selection.type === "wall" || selection.type === "walls")) {
@@ -1495,6 +1580,37 @@ function renderPanel() {
   $("#delBtn")?.addEventListener("click", deleteSelection);
 }
 
+function renderProbePanel(el) {
+  const pt = probes[probeActive];
+  if (!pt) { el.innerHTML = `<p class="empty">${t("probeHelp")}</p>`; return; }
+  const band = project.settings.band, other = band === "5" ? "2.4" : "5";
+  const r = probeAt(pt.x, pt.y), v = r[band];
+  const [cls, key] = project.aps.length ? probeGrade(v) : ["bad", "probeNoAp"];
+  const swatch = x => Number.isFinite(x) ? `<i class="sw" style="background:rgb(${signalColor(x)})"></i>` : "";
+  const rows = r.perAp.map(a => ({ ...a, d: Math.hypot(a.ap.x - pt.x, a.ap.y - pt.y) * project.mPerPx }))
+    .sort((a, b) => b[band] - a[band]).slice(0, 6);
+  el.innerHTML = `
+    <div class="probe-main">
+      <div class="probe-val">${swatch(v)}<b>${fmtDbm(v)}</b><span>${band} GHz</span></div>
+      <div class="probe-grade ${cls}">${t(key)}</div>
+      <div class="probe-sub">${t("requirement")} ${reqText()}</div>
+    </div>
+    <div class="row"><span>${other} GHz</span><b>${swatch(r[other])}${fmtDbm(r[other])}</b></div>
+    <div class="row"><span>${t("probePos")}</span><span>x ${(pt.x * project.mPerPx).toFixed(1)} m, y ${(pt.y * project.mPerPx).toFixed(1)} m</span></div>
+    ${rows.length ? `<table class="probe-aps">
+      <tr><th>AP</th><th>${t("probeDist")}</th><th>2.4</th><th>5</th></tr>
+      ${rows.map((a, i) => `<tr class="${i === 0 && Number.isFinite(a[band]) ? "best" : ""}"><td>${esc(a.ap.name || "AP")}</td><td>${a.d.toFixed(1)} m</td>
+        <td>${Number.isFinite(a["2.4"]) ? Math.round(a["2.4"]) : "—"}</td><td>${Number.isFinite(a["5"]) ? Math.round(a["5"]) : "—"}</td></tr>`).join("")}
+    </table>` : ""}
+    <p class="unit">${t("probeNote")}</p>
+    <div class="btn-row">
+      <button class="btn" id="probeDel">${t("probeDelete")}</button>
+      ${probes.length > 1 ? `<button class="btn" id="probeClear">${tf("probeClear", { n: probes.length })}</button>` : ""}
+    </div>`;
+  $("#probeDel").onclick = () => { probes.splice(probeActive, 1); probeActive = probes.length - 1; renderPanel(); requestRender(); };
+  $("#probeClear")?.addEventListener("click", () => { clearProbes(); renderPanel(); requestRender(); });
+}
+
 function renderSettings() {
   const st = project.settings;
   document.querySelectorAll("#bandSeg button").forEach(b => b.classList.toggle("active", b.dataset.band === st.band));
@@ -1559,7 +1675,7 @@ function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
-    [K("3"), "k_3d"],
+    [K("P"), "k_probe"], [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
@@ -1782,7 +1898,7 @@ function loadProjectData(data) {
   project = sanitizeProject(data);
   if (project.customModels.length) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
   project.aps.forEach(normalizeAp);
-  selection = null; wallChain = null; scaleLine = null; areaDraft = null;
+  selection = null; wallChain = null; scaleLine = null; areaDraft = null; clearProbes();
   undoStack = []; redoStack = [];
   planImg = null;
   return new Promise(res => {
@@ -1817,7 +1933,7 @@ function loadPlanFile(file) {
       project.walls = []; project.aps = []; project.areas = []; project.survey = []; project.calib = null;
       undoStack = []; redoStack = [];
       selection = null;
-      planImg = plan;
+      planImg = plan; clearProbes();
       View3D.reset();
       fit(); changed();
       setTool("scale");
@@ -1897,7 +2013,7 @@ window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault
 
 // ---------- top bar ----------
 function startBlank() {
-  project = newProject(); planImg = null; selection = null; areaDraft = null; undoStack = []; redoStack = [];
+  project = newProject(); planImg = null; selection = null; areaDraft = null; clearProbes(); undoStack = []; redoStack = [];
   View3D.reset();
   renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));

@@ -908,3 +908,40 @@ Object.assign(I18N.ko, { k_3d: "3D 보기 (Esc = 2D로 돌아가기)" });
 Object.assign(I18N.vi, { k_3d: "Xem 3D (Esc = về 2D)" });
 Object.assign(I18N.lo, { k_3d: "ມຸມມອງ 3D (Esc = ກັບໄປ 2D)" });
 Object.assign(I18N.my, { k_3d: "3D မြင်ကွင်း (Esc = 2D သို့ ပြန်)" });
+
+// ---- signal check (probe) ----
+const I18N_PROBE = {
+  th: { toolProbe: "เช็คสัญญาณ (P)", tlProbe: "เช็คสัญญาณ", hintProbe: "คลิกจุดไหนก็ได้เพื่อดูค่าสัญญาณโดยประมาณ (dBm) • คลิกหลายจุดเพื่อเทียบกัน • Delete ลบจุด",
+        probeHelp: "คลิกบนแบบแปลนตรงจุดที่อยากรู้ เช่น โต๊ะทำงาน หัวเตียง หรือห้องน้ำ เพื่อดูว่าสัญญาณตรงนั้นแรงกี่ dBm และรับจาก AP ตัวไหน",
+        probeOk: "ผ่านเกณฑ์ ✓", probeTight: "ผ่านแบบเฉียด — ไม่มีระยะเผื่อ", probeWeak: "อ่อนกว่าเกณฑ์", probeDead: "แทบไม่มีสัญญาณ", probeNone: "ไม่มีสัญญาณ", probeNoAp: "ยังไม่มี AP — วาง AP ก่อน",
+        probePos: "ตำแหน่ง", probeDist: "ระยะ", probeNote: "ค่าประมาณจากโมเดล (เหมือน Heatmap) ค่าจริงอาจต่าง ±5 dB — ใช้ จุดวัด (M) เพื่อเทียบกับค่าที่วัดได้จริง", probeDelete: "ลบจุดนี้", probeClear: "ล้างทั้งหมด ({n})", k_probe: "เช็คสัญญาณ ณ จุดที่คลิก (dBm)" },
+  en: { toolProbe: "Check signal (P)", tlProbe: "Check", hintProbe: "Click anywhere to see the estimated signal (dBm) • Click several points to compare • Delete removes a point",
+        probeHelp: "Click a spot on the plan, such as a desk, a bed or a bathroom, to see how strong the signal is there (dBm) and which AP it comes from.",
+        probeOk: "Meets the requirement ✓", probeTight: "Just meets it, with no margin", probeWeak: "Below the requirement", probeDead: "Almost no signal", probeNone: "No signal", probeNoAp: "No APs yet: place an AP first",
+        probePos: "Position", probeDist: "Distance", probeNote: "Estimated by the model (same as the heatmap); real readings can differ by ±5 dB. Use Survey point (M) to compare with a measurement.", probeDelete: "Remove this point", probeClear: "Clear all ({n})", k_probe: "Check the signal at a clicked point (dBm)" },
+  zh: { toolProbe: "检查信号 (P)", tlProbe: "检查", hintProbe: "点击任意位置查看估计信号 (dBm) • 可点击多个点比较 • Delete 删除点",
+        probeHelp: "在平面图上点击想了解的位置（如办公桌、床头、卫生间），查看该处信号强度 (dBm) 以及来自哪个 AP。",
+        probeOk: "满足要求 ✓", probeTight: "勉强满足，无余量", probeWeak: "低于要求", probeDead: "几乎无信号", probeNone: "无信号", probeNoAp: "尚无 AP，请先放置 AP",
+        probePos: "位置", probeDist: "距离", probeNote: "模型估计值（与热图相同），实际可能相差 ±5 dB。可用测量点 (M) 与实测值比较。", probeDelete: "删除此点", probeClear: "全部清除 ({n})", k_probe: "检查点击处的信号 (dBm)" },
+  ja: { toolProbe: "電波チェック (P)", tlProbe: "チェック", hintProbe: "任意の場所をクリックすると推定信号 (dBm) を表示 • 複数クリックで比較 • Delete で削除",
+        probeHelp: "図面上の知りたい場所（机、ベッド、浴室など）をクリックすると、その場所の信号強度 (dBm) とどの AP から届くかを表示します。",
+        probeOk: "要件を満たす ✓", probeTight: "ぎりぎり満たす（余裕なし）", probeWeak: "要件未満", probeDead: "ほぼ圏外", probeNone: "信号なし", probeNoAp: "AP がありません。先に AP を配置してください",
+        probePos: "位置", probeDist: "距離", probeNote: "モデルによる推定値（ヒートマップと同じ）。実測とは ±5 dB 程度異なる場合があります。測定ポイント (M) で実測と比較できます。", probeDelete: "この点を削除", probeClear: "すべて消去 ({n})", k_probe: "クリックした地点の信号をチェック (dBm)" },
+  ko: { toolProbe: "신호 확인 (P)", tlProbe: "확인", hintProbe: "아무 곳이나 클릭하면 예상 신호 (dBm) 표시 • 여러 지점 클릭해 비교 • Delete로 삭제",
+        probeHelp: "평면도에서 알고 싶은 위치(책상, 침대, 욕실 등)를 클릭하면 그곳의 신호 세기 (dBm)와 어느 AP에서 오는지 보여 줍니다.",
+        probeOk: "요구 조건 충족 ✓", probeTight: "겨우 충족 (여유 없음)", probeWeak: "요구 조건 미달", probeDead: "신호 거의 없음", probeNone: "신호 없음", probeNoAp: "AP가 없습니다. 먼저 AP를 배치하세요",
+        probePos: "위치", probeDist: "거리", probeNote: "모델 예측값(히트맵과 동일)이며 실제와 ±5 dB 차이가 날 수 있습니다. 측정 지점 (M)으로 실측값과 비교하세요.", probeDelete: "이 지점 삭제", probeClear: "모두 지우기 ({n})", k_probe: "클릭한 지점의 신호 확인 (dBm)" },
+  vi: { toolProbe: "Kiểm tra sóng (P)", tlProbe: "Kiểm tra", hintProbe: "Nhấp vào bất kỳ đâu để xem tín hiệu ước tính (dBm) • Nhấp nhiều điểm để so sánh • Delete để xóa",
+        probeHelp: "Nhấp vào vị trí cần biết trên bản vẽ (bàn làm việc, giường, phòng tắm…) để xem tín hiệu tại đó mạnh bao nhiêu dBm và đến từ AP nào.",
+        probeOk: "Đạt yêu cầu ✓", probeTight: "Vừa đủ, không có dự phòng", probeWeak: "Dưới yêu cầu", probeDead: "Gần như không có sóng", probeNone: "Không có sóng", probeNoAp: "Chưa có AP: hãy đặt AP trước",
+        probePos: "Vị trí", probeDist: "Khoảng cách", probeNote: "Ước tính theo mô hình (giống heatmap); thực tế có thể lệch ±5 dB. Dùng Điểm đo (M) để so với giá trị đo thực.", probeDelete: "Xóa điểm này", probeClear: "Xóa tất cả ({n})", k_probe: "Kiểm tra tín hiệu tại điểm nhấp (dBm)" },
+  lo: { toolProbe: "ກວດສັນຍານ (P)", tlProbe: "ກວດສັນຍານ", hintProbe: "ຄລິກຈຸດໃດກໍໄດ້ເພື່ອເບິ່ງຄ່າສັນຍານໂດຍປະມານ (dBm) • ຄລິກຫຼາຍຈຸດເພື່ອທຽບ • Delete ລຶບຈຸດ",
+        probeHelp: "ຄລິກເທິງແຜນຜັງຕົງຈຸດທີ່ຢາກຮູ້ ເຊັ່ນ ໂຕະເຮັດວຽກ ຫົວຕຽງ ຫຼື ຫ້ອງນ້ຳ ເພື່ອເບິ່ງວ່າສັນຍານຕົງນັ້ນແຮງຈັກ dBm ແລະ ຮັບຈາກ AP ໃດ",
+        probeOk: "ຜ່ານເກນ ✓", probeTight: "ຜ່ານແບບເສັ້ນຍາແດງ — ບໍ່ມີໄລຍະເຜື່ອ", probeWeak: "ອ່ອນກວ່າເກນ", probeDead: "ເກືອບບໍ່ມີສັນຍານ", probeNone: "ບໍ່ມີສັນຍານ", probeNoAp: "ຍັງບໍ່ມີ AP — ວາງ AP ກ່ອນ",
+        probePos: "ຕຳແໜ່ງ", probeDist: "ໄລຍະ", probeNote: "ຄ່າປະມານຈາກໂມເດວ (ຄືກັບ Heatmap) ຄ່າຈິງອາດຕ່າງ ±5 dB — ໃຊ້ ຈຸດວັດ (M) ເພື່ອທຽບກັບຄ່າທີ່ວັດໄດ້ຈິງ", probeDelete: "ລຶບຈຸດນີ້", probeClear: "ລ້າງທັງໝົດ ({n})", k_probe: "ກວດສັນຍານ ຢູ່ຈຸດທີ່ຄລິກ (dBm)" },
+  my: { toolProbe: "အချက်ပြ စစ်ရန် (P)", tlProbe: "စစ်ရန်", hintProbe: "ခန့်မှန်း အချက်ပြ (dBm) ကြည့်ရန် မည်သည့်နေရာကိုမဆို နှိပ်ပါ • နှိုင်းယှဉ်ရန် အမှတ်များစွာ နှိပ်ပါ • Delete ဖြင့် ဖျက်ပါ",
+        probeHelp: "အထပ်ပုံစံပေါ်ရှိ သိလိုသော နေရာ (စားပွဲ၊ ကုတင်၊ ရေချိုးခန်း စသည်) ကို နှိပ်၍ ထိုနေရာ၏ အချက်ပြ အားကို (dBm) နှင့် မည်သည့် AP မှ လာသည်ကို ကြည့်ပါ။",
+        probeOk: "လိုအပ်ချက် ပြည့်မီ ✓", probeTight: "အနည်းငယ်သာ ပြည့်မီ — အပို မရှိ", probeWeak: "လိုအပ်ချက်ထက် အားနည်း", probeDead: "အချက်ပြ မရှိသလောက်", probeNone: "အချက်ပြ မရှိ", probeNoAp: "AP မရှိသေးပါ — AP အရင်ထားပါ",
+        probePos: "တည်နေရာ", probeDist: "အကွာအဝေး", probeNote: "မော်ဒယ်မှ ခန့်မှန်းတန်ဖိုး (Heatmap နှင့် တူ)။ အမှန်တန်ဖိုးနှင့် ±5 dB ကွာနိုင်သည်။ တိုင်းတာထားသော တန်ဖိုးနှင့် နှိုင်းယှဉ်ရန် တိုင်းတာမှတ် (M) ကို သုံးပါ။", probeDelete: "ဤအမှတ်ကို ဖျက်ရန်", probeClear: "အားလုံး ရှင်းရန် ({n})", k_probe: "နှိပ်သည့်နေရာ၏ အချက်ပြ စစ်ရန် (dBm)" },
+};
+for (const [code, extra] of Object.entries(I18N_PROBE)) Object.assign(I18N[code], extra);
