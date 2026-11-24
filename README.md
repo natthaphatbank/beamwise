@@ -1,6 +1,6 @@
 # Beamwise
 
-**See your Wi-Fi before you install it.** · ออกแบบ Wi-Fi แม่นยำ ก่อนติดตั้งจริง
+Wi-Fi planning in the browser · โปรแกรมออกแบบ Wi-Fi บนเว็บ
 
 **Try it / install it:** https://natthaphatbank.github.io/beamwise/
 
