@@ -11,6 +11,11 @@
 
 // Attenuation per wall crossing at normal incidence, in dB, at 2.4 GHz and 5 GHz.
 // Typical published values; calibrate with a site survey for real projects.
+// Checked against ITU-R P.2040-3 material parameters (multi-layer slab transmission, typical Thai
+// build-ups): drywall, glass, concrete and heavy concrete agree. Plastered brick was lowered from
+// 8/12: a 7 cm brick wall with 1.5 cm plaster both sides gives 6.0/7.1 dB, a double brick wall
+// 7.4/8.7 dB (an office study, arXiv 1812.00667, measured 5.25 dB per 17 cm plaster wall at 5 GHz).
+// AAC is not in P.2040 and wood doors are uncertain, so those stay at the typical values.
 // Display names live in i18n.js (mat_<key>).
 const MATERIALS = {
   drywall:  { db24: 3,  db5: 4,  color: "#9fb4d9" },
@@ -18,7 +23,7 @@ const MATERIALS = {
   lowe:     { db24: 25, db5: 32, color: "#2fa3b8" },   // low-E / metal-coated glazing
   wood:     { db24: 4,  db5: 6,  color: "#c79a5b" },
   aac:      { db24: 6,  db5: 9,  color: "#d9c27a" },
-  brick:    { db24: 8,  db5: 12, color: "#e0835a" },
+  brick:    { db24: 7,  db5: 9,  color: "#e0835a" },
   concrete: { db24: 12, db5: 18, color: "#b0b0b0" },
   concreteHeavy: { db24: 20, db5: 28, color: "#8a8a8a" }, // ≥ 25 cm reinforced / shear wall
   metal:    { db24: 20, db5: 26, color: "#ff5c8a" },
