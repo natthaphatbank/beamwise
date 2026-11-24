@@ -21,6 +21,10 @@ When the site is served over HTTPS (for example GitHub Pages), it is an installa
 
 The installed app opens in its own window and works offline; it updates itself when a new version is published.
 
+### Phones and tablets
+
+On iPhone, iPad and Android the top-bar actions move into a **Menu** button (also when a phone is held sideways), hints describe taps and pinches instead of mouse and keys, and fields are sized so iOS does not zoom in when you type. Drag with one finger to pan and pinch to zoom; walls and boundaries end with the button at the bottom of the plan. With **Check signal**, drag a pin to read the signal live as you move it, and tap the × on its tag to remove it.
+
 ## How to use
 
 1. **Import floor plan** (นำเข้าแบบแปลน): a PNG, JPG or PDF file. You can also drag it onto the canvas. For a PDF with several pages you pick the page; it is rendered to an image in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) (Apache 2.0, bundled in `js/vendor/pdfjs`, so it works offline).

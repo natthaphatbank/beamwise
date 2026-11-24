@@ -78,7 +78,12 @@ function setTheme(th) {
   try { localStorage.setItem("wpth-theme", uiTheme); } catch (e) {}
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", uiTheme === "dark" ? "#161c26" : "#ffffff");
   const b = document.querySelector("#btnTheme");
-  if (b) b.title = t(uiTheme === "dark" ? "themeLight" : "themeDark");
+  if (b) {
+    b.title = t(uiTheme === "dark" ? "themeLight" : "themeDark");
+    let l = b.querySelector(".menu-label");
+    if (!l) { l = document.createElement("span"); l.className = "menu-label"; b.appendChild(l); }
+    l.textContent = b.title;
+  }
   requestRender();
   if (typeof View3D !== "undefined") View3D.refresh();
 }
@@ -551,6 +556,7 @@ function probeAt(x, y) {
   }
   const best = b => perAp.reduce((m, a) => Math.max(m, a[b]), -Infinity);
   r = { "2.4": best("2.4"), "5": best("5"), perAp };
+  if (probeMemo.map.size > 400) probeMemo.map.clear();
   probeMemo.map.set(key, r);
   return r;
 }
@@ -834,7 +840,7 @@ function updateOrthoBtn() {
   b.hidden = !(tool === "wall" || tool === "area" || selection?.type === "wall");
   b.classList.toggle("on", orthoOn);
   b.setAttribute("aria-pressed", String(orthoOn));
-  b.innerHTML = `${t(orthoOn ? "orthoOn" : "orthoOff")} <small>${t(orthoOn ? "orthoShiftFree" : "orthoShiftLock")}</small>`;
+  b.innerHTML = t(orthoOn ? "orthoOn" : "orthoOff") + (touchUI ? "" : ` <small>${t(orthoOn ? "orthoShiftFree" : "orthoShiftLock")}</small>`);   // no Shift key on touch
 }
 $("#btnOrtho").addEventListener("click", () => setOrtho(!orthoOn));
 const snapWall = (p, shift = window.__shift) => snapPoint(p, wallChain, lockAngle(shift));
@@ -845,12 +851,16 @@ const fmtArea = px2 => (px2 * project.mPerPx ** 2).toFixed(1) + " m²";
 
 // ---------- tools ----------
 let hintTimer;
+// Touch screens (phones, tablets): finger-friendly hint texts, shorter-lived hints.
+let touchUI = matchMedia("(pointer: coarse)").matches;
 function showHint(text) {
   const h = $("#hint");
   h.textContent = text; h.style.opacity = 1;
   clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => { h.style.opacity = 0; }, 6000);
+  hintTimer = setTimeout(() => { h.style.opacity = 0; }, touchUI ? 4000 : 6000);
 }
+// "hintWall" -> "hintWallTouch" on touch screens when that text exists
+const hintKey = k => (touchUI && I18N.en[k + "Touch"] ? k + "Touch" : k);
 
 function setTool(name) {
   if (name !== "area") finishArea();
@@ -860,7 +870,7 @@ function setTool(name) {
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
   const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey", probe: "hintProbe" };
-  showHint(t(hints[name]));
+  showHint(t(hintKey(hints[name])));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
   canvas.style.cursor = name === "pan" ? "grab" : name === "select" ? "default" : "crosshair";
@@ -911,6 +921,7 @@ canvas.addEventListener("pointerdown", e => {
   try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   touchK = e.pointerType === "touch" ? 2 : 1;
+  if ((e.pointerType === "touch") !== touchUI && e.pointerType !== "pen") { touchUI = e.pointerType === "touch"; }
   window.__shift = e.shiftKey;
 
   if (pointers.size === 2) {               // second finger: switch to pinch-zoom
@@ -998,6 +1009,17 @@ canvas.addEventListener("pointerdown", e => {
     return;
   }
 
+  // signal check: drag a pin to move it (live reading); the × on the active pin is a tap
+  if (tool === "probe" && !inProbeX(p)) {
+    const pi = hitProbe(p);
+    if (pi >= 0) {
+      probeActive = pi;
+      drag = { type: "probe", pt: project.probes[pi], last: p, pushed: false };
+      renderPanel(); requestRender();
+      return;
+    }
+  }
+
   // ap / wall / scale: decide on release (tap) — a drag pans instead
   pending = { p, sx: e.clientX, sy: e.clientY, shift: e.shiftKey, ox: view.ox, oy: view.oy };
 });
@@ -1041,6 +1063,12 @@ canvas.addEventListener("pointermove", e => {
       return;
     }
     if (drag.type === "marquee") { drag.b = p; requestRender(); return; }
+    if (drag.type === "probe") {
+      if (!drag.pushed) { pushHistory(); drag.pushed = true; }
+      drag.pt.x += p.x - drag.last.x; drag.pt.y += p.y - drag.last.y; drag.last = p;
+      renderPanel(); requestRender();
+      return;
+    }
     if (!drag.pushed) { pushHistory(); drag.pushed = true; }
     if (drag.type === "group") {
       const dx = p.x - drag.last.x, dy = p.y - drag.last.y;
@@ -1099,6 +1127,7 @@ function endPointer(e) {
     return;
   }
   pending = null;
+  if (drag?.type === "probe") { drag = null; scheduleAutosave(); return; }   // a pin does not change the heatmap
   if (drag && drag.type !== "pan" && drag.pushed) changed();   // fine heatmap after drag
   if (drag?.type === "pan") canvas.style.cursor = tool === "pan" ? "grab" : "default";
   drag = null;
@@ -2175,6 +2204,16 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     document.body.appendChild(b);
   });
 }
+
+// ---------- compact top bar (phones, small tablets, phone landscape): actions in a menu ----------
+function setMenu(open) {
+  $(".topbar").classList.toggle("menu-open", open);
+  $("#btnMenu").setAttribute("aria-expanded", String(open));
+}
+$("#btnMenu").addEventListener("click", e => { e.stopPropagation(); setMenu(!$(".topbar").classList.contains("menu-open")); });
+$("#actions").addEventListener("click", e => { if (e.target.closest("button")) setMenu(false); });
+document.addEventListener("pointerdown", e => { if (!e.target.closest(".topbar")) setMenu(false); });
+window.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); });
 
 // ---------- start ----------
 window.addEventListener("resize", () => { resize(); });
