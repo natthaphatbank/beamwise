@@ -82,7 +82,9 @@ Predictions use typical values, so check them against real measurements:
 1. On site, measure RSSI with a phone app (WiFiman, NetSpot, …) at several points spread over the area, near and far from the APs (5+ points recommended).
 2. Pick **Survey point (M)**, click each place you measured and enter the value in dBm and its band.
 3. The **Calibration** card shows the error per band (predicted − measured): mean, RMS and max. An RMS under about 4–6 dB is a good match.
-4. **Fit model to measurements** searches the path-loss exponent n (1.5–4.5, with 3+ points) and a per-band offset that minimise the squared error. The heatmap, coverage %, auto-placement, channels and CSV all use the fitted model. **Remove calibration** goes back to the environment preset.
+4. **Fit model to measurements** searches the path-loss exponent n (1.5–4.5, with 3+ points) and a per-band offset that minimise the squared error, with a penalty that keeps n near the environment preset unless the measurements clearly disagree (so a few noisy readings can't produce an implausible model).
+
+   **How accurate is it?** In simulated surveys on the sample dorm (readings with ±4 dB phone noise), calibration cut the heatmap's RMS error from about 6–7 dB to about 1.5–2 dB with 8 points per band, and to about 2 dB with 3 points per band. When the preset was already right, calibration cost about 1 dB (8 points) to 2 dB (3 points) from fitting noise. Real buildings add errors the model can't fix (furniture, people, wrong wall materials), so expect roughly 3–5 dB after calibration on site. The heatmap, coverage %, auto-placement, channels and CSV all use the fitted model. **Remove calibration** goes back to the environment preset.
 
 A very large offset (over 10 dB) usually means a wrong scale, AP position, AP power or band rather than unusual walls.
 

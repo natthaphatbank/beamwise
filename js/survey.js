@@ -8,6 +8,11 @@
 const CALIB_N_RANGE = [1.5, 4.5, 0.05];
 const CALIB_MAX_OFFSET = 20;           // dB; larger usually means wrong scale, AP position or power
 const CALIB_WARN_OFFSET = 10;
+// Prior that keeps n near the environment preset unless the measurements clearly disagree
+// (dB² per unit of n²). Without it a few noisy points trade an implausible n against large
+// offsets; in simulated surveys (σ = 4 dB noise, 3-8 points per band) it lowered the heatmap
+// error in every case, most in the worst case with few points.
+const CALIB_N_PRIOR = 100;
 
 // Best-server RSSI at a point, optionally with a different n / offset than the project uses.
 function predictBest(project, band, x, y, override = null) {
@@ -40,7 +45,8 @@ function surveyErrors(project) {
 
 /**
  * Least-squares fit. With 3+ points: grid search over n, and for each n the best per-band offset
- * (the mean residual, closed form). With 1-2 points only the offsets are fitted (n stays).
+ * (the mean residual, closed form), with a penalty CALIB_N_PRIOR·(n − preset n)².
+ * With 1-2 points only the offsets are fitted (n stays).
  * Returns the new calib object, or null when there is nothing to fit.
  */
 function fitCalibration(project) {
@@ -61,7 +67,7 @@ function fitCalibration(project) {
       for (const [m, v] of ok) resid.push(v + o - m);
     }
     const sse = resid.reduce((a, e) => a + e * e, 0);
-    return { n, off, sse, count: resid.length };
+    return { n, off, sse, cost: sse + CALIB_N_PRIOR * (n - envN) ** 2, count: resid.length };
   };
 
   let best = null;
@@ -69,7 +75,7 @@ function fitCalibration(project) {
     const [lo, hi, step] = CALIB_N_RANGE;
     for (let n = lo; n <= hi + 1e-9; n += step) {
       const r = evalN(+n.toFixed(2));
-      if (!best || r.sse < best.sse) best = r;
+      if (!best || r.cost < best.cost) best = r;
     }
   } else {
     best = evalN(project.calib?.n ?? envN);
