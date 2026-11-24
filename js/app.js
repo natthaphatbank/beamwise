@@ -599,6 +599,39 @@ function drawRulers(c) {
   c.restore();
 }
 
+// Map-style scale bar: alternating black / white blocks, "0 … N m", and whether the scale was measured.
+// (x, y) = bottom-right corner in the context's current units; pxPerM = those units per metre.
+const scaleIsSet = () => project.scaleSet || !project.plan.image;   // blank grid plans are drawn to scale
+function drawScaleBar(c, x, y, pxPerM, { u = 1, theme = P, maxW = 160 } = {}) {
+  const lenM = niceStep(maxW * 0.45 / pxPerM);
+  let n = lenM;                                       // largest nice length that fits maxW
+  for (const s of [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]) if (s * pxPerM <= maxW && s >= lenM) n = s;
+  if (n * pxPerM > maxW) n = lenM;
+  const segs = String(n)[0] === "2" ? 4 : 5, w = n * pxPerM, bh = 6 * u;
+  const fmt = v => (Math.round(v * 100) / 100).toString();
+  const set = scaleIsSet();
+  const note = set ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : t("scaleEstimate");
+  c.save();
+  c.font = `600 ${11 * u}px "Segoe UI", "Leelawadee UI", sans-serif`;
+  const noteW = c.measureText(note).width;
+  const boxW = Math.max(w + 22 * u, noteW + 16 * u), boxH = 44 * u;
+  const bx = x - boxW, by = y - boxH;
+  c.fillStyle = theme.tagBg; c.strokeStyle = set ? theme.tagLine : "#e0a23a"; c.lineWidth = u;
+  roundRect(c, bx, by, boxW, boxH, 5 * u); c.fill(); c.stroke();
+  const x0 = bx + (boxW - w) / 2, y0 = by + 19 * u;
+  for (let i = 0; i < segs; i++) {
+    c.fillStyle = i % 2 ? theme.tagBg : theme.text;
+    c.fillRect(x0 + i * w / segs, y0, w / segs, bh);
+  }
+  c.strokeStyle = theme.text; c.strokeRect(x0, y0, w, bh);
+  c.fillStyle = theme.text; c.textBaseline = "bottom";
+  c.textAlign = "left"; c.fillText("0", x0 - 2 * u, y0 - 2 * u);
+  c.textAlign = "right"; c.fillText(fmt(n) + " m", x0 + w + 4 * u, y0 - 2 * u);
+  c.textAlign = "center"; c.textBaseline = "top"; c.font = `${10.5 * u}px "Segoe UI", "Leelawadee UI", sans-serif`;
+  c.fillStyle = set ? theme.tagMuted : "#c27a00"; c.fillText(note, bx + boxW / 2, y0 + bh + 4 * u);
+  c.restore();
+}
+
 function label(c, px, x, y, text) {
   c.font = `${12 * px}px "Segoe UI", sans-serif`;
   c.textAlign = "center"; c.textBaseline = "middle";
@@ -615,7 +648,9 @@ function draw() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(dpr * view.s, 0, 0, dpr * view.s, dpr * view.ox, dpr * view.oy);
   drawScene(ctx, 1 / view.s);
-  if (rulersOn()) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawRulers(ctx); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (rulersOn()) drawRulers(ctx);
+  drawScaleBar(ctx, canvas.clientWidth - 12, canvas.clientHeight - 12, view.s / project.mPerPx);
 }
 
 // ---------- hit testing & snapping ----------
@@ -1342,10 +1377,21 @@ function renderPanel() {
 
   if (tool === "scale") {
     const len = scaleLine?.b ? Math.hypot(scaleLine.b.x - scaleLine.a.x, scaleLine.b.y - scaleLine.a.y) : 0;
-    el.innerHTML = `<p class="empty">${t("scaleHelp")}</p>` + (len ? `
+    const cur = len * project.mPerPx;
+    el.innerHTML = `<p class="empty">${t("scaleHelp")}</p><p class="empty scale-tip">${t(project.scaleSet ? "scaleTipCheck" : "scaleTip")}</p>` + (len ? `
       <label class="row"><span>${t("scaleLen")}</span>
-        <input type="number" id="scaleInput" min="0.1" step="0.1" value="${(len * project.mPerPx).toFixed(2)}"></label>
+        <input type="number" id="scaleInput" min="0.1" step="0.1" value="${project.scaleSet ? "" : cur.toFixed(2)}" placeholder="${cur.toFixed(2)}"></label>
+      ${project.scaleSet ? `<p class="scale-check" id="scaleCheck">${tf("scaleCurrent", { m: cur.toFixed(2) })}</p>` : ""}
       <button class="btn primary" id="scaleApply">${t("applyScale")}</button>` : "");
+    $("#scaleInput")?.addEventListener("input", () => {
+      const box = $("#scaleCheck"), real = parseFloat($("#scaleInput").value);
+      if (!box) return;
+      if (!(real > 0)) { box.className = "scale-check"; box.textContent = tf("scaleCurrent", { m: cur.toFixed(2) }); return; }
+      const diff = (cur - real) / real * 100, ok = Math.abs(diff) <= 2;
+      box.className = "scale-check " + (ok ? "good" : "warn");
+      box.textContent = tf("scaleCurrent", { m: cur.toFixed(2) }) + " · " +
+        tf(ok ? "scaleDiffOk" : "scaleDiffBad", { d: (diff > 0 ? "+" : "") + diff.toFixed(1) });
+    });
     $("#scaleApply")?.addEventListener("click", () => {
       const m = parseFloat($("#scaleInput").value);
       if (!(m > 0)) return;
@@ -1810,6 +1856,7 @@ function exportPng() {
   }
   c.fillStyle = "#5b6880";
   c.fillText(`${t(env.key)} · ${new Date().toLocaleDateString(langLocale())}`, x + 10 * u, y0 + 44 * u);
+  drawScaleBar(c, cv.width - 10 * u, y0 + legendH - 8 * u, k / project.mPerPx, { u, theme: CANVAS_THEMES.light, maxW: Math.max(170 * u, cv.width * 0.2) });
 
   cv.toBlob(b => { download(b, `beamwise-coverage-${stamp()}.png`); flash(t("exported")); }, "image/png");
 }

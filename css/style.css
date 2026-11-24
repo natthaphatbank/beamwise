@@ -265,3 +265,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   .v3-h input { width: 80px; }
   .v3-help { display: none; }
 }
+
+/* scale tool */
+.scale-tip { margin-top: 8px; font-size: 12px; }
+.scale-check { margin: 8px 0; padding: 7px 10px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); line-height: 1.45; font-size: 12.5px; }
+.scale-check.good { border-color: var(--good); color: var(--good); }
+.scale-check.warn { border-color: var(--warn); color: var(--warn); }
