@@ -945,3 +945,15 @@ const I18N_PROBE = {
         probePos: "တည်နေရာ", probeDist: "အကွာအဝေး", probeNote: "မော်ဒယ်မှ ခန့်မှန်းတန်ဖိုး (Heatmap နှင့် တူ)။ အမှန်တန်ဖိုးနှင့် ±5 dB ကွာနိုင်သည်။ တိုင်းတာထားသော တန်ဖိုးနှင့် နှိုင်းယှဉ်ရန် တိုင်းတာမှတ် (M) ကို သုံးပါ။", probeDelete: "ဤအမှတ်ကို ဖျက်ရန်", probeClear: "အားလုံး ရှင်းရန် ({n})", k_probe: "နှိပ်သည့်နေရာ၏ အချက်ပြ စစ်ရန် (dBm)" },
 };
 for (const [code, extra] of Object.entries(I18N_PROBE)) Object.assign(I18N[code], extra);
+// ---- signal check pins: how to remove them ----
+const I18N_PROBE_DEL = {
+  th: { hintProbe: "คลิกจุดไหนก็ได้เพื่อดูค่าสัญญาณ (dBm) • ลบหมุด: กด × บนป้าย, คลิกขวาที่หมุด หรือกด Delete", probeDelHelp: "ลบหมุด: กด × บนป้ายของหมุดที่เลือก, คลิกขวาที่หมุด หรือกด Delete • หมุดถูกบันทึกไปกับโปรเจกต์ และย้อนกลับได้ (Ctrl+Z)" },
+  en: { hintProbe: "Click anywhere to see the signal (dBm) • To remove a pin: click × on its tag, right-click the pin, or press Delete", probeDelHelp: "To remove a pin, click × on the selected pin's tag, right-click the pin, or press Delete. Pins are saved with the project and can be undone (Ctrl+Z)." },
+  zh: { hintProbe: "点击任意位置查看信号 (dBm) • 删除图钉：点击标签上的 ×、右键点击图钉或按 Delete", probeDelHelp: "删除图钉：点击所选图钉标签上的 ×、右键点击图钉或按 Delete。图钉随项目保存，可撤销 (Ctrl+Z)。" },
+  ja: { hintProbe: "任意の場所をクリックで信号 (dBm) を表示 • ピンの削除：ラベルの ×、ピンを右クリック、または Delete", probeDelHelp: "ピンの削除：選択中のピンのラベルの × をクリック、ピンを右クリック、または Delete。ピンはプロジェクトに保存され、元に戻せます (Ctrl+Z)。" },
+  ko: { hintProbe: "아무 곳이나 클릭해 신호 (dBm) 확인 • 핀 삭제: 라벨의 ×, 핀 오른쪽 클릭 또는 Delete", probeDelHelp: "핀 삭제: 선택한 핀 라벨의 × 클릭, 핀 오른쪽 클릭 또는 Delete. 핀은 프로젝트와 함께 저장되며 실행 취소할 수 있습니다 (Ctrl+Z)." },
+  vi: { hintProbe: "Nhấp bất kỳ đâu để xem tín hiệu (dBm) • Xóa ghim: nhấp × trên nhãn, nhấp chuột phải vào ghim hoặc nhấn Delete", probeDelHelp: "Xóa ghim: nhấp × trên nhãn của ghim đang chọn, nhấp chuột phải vào ghim hoặc nhấn Delete. Ghim được lưu cùng dự án và có thể hoàn tác (Ctrl+Z)." },
+  lo: { hintProbe: "ຄລິກຈຸດໃດກໍໄດ້ເພື່ອເບິ່ງຄ່າສັນຍານ (dBm) • ລຶບໝຸດ: ກົດ × ເທິງປ້າຍ, ຄລິກຂວາທີ່ໝຸດ ຫຼື ກົດ Delete", probeDelHelp: "ລຶບໝຸດ: ກົດ × ເທິງປ້າຍຂອງໝຸດທີ່ເລືອກ, ຄລິກຂວາທີ່ໝຸດ ຫຼື ກົດ Delete • ໝຸດຖືກບັນທຶກໄປກັບໂປຣເຈັກ ແລະ ຍ້ອນກັບໄດ້ (Ctrl+Z)" },
+  my: { hintProbe: "အချက်ပြ (dBm) ကြည့်ရန် မည်သည့်နေရာမဆို နှိပ်ပါ • ပင်ဖျက်ရန်: တံဆိပ်ပေါ်ရှိ × နှိပ်၊ ပင်ကို ညာကလစ် သို့မဟုတ် Delete", probeDelHelp: "ပင်ဖျက်ရန်: ရွေးထားသော ပင်၏ တံဆိပ်ပေါ်ရှိ × ကို နှိပ်ပါ၊ ပင်ကို ညာကလစ်နှိပ်ပါ သို့မဟုတ် Delete နှိပ်ပါ။ ပင်များကို ပရောဂျက်နှင့်အတူ သိမ်းပြီး ပြန်ဖျက်နိုင်သည် (Ctrl+Z)။" },
+};
+for (const [code, extra] of Object.entries(I18N_PROBE_DEL)) Object.assign(I18N[code], extra);

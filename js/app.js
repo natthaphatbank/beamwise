@@ -15,6 +15,7 @@ function newProject() {
     aps: [],                       // {id, name, x, y, model, tx24, tx5, gain24, gain5, ch24, ch5, mount, h, az, bw}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
     survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
+    probes: [],                    // signal check pins {id, x, y}
     calib: null,                   // fitted model correction {n, off24, off5, ...} or null
     settings: {
       band: "5", env: 1, opacity: 0.55,
@@ -91,7 +92,8 @@ let drag = null;
 let wallChain = null;              // {x, y} start of next wall segment
 let scaleLine = null;              // {a:{x,y}, b:{x,y}|null}
 let areaDraft = null;              // [{x,y}] points of the boundary being drawn
-let probes = [], probeActive = -1; // signal check pins [{x, y}] (not saved), index of the one shown in the panel
+let probeActive = -1;              // index in project.probes of the pin shown in the panel
+let probeX = null;                 // world rect of the active pin's × (delete) button
 let heatMask = null;               // Uint8Array from areaMask(), null = no boundary
 let cursor = null;                 // world coords
 let spaceDown = false;
@@ -104,7 +106,7 @@ const uid = () => (nextId++).toString(36) + Date.now().toString(36).slice(-4);
 
 // ---------- history ----------
 function snapshot() {
-  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, survey: project.survey, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
+  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, survey: project.survey, probes: project.probes, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
 }
 function pushHistory() {
   undoStack.push(snapshot());
@@ -116,6 +118,7 @@ function restore(snap) {
   project.aps.forEach(normalizeAp);
   if (selection?.type === "aps" || selection?.type === "walls" || selection?.type === "mixed") { const s = selIds(); setSelection(s.aps, s.walls); }
   if (selection && !findSel()) selection = null;
+  if (!project.probes[probeActive]) probeActive = project.probes.length - 1;
   changed();
 }
 function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); }
@@ -362,7 +365,8 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
 
   if (!interactive) return;
 
-  probes.forEach((pt, i) => drawProbe(c, px, pt, tool === "probe" && i === probeActive));
+  probeX = null;
+  project.probes.forEach((pt, i) => drawProbe(c, px, pt, tool === "probe" && i === probeActive));
 
   // wall preview
   if (tool === "wall" && wallChain && cursor) {
@@ -568,7 +572,7 @@ function heatAt(p) {
 }
 function hitProbe(p) {
   const tol = 12 * touchK / view.s;
-  for (let i = probes.length - 1; i >= 0; i--) if (Math.hypot(probes[i].x - p.x, probes[i].y - p.y) <= tol) return i;
+  for (let i = project.probes.length - 1; i >= 0; i--) if (Math.hypot(project.probes[i].x - p.x, project.probes[i].y - p.y) <= tol) return i;
   return -1;
 }
 function drawProbe(c, px, pt, isActive) {
@@ -584,7 +588,8 @@ function drawProbe(c, px, pt, isActive) {
   // value tag
   const txt = fmtDbm(v);
   c.font = `700 ${12 * px}px "Segoe UI", sans-serif`;
-  const w = c.measureText(txt).width + 22 * px, h = 20 * px, ty = y - h - r * 0.6;
+  const xw = isActive ? 18 * px : 0;                 // room for the × (delete) button
+  const w = c.measureText(txt).width + 22 * px + xw, h = 20 * px, ty = y - h - r * 0.6;
   let tx = x + r * 2.2;
   if (view.ox + (tx + w) * view.s > canvas.clientWidth - 8) tx = x - r * 2.2 - w;   // near the right edge: tag on the left
   c.fillStyle = P.tagBg; c.strokeStyle = isActive ? P.sel : P.tagLine; c.lineWidth = (isActive ? 1.6 : 1) * px;
@@ -592,9 +597,33 @@ function drawProbe(c, px, pt, isActive) {
   c.fillStyle = col; c.beginPath(); c.arc(tx + 8 * px, ty + h / 2, 4 * px, 0, 7); c.fill();
   c.fillStyle = P.text; c.textAlign = "left"; c.textBaseline = "middle";
   c.fillText(txt, tx + 15 * px, ty + h / 2 + 0.5 * px);
+  if (isActive) {
+    const bx = tx + w - xw;
+    c.strokeStyle = P.tagLine; c.lineWidth = px;
+    c.beginPath(); c.moveTo(bx, ty + 3 * px); c.lineTo(bx, ty + h - 3 * px); c.stroke();
+    const cx = bx + xw / 2, cy = ty + h / 2, k = 3.5 * px;
+    c.strokeStyle = P.text; c.lineWidth = 1.6 * px;
+    c.beginPath(); c.moveTo(cx - k, cy - k); c.lineTo(cx + k, cy + k); c.moveTo(cx + k, cy - k); c.lineTo(cx - k, cy + k); c.stroke();
+    const pad = 4 * px * touchK;
+    probeX = { x0: bx - pad, x1: bx + xw + pad, y0: ty - pad, y1: ty + h + pad };
+  }
   c.restore();
 }
-function clearProbes() { probes = []; probeActive = -1; }
+function clearProbes() { project.probes = []; probeActive = -1; }
+function addProbe(p) {
+  pushHistory();
+  project.probes.push({ id: uid(), x: p.x, y: p.y });
+  probeActive = project.probes.length - 1;
+}
+function deleteProbe(i) {
+  if (!project.probes[i]) return;
+  pushHistory();
+  project.probes.splice(i, 1);
+  probeActive = Math.min(probeActive, project.probes.length - 1);
+  if (i < probeActive) probeActive--;
+  renderPanel(); requestRender();
+}
+const inProbeX = p => probeX && p.x >= probeX.x0 && p.x <= probeX.x1 && p.y >= probeX.y0 && p.y <= probeX.y1;
 
 function roundRect(c, x, y, w, h, r) {
   c.beginPath();
@@ -895,6 +924,10 @@ canvas.addEventListener("pointerdown", e => {
 
   const p = toWorld(e);
   if (e.button === 1 || spaceDown || tool === "pan") { startPan(e); return; }
+  if (e.button === 2 && tool !== "wall" && tool !== "area") {        // right-click a pin: remove it
+    const pi = hitProbe(p);
+    if (pi >= 0) { deleteProbe(pi); return; }
+  }
   if (e.button === 2) { if (tool === "wall") finishWall(); else if (tool === "area") finishArea(); else if (tool === "select") startPan(e); return; }
 
   if (tool === "select") {
@@ -1077,9 +1110,10 @@ canvas.addEventListener("pointercancel", endPointer);
 function tapAction({ p, shift }) {
   if (tool === "ap") { addAp(p); return; }
   if (tool === "probe") {
+    if (inProbeX(p)) { deleteProbe(probeActive); return; }
     const i = hitProbe(p);
     if (i >= 0) probeActive = i;
-    else { probes.push({ x: p.x, y: p.y }); probeActive = probes.length - 1; }
+    else addProbe(p);
     selection = null;
     renderPanel(); requestRender();
     return;
@@ -1198,7 +1232,7 @@ window.addEventListener("keydown", e => {
     updateFinishBtn(); requestRender(); return;
   }
   if ((e.key === "Delete" || e.key === "Backspace") && tool === "probe") {
-    if (probes[probeActive]) { probes.splice(probeActive, 1); probeActive = probes.length - 1; renderPanel(); requestRender(); }
+    deleteProbe(probeActive);
     return;
   }
   if (e.key === "Delete" || e.key === "Backspace") { deleteSelection(); return; }
@@ -1581,7 +1615,7 @@ function renderPanel() {
 }
 
 function renderProbePanel(el) {
-  const pt = probes[probeActive];
+  const pt = project.probes[probeActive];
   if (!pt) { el.innerHTML = `<p class="empty">${t("probeHelp")}</p>`; return; }
   const band = project.settings.band, other = band === "5" ? "2.4" : "5";
   const r = probeAt(pt.x, pt.y), v = r[band];
@@ -1603,12 +1637,13 @@ function renderProbePanel(el) {
         <td>${Number.isFinite(a["2.4"]) ? Math.round(a["2.4"]) : "—"}</td><td>${Number.isFinite(a["5"]) ? Math.round(a["5"]) : "—"}</td></tr>`).join("")}
     </table>` : ""}
     <p class="unit">${t("probeNote")}</p>
+    <p class="unit">${t("probeDelHelp")}</p>
     <div class="btn-row">
       <button class="btn" id="probeDel">${t("probeDelete")}</button>
-      ${probes.length > 1 ? `<button class="btn" id="probeClear">${tf("probeClear", { n: probes.length })}</button>` : ""}
+      ${project.probes.length > 1 ? `<button class="btn" id="probeClear">${tf("probeClear", { n: project.probes.length })}</button>` : ""}
     </div>`;
-  $("#probeDel").onclick = () => { probes.splice(probeActive, 1); probeActive = probes.length - 1; renderPanel(); requestRender(); };
-  $("#probeClear")?.addEventListener("click", () => { clearProbes(); renderPanel(); requestRender(); });
+  $("#probeDel").onclick = () => deleteProbe(probeActive);
+  $("#probeClear")?.addEventListener("click", () => { pushHistory(); clearProbes(); renderPanel(); requestRender(); });
 }
 
 function renderSettings() {
@@ -1867,6 +1902,7 @@ function sanitizeProject(data) {
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
     survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
                                          band: p.band === "2.4" ? "2.4" : "5" })),
+    probes: arr(data.probes).slice(0, 500).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0) })),
     calib: cal && Number.isFinite(+cal.n) ? {
       n: +cal.n, off24: numOr(cal.off24, 0), off5: numOr(cal.off5, 0),
       rmsBefore: numOr(cal.rmsBefore, null), rmsAfter: numOr(cal.rmsAfter, null),
@@ -1898,7 +1934,7 @@ function loadProjectData(data) {
   project = sanitizeProject(data);
   if (project.customModels.length) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
   project.aps.forEach(normalizeAp);
-  selection = null; wallChain = null; scaleLine = null; areaDraft = null; clearProbes();
+  selection = null; wallChain = null; scaleLine = null; areaDraft = null; probeActive = project.probes.length - 1;
   undoStack = []; redoStack = [];
   planImg = null;
   return new Promise(res => {
@@ -1986,7 +2022,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   const p = project;
-  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.survey, p.calib, p.mPerPx, p.scaleSet]);
+  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.survey, p.probes, p.calib, p.mPerPx, p.scaleSet]);
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };
@@ -2018,7 +2054,7 @@ function startBlank() {
   renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));
 }
-const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0;
+const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
 $("#btnNew").addEventListener("click", () => guardUnsaved(startBlank));
 // file pickers must open from a user gesture; guardUnsaved runs the action inside a click
 function pickPlan() { guardUnsaved(() => $("#filePlan").click()); }
