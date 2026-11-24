@@ -31,11 +31,13 @@ The installed app opens in its own window and works offline; it updates itself w
 
 5. **Coverage boundary (B)** (ขอบเขตสัญญาณ): click points around the area that needs Wi-Fi, then click the first point, double-click or press Enter to close it. The heatmap is clipped to the boundary, and coverage %, area and AI auto-placement count only the inside. You can draw several. Select one to drag its points or move it; Delete removes it.
 6. Pick a language from the language menu: ไทย, English, 中文, 日本語, 한국어, Tiếng Việt, ລາວ, မြန်မာ. First-time visitors get their browser language automatically.
-7. Switch between **2.4 / 5 GHz**, choose the environment, then **Save** the project (.json) or **Export image** (.png) for your customer.
+7. **3D view** (มุมมอง 3D, key **3**): the walls you drew stand up at their real height, coloured by material, with the floor plan and heatmap on the floor and each AP at its mounting height. Drag to rotate, right-drag or Shift+drag to pan, wheel or pinch to zoom. Change the wall height, make walls see-through, or **Save 3D image** (.png) for a proposal. Changing the band or settings in the side panel updates it live. Uses [three.js](https://threejs.org/) (MIT, bundled in `js/vendor/three`, loaded only when opened); it needs the website or a local web server, not a double-clicked `index.html`.
+8. Switch between **2.4 / 5 GHz**, choose the environment, then **Save** the project (.json) or **Export image** (.png) for your customer.
 
 | Shortcut | Action |
 |---|---|
 | V / H / S / W / B / A / M | Select, Pan, Scale, Wall, Boundary, AP, Survey point |
+| 3 | 3D view on/off (Esc goes back to 2D) |
 | O | Straight lines on/off (walls and boundaries go only horizontal / vertical; on by default) |
 | Hold Shift while drawing | Flip straight lines for that point (any angle while on, straight while off) |
 | Delete | Remove selected item(s) |
@@ -127,6 +129,7 @@ js/optimizer.js AP auto-placement, channel assignment, weak-area detection
 js/survey.js    site-survey points, error stats, model calibration
 js/report.js    design data export (CSV)
 js/pdfplan.js   PDF floor plans (pdf.js, vendored in js/vendor/pdfjs)
+js/view3d.js    3D view (three.js, vendored in js/vendor/three)
 js/app.js       canvas, tools, editing, save / export
 ```
 

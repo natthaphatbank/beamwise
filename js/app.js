@@ -79,6 +79,7 @@ function setTheme(th) {
   const b = document.querySelector("#btnTheme");
   if (b) b.title = t(uiTheme === "dark" ? "themeLight" : "themeDark");
   requestRender();
+  if (typeof View3D !== "undefined") View3D.refresh();
 }
 
 let project = newProject();
@@ -233,6 +234,7 @@ function updateHeat() {
   heatMask = areaMask(project, heat);
   heatDirty = false;
   renderStats();
+  View3D.refresh();
 }
 
 // ---------- drawing ----------
@@ -1065,6 +1067,13 @@ window.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y" && !typing) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveProject(); return; }
   if (typing) return;
+  if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
+  if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
+    if (e.key === "Escape") View3D.close();
+    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
+    if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
+    View3D.close();
+  }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
   const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey" };
@@ -1732,7 +1741,7 @@ function loadProjectData(data) {
     img.onload = () => { planImg = img; res(); };
     img.onerror = () => { project.plan.image = null; res(); };
     img.src = project.plan.image;
-  }).then(() => { renderSettings(); fit(); changed(); markSaved(); });
+  }).then(() => { View3D.reset(); renderSettings(); fit(); changed(); markSaved(); });
 }
 
 // Downscale big floor plans so the heatmap stays fast and the project file stays small.
@@ -1759,6 +1768,7 @@ function loadPlanFile(file) {
       undoStack = []; redoStack = [];
       selection = null;
       planImg = plan;
+      View3D.reset();
       fit(); changed();
       setTool("scale");
       flash(t("planLoaded"));
@@ -1837,6 +1847,7 @@ window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault
 // ---------- top bar ----------
 function startBlank() {
   project = newProject(); planImg = null; selection = null; areaDraft = null; undoStack = []; redoStack = [];
+  View3D.reset();
   renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));
 }
@@ -1864,8 +1875,9 @@ $("#langSel").addEventListener("change", e => {
 });
 $("#btnUndo").addEventListener("click", undo);
 $("#btnRedo").addEventListener("click", redo);
-$("#btnFit").addEventListener("click", fit);
-document.querySelectorAll("#tools [data-tool]").forEach(b => b.addEventListener("click", () => { openPanel(); setTool(b.dataset.tool); }));
+$("#btnFit").addEventListener("click", () => { View3D.close(); fit(); });
+$("#btnView3d").addEventListener("click", () => View3D.toggle());
+document.querySelectorAll("#tools [data-tool]").forEach(b => b.addEventListener("click", () => { View3D.close(); openPanel(); setTool(b.dataset.tool); }));
 
 // Drag & drop a floor plan image or project file onto the canvas.
 $("#stage").addEventListener("dragover", e => e.preventDefault());

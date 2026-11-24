@@ -872,3 +872,16 @@ function setLang(lang) {
   try { localStorage.setItem("wpth-lang", lang); } catch (e) {}
   applyI18n();
 }
+
+// ---- 3D view ----
+const I18N_3D = {
+  th: { view3d: "มุมมอง 3D (3)", tl3d: "3D", back2d: "กลับ 2D", wallHeight3d: "ความสูงผนัง", seeThrough3d: "ผนังโปร่ง", resetView3d: "มุมเริ่มต้น", save3dPng: "บันทึกภาพ 3D", help3d: "ลากเพื่อหมุน • คลิกขวา / Shift+ลาก เพื่อเลื่อน • ล้อเมาส์ / สองนิ้ว เพื่อซูม", view3dFail: "เปิดมุมมอง 3D ไม่ได้ — เบราว์เซอร์ไม่รองรับ WebGL หรือเปิดจากไฟล์ในเครื่อง (ใช้เว็บไซต์แทน)" },
+  en: { view3d: "3D view (3)", tl3d: "3D", back2d: "Back to 2D", wallHeight3d: "Wall height", seeThrough3d: "See-through walls", resetView3d: "Reset view", save3dPng: "Save 3D image", help3d: "Drag to rotate • Right-drag / Shift+drag to pan • Wheel / pinch to zoom", view3dFail: "Couldn't open the 3D view — the browser has no WebGL, or the app was opened from a local file (use the website)" },
+  zh: { view3d: "3D 视图 (3)", tl3d: "3D", back2d: "返回 2D", wallHeight3d: "墙高", seeThrough3d: "透明墙体", resetView3d: "重置视角", save3dPng: "保存 3D 图片", help3d: "拖动旋转 • 右键 / Shift+拖动平移 • 滚轮 / 双指缩放", view3dFail: "无法打开 3D 视图 — 浏览器不支持 WebGL，或从本地文件打开（请使用网站）" },
+  ja: { view3d: "3D ビュー (3)", tl3d: "3D", back2d: "2D に戻る", wallHeight3d: "壁の高さ", seeThrough3d: "壁を透明に", resetView3d: "視点をリセット", save3dPng: "3D 画像を保存", help3d: "ドラッグで回転 • 右ドラッグ / Shift+ドラッグで移動 • ホイール / ピンチでズーム", view3dFail: "3D ビューを開けません — WebGL 非対応か、ローカルファイルから開いています（Web サイトを使用してください）" },
+  ko: { view3d: "3D 보기 (3)", tl3d: "3D", back2d: "2D로 돌아가기", wallHeight3d: "벽 높이", seeThrough3d: "벽 투명하게", resetView3d: "시점 초기화", save3dPng: "3D 이미지 저장", help3d: "드래그로 회전 • 오른쪽 드래그 / Shift+드래그로 이동 • 휠 / 핀치로 확대", view3dFail: "3D 보기를 열 수 없습니다 — 브라우저가 WebGL을 지원하지 않거나 로컬 파일로 열었습니다 (웹사이트를 사용하세요)" },
+  vi: { view3d: "Xem 3D (3)", tl3d: "3D", back2d: "Về 2D", wallHeight3d: "Chiều cao tường", seeThrough3d: "Tường trong suốt", resetView3d: "Đặt lại góc nhìn", save3dPng: "Lưu ảnh 3D", help3d: "Kéo để xoay • Kéo chuột phải / Shift+kéo để di chuyển • Cuộn / chụm hai ngón để thu phóng", view3dFail: "Không mở được chế độ 3D — trình duyệt không hỗ trợ WebGL hoặc ứng dụng được mở từ tệp cục bộ (hãy dùng trang web)" },
+  lo: { view3d: "ມຸມມອງ 3D (3)", tl3d: "3D", back2d: "ກັບໄປ 2D", wallHeight3d: "ຄວາມສູງຝາ", seeThrough3d: "ຝາໂປ່ງໃສ", resetView3d: "ມຸມເລີ່ມຕົ້ນ", save3dPng: "ບັນທຶກຮູບ 3D", help3d: "ລາກເພື່ອໝຸນ • ຄລິກຂວາ / Shift+ລາກ ເພື່ອເລື່ອນ • ລໍ້ເມົ້າ / ສອງນິ້ວ ເພື່ອຊູມ", view3dFail: "ເປີດມຸມມອງ 3D ບໍ່ໄດ້ — ບຣາວເຊີບໍ່ຮອງຮັບ WebGL ຫຼື ເປີດຈາກໄຟລ໌ໃນເຄື່ອງ (ໃຊ້ເວັບໄຊແທນ)" },
+  my: { view3d: "3D မြင်ကွင်း (3)", tl3d: "3D", back2d: "2D သို့ ပြန်ရန်", wallHeight3d: "နံရံ အမြင့်", seeThrough3d: "နံရံ ဖောက်မြင်", resetView3d: "မူလ မြင်ကွင်း", save3dPng: "3D ပုံ သိမ်းရန်", help3d: "လှည့်ရန် ဆွဲပါ • ရွှေ့ရန် ညာကလစ်ဆွဲ / Shift+ဆွဲ • ချဲ့ရန် ဘီး / လက်နှစ်ချောင်း", view3dFail: "3D မြင်ကွင်း မဖွင့်နိုင်ပါ — browser က WebGL မထောက်ပံ့ပါ သို့မဟုတ် စက်ထဲရှိ ဖိုင်မှ ဖွင့်ထားသည် (ဝက်ဘ်ဆိုက်ကို သုံးပါ)" },
+};
+for (const [code, extra] of Object.entries(I18N_3D)) Object.assign(I18N[code], extra);
