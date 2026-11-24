@@ -898,3 +898,13 @@ const I18N_SCALE = {
   my: { scaleEstimate: "ခန့်မှန်း စကေး — စကေး မသတ်မှတ်ရသေးပါ (S)", scaleTip: "မျဉ်းတစ်ကြောင်း လုံလောက်သည် — အထပ်ပုံစံသည် အလျားလိုက်နှင့် ဒေါင်လိုက် စကေးတူသည်။ သိထားသော အရှည်ဆုံး အကွာအဝေး (ဥပမာ ရှည်သော နံရံ) ကို သုံးလျှင် အတိကျဆုံး ဖြစ်သည်။", scaleTipCheck: "စကေး စစ်ရန်: အခြား ဦးတည်ချက် (ဥပမာ ဒေါင်လိုက်) တွင် နောက်ထပ်မျဉ်း ဆွဲပြီး အမှန်အရှည် ထည့်ပါ။ လက်ရှိ စကေးနှင့် ကွာခြားချက်ကို ပြမည်။ ကိုက်ညီလျှင် ပြန်သတ်မှတ်ရန် မလိုပါ။", scaleCurrent: "လက်ရှိ စကေးဖြင့် {m} m", scaleDiffOk: "{d}% ကွာ — စကေး မှန်ကန်သည်", scaleDiffBad: "{d}% ကွာ — ပုံ ဆွဲဆန့်ခံရနိုင်သည် (အလျားလိုက်နှင့် ဒေါင်လိုက် စကေး မတူ) သို့မဟုတ် အမှတ် မှားနှိပ်ထားသည်။ ပြန်တိုင်းပါ သို့မဟုတ် ပုံကို မဆန့်ဘဲ ပြန်ထုတ်ပါ။" },
 };
 for (const [code, extra] of Object.entries(I18N_SCALE)) Object.assign(I18N[code], extra);
+
+// ---- 3D shortcut row ----
+Object.assign(I18N.th, { k_3d: "มุมมอง 3D (Esc = กลับ 2D)" });
+Object.assign(I18N.en, { k_3d: "3D view (Esc = back to 2D)" });
+Object.assign(I18N.zh, { k_3d: "3D 视图（Esc = 返回 2D）" });
+Object.assign(I18N.ja, { k_3d: "3D ビュー（Esc = 2D に戻る）" });
+Object.assign(I18N.ko, { k_3d: "3D 보기 (Esc = 2D로 돌아가기)" });
+Object.assign(I18N.vi, { k_3d: "Xem 3D (Esc = về 2D)" });
+Object.assign(I18N.lo, { k_3d: "ມຸມມອງ 3D (Esc = ກັບໄປ 2D)" });
+Object.assign(I18N.my, { k_3d: "3D မြင်ကွင်း (Esc = 2D သို့ ပြန်)" });

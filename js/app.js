@@ -1552,15 +1552,19 @@ function renderPanelCards() {
   $("#aiCard").hidden = !revealed.ai;
   $("#displayCard").hidden = !revealed.display;
   $("#legendCard").hidden = !revealed.legend;
-  $("#keysCard").hidden = hasAps;
-  if (hasAps) return;
+}
+
+// Keyboard shortcuts: listed in the Help window only (folded), not in the side panel.
+function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
+    [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
-  $("#keysList").innerHTML = rows.map(([k, d]) => `<dt>${k}</dt><dd>${t(d)}</dd>`).join("");
+  return `<details class="adv help-keys"><summary>${t("keysTitle")}</summary>
+    <dl class="keys">${rows.map(([k, d]) => `<dt>${k}</dt><dd>${t(d)}</dd>`).join("")}</dl></details>`;
 }
 
 function renderStats() {
@@ -1958,7 +1962,6 @@ function confirmModal(title, body, onOk) {
   $("#modalBox").querySelector('[data-act="ok"]').onclick = () => { closeModal(); onOk(); };
 }
 
-$("#keysHelp").addEventListener("click", showWelcome);
 function loadSample() {
   loadProjectData(buildSampleProject()).then(() => flash(t("sampleLoaded")));
 }
@@ -1967,6 +1970,7 @@ function showWelcome() {
   openModal(`<h2><img src="icons/favicon.svg" width="28" height="28" alt="">${t("welcomeTitle")}</h2>
     <p>${t("welcomeIntro")}</p>
     <ol>${t("welcomeSteps")}</ol>
+    ${shortcutsHtml()}
     <div class="btns">
       <button class="primary" data-act="demo">${t("tryDemo")}</button>
       <button data-act="plan">${t("startOwn")}</button>
