@@ -1,12 +1,11 @@
 # Beamwise
 
-Wi-Fi planning in the browser · โปรแกรมออกแบบ Wi-Fi บนเว็บ
+Wi-Fi planning in the browser 
 
 **Try it / install it:** https://natthaphatbank.github.io/beamwise/
 
 Predictive Wi-Fi design in the browser: import a floor plan, draw walls, place access points and see a live coverage heatmap. A simple, affordable alternative to tools like Ekahau for installers, IT shops and dorm owners in Thailand.
 
-เครื่องมือออกแบบ Wi-Fi บนเว็บ — นำเข้าแบบแปลน วาดผนัง วาง AP แล้วดู Heatmap สัญญาณได้ทันที
 
 ## Run
 
