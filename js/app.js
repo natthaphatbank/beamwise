@@ -40,6 +40,7 @@ function newProject() {
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
     bom: null,                     // bill of materials / quote settings (tables.js), created on first use
+    report: null,                  // PDF report cover fields {title, customer, author, notes} (report-pdf.js)
   };
   for (const k of FLOOR_FIELDS) p.floors[0][k] = p[k];
   return p;
@@ -2255,6 +2256,8 @@ function sanitizeOneFloor(data) {
     newApModel: strOr(data.newApModel, base.newApModel),
     newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,
     bom: cleanBom(data.bom),
+    report: data.report && typeof data.report === "object" ? { title: strOr(data.report.title, "", 120), customer: strOr(data.report.customer, "", 120),
+              author: strOr(data.report.author, "", 120), notes: strOr(data.report.notes, "", 400) } : null,
     customModels: arr(data.customModels).map(cleanModel).filter(Boolean),
   };
 }
@@ -2406,6 +2409,7 @@ $("#fileOpen").addEventListener("change", e => {
 });
 $("#btnSave").addEventListener("click", saveProject);
 $("#btnExport").addEventListener("click", exportPng);
+$("#btnPdf").addEventListener("click", () => { View3D.close(); openReportDialog(); });
 $("#btnExportData").addEventListener("click", exportDesignCsv);
 $("#langSel").addEventListener("change", e => {
   setLang(e.target.value);
