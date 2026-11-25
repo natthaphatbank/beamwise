@@ -81,17 +81,23 @@ function overlapFrac(victim, interferer) {
   return o > 0 ? o / (interferer[1] - interferer[0]) : 0;
 }
 
-// Non-overlapping channel plan for the optimizer (primary channel of each block).
+// Non-overlapping channel plan for the optimizer (primary channel of each block). On 5 GHz the
+// upper band (149+) comes first: Thailand allows 30 dBm EIRP there against 23 dBm on 36–64.
+const upperFirst = list => [...list.filter(c => c >= 149), ...list.filter(c => c < 52), ...list.filter(c => c >= 52 && c < 149)];
 function channelPlan(b, w, dfs) {
   if (b === "2.4") return [1, 6, 11];
-  if (b === "5") {
-    if (w <= 20) return CH_ALL["5"].filter(c => dfs || !isDfs(c));
-    const width = BLOCKS5[w] ? w : 40;
-    const blockDfs = s => isDfs(s) || isDfs(s + width / 5 - 4);   // any DFS channel inside the block
-    const blocks = BLOCKS5[width].filter(s => dfs || !blockDfs(s));
-    // 160 MHz always needs DFS channels; without DFS fall back to 80 MHz blocks
-    return blocks.length ? blocks : BLOCKS5[80].filter(s => dfs || !isDfs(s));
-  }
+  if (b === "5") return upperFirst(channelPlan5(w, dfs));
+  return channelPlan6(w);
+}
+function channelPlan5(w, dfs) {
+  if (w <= 20) return CH_ALL["5"].filter(c => dfs || !isDfs(c));
+  const width = BLOCKS5[w] ? w : 40;
+  const blockDfs = s => isDfs(s) || isDfs(s + width / 5 - 4);   // any DFS channel inside the block
+  const blocks = BLOCKS5[width].filter(s => dfs || !blockDfs(s));
+  // 160 MHz always needs DFS channels; without DFS fall back to 80 MHz blocks
+  return blocks.length ? blocks : BLOCKS5[80].filter(s => dfs || !isDfs(s));
+}
+function channelPlan6(w) {
   const step = w / 5;
   const out = [];
   for (let c = 1; c <= 93; c += step) if (chFreq("6", c) - 10 + w <= 6425) out.push(c);

@@ -6,8 +6,10 @@ const ctx = canvas.getContext("2d");
 
 // ---------- state ----------
 function newProject() {
-  return {
-    version: 1,
+  const p = {
+    version: 2,
+    floors: [floorMeta("1", "f1")],  // every floor (floors.js); the active one mirrors the fields below
+    floorIdx: 0,
     plan: { image: null, width: 1200, height: 800 },
     mPerPx: 30 / 1200,            // blank plan = 30 x 20 m
     scaleSet: false,
@@ -38,6 +40,8 @@ function newProject() {
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
   };
+  for (const k of FLOOR_FIELDS) p.floors[0][k] = p[k];
+  return p;
 }
 
 // Required RSSI and heatmap display floor (both can be automatic).
@@ -250,6 +254,7 @@ function resize() {
 
 // ---------- heatmap ----------
 function updateHeat() {
+  syncActive();
   const { width: W, height: H } = project.plan;
   const view = curView();
   const target = heatCoarse ? 110 : view === "signal" ? 340 : 240;   // per-AP views cost more
@@ -393,6 +398,9 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
     c.strokeStyle = isSel ? P.sel : col; c.lineWidth = (isSel ? 3 : 1.8) * px; c.stroke();
     if (isSel) for (const q of z.pts) handle(c, px, q.x, q.y);
   }
+
+  // walls of the floor below and APs on the floors above / below
+  if (interactive) drawOtherFloors(c, px);
 
   // coverage boundary
   for (const a of projectAreas(project)) {
@@ -1963,6 +1971,7 @@ function renderStats() {
   const pct = v => (v * 100).toFixed(0) + "%";
   const cls = (v, g, w) => v >= g ? "good" : v >= w ? "warn" : "bad";
   $("#stats").innerHTML = `
+    ${floorCount() > 1 ? `<span class="k">${t("floorLbl")}</span><span class="v">${esc(floorName(project.floorIdx))} (${project.floorIdx + 1}/${floorCount()})</span>` : ""}
     <span class="k">${t("apCount")}</span><span class="v">${project.aps.length}</span>
     <span class="k">${t("wallCount")}</span><span class="v">${project.walls.length}</span>
     <span class="k">${t("area")}${projectAreas(project).length ? ` (${t("areaBoundaryShort")})` : ""}</span><span class="v">${project.scaleSet || !project.plan.image ? area.toFixed(0) + " m²" : "—"}</span>
@@ -2112,7 +2121,7 @@ $("#btnAutoPlace").addEventListener("click", async () => {
     pushHistory();
     if (!keep) project.aps = [];
     for (const p of res.aps) project.aps.push(makeAp(p));
-    assignChannels(project);
+    assignChannelsAllFloors();
     selection = null;
     changed();
     flash(tf("aiPlaced", { n: res.aps.length, p: Math.round(res.coverage * 100), r: reqDbm() }));
@@ -2124,7 +2133,7 @@ $("#btnAutoPlace").addEventListener("click", async () => {
 
 $("#btnChannels").addEventListener("click", () => {
   if (!project.aps.length) { flash(t("aiNeedAps")); return; }
-  pushHistory(); assignChannels(project); changed(); flash(t("aiChannelsDone"));
+  pushHistory(); assignChannelsAllFloors(); changed(); flash(t("aiChannelsDone"));
 });
 
 $("#opacity").addEventListener("input", e => { project.settings.opacity = +e.target.value; requestRender(); scheduleAutosave(); });
@@ -2147,6 +2156,7 @@ function download(blob, name) {
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 
 function saveProject() {
+  syncActive();
   project.customModels = customLibrary();
   markSaved();
   download(new Blob([JSON.stringify(project)], { type: "application/json" }), `beamwise-project-${stamp()}.json`);
@@ -2159,7 +2169,31 @@ function saveProject() {
 function numOr(v, d) { const n = +v; return v !== null && v !== "" && Number.isFinite(n) ? n : d; }
 function strOr(v, d = "", max = 120) { return typeof v === "string" ? v.slice(0, max) : typeof v === "number" ? String(v) : d; }
 function chOr(v) { return v == null || v === "" ? null : numOr(v, null); }
+// Multi-floor files: each floor is checked like a one-floor project; meta fields per floor.
 function sanitizeProject(data) {
+  const one = sanitizeOneFloor(data);
+  const raw = Array.isArray(data.floors) ? data.floors.filter(f => f && typeof f === "object" && f.plan).slice(0, 60) : [];
+  if (!raw.length) {
+    one.floors = [Object.assign(floorMeta("1", "f1"), pickFloor(one))];
+    one.floorIdx = 0;
+  } else {
+    one.floors = raw.map((f, i) => {
+      const s = sanitizeOneFloor({ ...data, ...f, floors: null });
+      const meta = floorMeta(strOr(f.name, String(i + 1), 30) || String(i + 1), strOr(f.id, "", 20) || undefined);
+      meta.height = Math.min(20, Math.max(2, numOr(f.height, FLOOR_H_DEFAULT)));
+      meta.slab = SLABS[f.slab] ? f.slab : "concrete";
+      meta.ox = Math.min(1000, Math.max(-1000, numOr(f.ox, 0))); meta.oy = Math.min(1000, Math.max(-1000, numOr(f.oy, 0)));
+      return Object.assign(meta, pickFloor(s));
+    });
+    const ids = new Set();
+    for (const f of one.floors) { while (ids.has(f.id)) f.id += "x"; ids.add(f.id); }
+    one.floorIdx = Math.min(one.floors.length - 1, Math.max(0, Math.round(numOr(data.floorIdx, 0))));
+  }
+  Object.assign(one, pickFloor(one.floors[one.floorIdx]));
+  for (const k of FLOOR_FIELDS) one.floors[one.floorIdx][k] = one[k];
+  return one;
+}
+function sanitizeOneFloor(data) {
   const base = newProject();
   const arr = a => Array.isArray(a) ? a.filter(o => o && typeof o === "object") : [];
   const plan = data.plan || {};
@@ -2227,14 +2261,16 @@ function loadProjectData(data) {
   if (!data || !data.plan || !Array.isArray(data.walls) || !Array.isArray(data.aps)) throw new Error("bad");
   project = sanitizeProject(data);
   if (project.customModels.length) { mergeIntoLibrary(project.customModels); registerCustomModels(project.customModels); }
-  project.aps.forEach(normalizeAp);
+  for (const f of project.floors) (f.aps || []).forEach(normalizeAp);
+  floorImgs.clear();
+  renderFloorBar();
   selection = null; wallChain = null; scaleLine = null; areaDraft = null; probeActive = project.probes.length - 1;
   undoStack = []; redoStack = [];
   planImg = null;
   return new Promise(res => {
     if (!project.plan.image) { res(); return; }
     const img = new Image();
-    img.onload = () => { planImg = img; res(); };
+    img.onload = () => { planImg = img; floorImgs.set(project.floors[project.floorIdx].id, img); res(); };
     img.onerror = () => { project.plan.image = null; res(); };
     img.src = project.plan.image;
   }).then(() => { View3D.reset(); renderSettings(); fit(); changed(); markSaved(); });
@@ -2264,6 +2300,7 @@ function loadPlanFile(file) {
       undoStack = []; redoStack = [];
       selection = null;
       planImg = plan; clearProbes();
+      floorImgs.set(project.floors[project.floorIdx].id, plan);
       View3D.reset();
       fit(); changed();
       setTool("scale");
@@ -2315,8 +2352,8 @@ function exportPng() {
 // Every start (open / refresh) is a blank project; nothing is restored from the browser.
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
-  const p = project;
-  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.attens, p.survey, p.probes, p.calib, p.mPerPx, p.scaleSet]);
+  syncActive();
+  return JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };
@@ -2344,14 +2381,17 @@ window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault
 // ---------- top bar ----------
 function startBlank() {
   project = newProject(); planImg = null; selection = null; areaDraft = null; clearProbes(); undoStack = []; redoStack = [];
+  renderFloorBar();
   View3D.reset();
   renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));
 }
-const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.attens || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
+const floorHasWork = f => !!f.plan?.image || (f.walls || []).length > 0 || (f.aps || []).length > 0 || (f.areas || []).length > 0 || (f.attens || []).length > 0;
+const hasWork = () => (syncActive(), project.floors.length > 1 || project.floors.some(floorHasWork)) || !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.attens || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
 $("#btnNew").addEventListener("click", () => guardUnsaved(startBlank));
 // file pickers must open from a user gesture; guardUnsaved runs the action inside a click
-function pickPlan() { guardUnsaved(() => $("#filePlan").click()); }
+// Importing a plan replaces this floor only: no need to ask when this floor is still empty.
+function pickPlan() { if (project.floors.length > 1 && !floorHasWork(project)) $("#filePlan").click(); else guardUnsaved(() => $("#filePlan").click()); }
 $("#btnPlan").addEventListener("click", pickPlan);
 $("#btnHelp").addEventListener("click", showWelcome);
 $("#btnTheme").addEventListener("click", () => setTheme(uiTheme === "dark" ? "light" : "dark"));
@@ -2367,6 +2407,7 @@ $("#btnExport").addEventListener("click", exportPng);
 $("#btnExportData").addEventListener("click", exportDesignCsv);
 $("#langSel").addEventListener("change", e => {
   setLang(e.target.value);
+  renderFloorBar();
   renderSettings(); renderPanel(); renderStats(); setTool(tool); setTheme(uiTheme);
   if (!$("#modal").hidden && $("#modalBox [data-act=demo]")) showWelcome();   // re-render welcome in new language
 });
@@ -2491,11 +2532,12 @@ if (window.ResizeObserver) new ResizeObserver(() => {
 registerCustomModels(customLibrary());
 try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by the removed AI review feature
 applyI18n();
+wireFloorBar();
 setTheme(uiTheme);
 resize();
 try { localStorage.removeItem("wpth-project"); } catch (e) {}      // old autosave from earlier versions
 (() => {
-  renderSettings(); fit(); changed(); markSaved(); flash(t("blankPlan"));
+  renderSettings(); renderFloorBar(); fit(); changed(); markSaved(); flash(t("blankPlan"));
   setTool("select");
   let welcomed = false;
   try { welcomed = !!localStorage.getItem("wpth-welcomed"); } catch (e) {}

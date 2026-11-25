@@ -39,7 +39,10 @@ async function autoPlace(project, opts, onProgress = () => {}) {
 
   // current best signal per cell (existing APs if kept)
   const cover = new Float32Array(nc).fill(-Infinity);
-  if (opts.keep) fill(cover, existing);
+  // APs on other floors always count, this floor's APs only if kept
+  const others = existing.slice(project.aps.length);
+  const kept = () => opts.keep ? existing : others;
+  fill(cover, kept());
 
   // signal map of every candidate (computed in chunks to keep the page responsive)
   const floor = reqMin - 25;
@@ -80,7 +83,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
     const base = new Float32Array(nc);
     for (let p = 0; p < placed.length; p++) {
       base.fill(-Infinity);
-      if (opts.keep) fill(base, existing);
+      fill(base, kept());
       placed.forEach((q, j) => { if (j !== p) for (let i = 0; i < nc; i++) if (q.v[i] > base[i]) base[i] = q.v[i]; });
       const score = cd => { let m = 0; for (let i = 0; i < nc; i++) if (Math.max(base[i], cd.v[i]) >= reqC[i]) m++; return m; };
       let cur = score(placed[p]);
@@ -91,7 +94,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
       }
     }
     cover.fill(-Infinity);
-    if (opts.keep) fill(cover, existing);
+    fill(cover, kept());
     for (const q of placed) for (let i = 0; i < nc; i++) if (q.v[i] > cover[i]) cover[i] = q.v[i];
     coverage = meets(cover);
   }

@@ -29,3 +29,15 @@
 .area-tbl td.warn { color: var(--warn); font-weight: 600; }
 .area-tbl td.bad { color: var(--danger); font-weight: 600; }
 .ap-load { margin: 2px 0 0; }
+
+/* floor bar (top left of the plan, below the rulers) */
+.floorbar { position: absolute; top: 30px; left: 30px; display: flex; flex-direction: column; gap: 3px; z-index: 3;
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.18); max-height: calc(100% - 90px); overflow-y: auto; }
+.floorbar .fb-lbl { font-size: 10px; color: var(--muted); text-align: center; text-transform: uppercase; letter-spacing: .04em; padding: 1px 0 2px; }
+.floorbar button { min-width: 34px; height: 28px; padding: 0 6px; background: var(--input); border: 1px solid var(--line-strong); border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 12px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.floorbar button:hover { border-color: var(--accent); }
+.floorbar button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.floorbar .fb-icon { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 16px; font-weight: 500; }
+.floorbar .fb-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.floor-btns { flex-wrap: wrap; justify-content: flex-start !important; margin-top: 10px; }
+.floor-btns button:disabled { opacity: .45; cursor: default; }

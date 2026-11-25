@@ -449,17 +449,17 @@ function nodeLinks(rf) {
  * (Dijkstra over node-to-node links, so paths can turn several times).
  * `ap` needs x, y, tx/gain fields and optionally mount, h, az, bw.
  */
-function buildSource(rf, ap) {
+function buildSource(rf, ap, { extraLoss = 0, noPaths = false } = {}) {
   const e = apEirp(ap, rf.band, rf.cap);
   const mount = MOUNTS[ap.mount] ? ap.mount : "ceiling";
   const h = ap.h !== null && ap.h !== "" && Number.isFinite(+ap.h) ? +ap.h : MOUNTS[mount].h;
   const src = {
     x: ap.x, y: ap.y, dead: !Number.isFinite(e),
-    eff: e + (rf.offset || 0) + rf.clientOff,     // everything that does not depend on the path
+    eff: e + (rf.offset || 0) + rf.clientOff - extraLoss,   // everything that does not depend on the path
     dh: Math.abs(h - rf.clientH), mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
     order: [],
   };
-  const N = rf.nodes.n;
+  const N = noPaths ? 0 : rf.nodes.n;               // APs on other floors: direct path only
   if (src.dead || !N) return src;
   const nx = rf.nodes.x, ny = rf.nodes.y, mpp = rf.mpp, n10 = 10 * rf.n, base = src.eff - rf.pl1;
   const L = new Float64Array(N), A = new Float64Array(N), ux = new Float64Array(N), uy = new Float64Array(N);
@@ -618,17 +618,73 @@ function modelFor(project, band, override = null) {
   else {
     rf = rfContext(project, band, override);
     _modelCache.set(key, rf);
-    while (_modelCache.size > 8) _modelCache.delete(_modelCache.keys().next().value);
+    while (_modelCache.size > 16) _modelCache.delete(_modelCache.keys().next().value);
   }
   const used = new Map();
-  const sources = project.aps.map(ap => {
-    const k = JSON.stringify([ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw]);
-    const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap);
+  const make = (ap, opt) => {
+    const k = JSON.stringify([ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, opt && opt.extraLoss]);
+    const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap, opt);
     used.set(k, s);
     return s;
-  });
+  };
+  const sources = project.aps.map(ap => make(ap));
+  const aps = project.aps.slice();
+  for (const c of crossFloorAps(project, band)) { sources.push(make(c.ap, c.opt)); aps.push(c.orig); }
   rf.srcCache = used;                               // forget APs that moved away
-  return { rf, sources };
+  return { rf, sources, aps };
+}
+
+// ---------- multiple floors ----------
+// project.floors = [{id, name, height (m, floor to floor), slab, ox, oy (m, offset of this plan in a
+// shared building frame), plan, mPerPx, walls, aps, ...}], lowest first; project.floorIdx = active.
+// Floor slab (between a floor and the one below it): loss per band, dB.
+const SLABS = {
+  concrete: { db24: 15, db5: 18, db6: 20 },        // reinforced concrete slab ~15 cm (condo, dorm, office)
+  heavy:    { db24: 20, db5: 26, db6: 28 },        // thick post-tensioned / 25 cm+
+  metaldeck:{ db24: 25, db5: 32, db6: 34 },        // concrete on metal deck
+  wood:     { db24: 6,  db5: 9,  db6: 10 },        // timber floor (house)
+};
+const EXTRA_FLOOR_SHARE = 0.4;      // each further slab adds 40% of its loss (ITU-R P.1238: 15 dB + 4 dB/floor at 2.4 GHz)
+const UPWARD_CEILING_DB = 5;        // ceiling APs radiate downward: a floor above gets the back lobe
+
+function floorElevations(F) {
+  const el = [];
+  let z = 0;
+  for (const f of F) { el.push(z); z += Math.max(2, +f.height || 3); }
+  return el;
+}
+// Loss through the slabs between floor a and floor b on a band.
+function slabLoss(F, a, b, band) {
+  const lo = Math.min(a, b), hi = Math.max(a, b);
+  const losses = [];
+  for (let k = lo + 1; k <= hi; k++) losses.push(matLoss(SLABS[F[k].slab] || SLABS.concrete, band));
+  losses.sort((x, y) => y - x);
+  return losses.reduce((s, L, i) => s + (i ? EXTRA_FLOOR_SHARE * L : L), 0);
+}
+// APs on the other floors, moved into this floor's plan coordinates with their vertical offset
+// and the slab loss. `orig` is the AP object on its own floor.
+function crossFloorAps(project, band) {
+  const F = project.floors;
+  if (!F || F.length < 2) return [];
+  const me = project.floorIdx || 0, el = floorElevations(F);
+  const mine = F[me], mpp = project.mPerPx, ox = +mine.ox || 0, oy = +mine.oy || 0;
+  const out = [];
+  F.forEach((f, j) => {
+    if (j === me) return;
+    const fm = +f.mPerPx || mpp, fox = +f.ox || 0, foy = +f.oy || 0;
+    for (const ap of f.aps || []) {
+      const mount = MOUNTS[ap.mount] ? ap.mount : "ceiling";
+      const h = (Number.isFinite(+ap.h) && ap.h !== null && ap.h !== "" ? +ap.h : MOUNTS[mount].h) + el[j] - el[me];
+      let loss = slabLoss(F, j, me, band);
+      if (j < me && mount === "ceiling") loss += UPWARD_CEILING_DB;
+      out.push({
+        orig: ap,
+        ap: { ...ap, x: (ap.x * fm + fox - ox) / mpp, y: (ap.y * fm + foy - oy) / mpp, h },
+        opt: { extraLoss: loss, noPaths: true },
+      });
+    }
+  });
+  return out;
 }
 
 /**
