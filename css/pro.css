@@ -41,3 +41,26 @@
 .floorbar .fb-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
 .floor-btns { flex-wrap: wrap; justify-content: flex-start !important; margin-top: 10px; }
 .floor-btns button:disabled { opacity: .45; cursor: default; }
+
+/* AP table, quote */
+.modal.xwide { width: min(1180px, 100%); }
+.tbl-wrap { overflow-x: auto; margin: 0 0 10px; border: 1px solid var(--line); border-radius: var(--radius); }
+.tbl-wrap .calib-tbl { margin: 0; }
+.tbl-wrap th, .tbl-wrap td { white-space: nowrap; padding: 4px 6px; }
+.ap-tbl input, .ap-tbl select, .bom-tbl input { background: var(--input); border: 1px solid var(--line-strong); border-radius: 4px; padding: 3px 4px; font-size: 12px; }
+.ap-tbl input[type=number] { width: 52px; }
+.ap-tbl .w-name { width: 110px; }
+.ap-tbl .band-c { border-left: 1px solid var(--line); }
+.ap-tbl td, .ap-tbl th { text-align: left; }
+.ap-tbl .mdl { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.ap-tbl select:disabled { opacity: .4; }
+.bom-tbl td, .bom-tbl th { text-align: left; }
+.bom-tbl input[type=text] { width: 100%; min-width: 160px; }
+.bom-tbl .w-unit { min-width: 50px !important; width: 60px !important; }
+.bom-tbl input[type=number] { width: 100px; text-align: right; }
+.bom-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+.bom-tbl tfoot td { font-weight: 600; border-bottom: 0; }
+.bom-tbl tfoot tr.grand td { font-size: 14px; color: var(--accent); border-top: 2px solid var(--line-strong); }
+.bom-set { grid-template-columns: 1fr 1fr 1fr; margin-bottom: 10px; }
+@media (max-width: 520px) { .bom-set { grid-template-columns: 1fr; } }
+.btn-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }

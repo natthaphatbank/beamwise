@@ -39,6 +39,7 @@ function newProject() {
     newWallMat: "brick",
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
+    bom: null,                     // bill of materials / quote settings (tables.js), created on first use
   };
   for (const k of FLOOR_FIELDS) p.floors[0][k] = p[k];
   return p;
@@ -2253,6 +2254,7 @@ function sanitizeOneFloor(data) {
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),
     newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,
+    bom: cleanBom(data.bom),
     customModels: arr(data.customModels).map(cleanModel).filter(Boolean),
   };
 }
@@ -2353,7 +2355,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   syncActive();
-  return JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
+  return JSON.stringify([project.bom]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };
@@ -2533,6 +2535,7 @@ registerCustomModels(customLibrary());
 try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by the removed AI review feature
 applyI18n();
 wireFloorBar();
+wireTables();
 setTheme(uiTheme);
 resize();
 try { localStorage.removeItem("wpth-project"); } catch (e) {}      // old autosave from earlier versions
