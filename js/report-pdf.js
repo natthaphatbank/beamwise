@@ -12,15 +12,17 @@ function reportBands() {
   return b.length ? b : ["5"];
 }
 
-function openReportDialog() {
+// preset "summary": a short report (signal heatmap per floor and band, summary, quote)
+function openReportDialog(preset) {
+  const short = preset === "summary";
   syncActive();
   const r = project.report || (project.report = { title: "", customer: "", author: "", notes: "" });
   const bands = reportBands();
   const demand = project.floors.some(f => (f.areas || []).some(a => +a.devices > 0));
   const views = ["signal", "secondary", "sinr", "rate", "cci", "serving", ...(demand ? ["capacity"] : [])];
-  const defViews = new Set(["signal", "sinr", "rate", ...(demand ? ["capacity"] : [])]);
+  const defViews = new Set(short ? ["signal"] : ["signal", "sinr", "rate", ...(demand ? ["capacity"] : [])]);
   const hasQuote = project.bom && (Object.values(project.bom.prices || {}).some(v => v > 0) || project.bom.lines.some(l => l.price > 0));
-  openModal(`<h2>${t("pdfTitle")}</h2>
+  openModal(`<h2>${t(short ? "expPdfSum" : "pdfTitle")}</h2>
     <p class="unit">${t("pdfHelp")}</p>
     <div class="model-form">
       <label class="field"><span>${t("pdfProject")}</span><input id="rpTitle" value="${esc(r.title)}" maxlength="120" placeholder="${esc(t("pdfProjectPh"))}"></label>
@@ -34,7 +36,8 @@ function openReportDialog() {
     <div class="chk-row">${views.map(v => `<label class="check"><input type="checkbox" data-view="${v}" ${defViews.has(v) ? "checked" : ""}> ${t("view_" + v)}</label>`).join("")}</div>
     <h3 class="modal-sub">${t("pdfSections")}</h3>
     <div class="chk-row">
-      <label class="check"><input type="checkbox" id="rpAps" checked> ${t("apTableTitle")}</label>
+      <label class="check"><input type="checkbox" id="rpAps" ${short ? "" : "checked"}> ${t("apTableTitle")}</label>
+      <label class="check"><input type="checkbox" id="rpDetails" ${short ? "" : "checked"}> ${t("pdfDetails")}</label>
       <label class="check"><input type="checkbox" id="rpQuote" ${hasQuote ? "checked" : ""}> ${t("bomTitle")}</label>
     </div>
     <div class="progress" id="rpProg" hidden><div></div></div>
@@ -46,7 +49,7 @@ function openReportDialog() {
     const opts = {
       bands: [...box.querySelectorAll("[data-band]:checked")].map(x => x.dataset.band),
       views: [...box.querySelectorAll("[data-view]:checked")].map(x => x.dataset.view),
-      aps: $("#rpAps").checked, quote: $("#rpQuote").checked,
+      aps: $("#rpAps").checked, quote: $("#rpQuote").checked, details: $("#rpDetails").checked,
     };
     if (!opts.bands.length || !opts.views.length) { flash(t("pdfPickOne")); return; }
     box.querySelectorAll("button").forEach(b => { b.disabled = true; });
@@ -72,7 +75,9 @@ function preloadFloorImages() {
 }
 
 // Draw floor i on a band and view into an image; returns { url, cov, vst, req, area, caps }.
-async function renderFloorShot(i, band, view) {
+// opts.image: false = statistics only; opts.png: lossless image (for the images ZIP)
+async function renderFloorShot(i, band, view, opts = {}) {
+  const wantImg = opts.image !== false;
   const keep = { idx: project.floorIdx, band: project.settings.band, view: project.settings.view, planImg, waves: project.settings.waves };
   syncActive();
   const f = project.floors[i];
@@ -84,7 +89,9 @@ async function renderFloorShot(i, band, view) {
   let out;
   try {
     updateHeat();
+    let url = null;
     const { width: W, height: H } = project.plan;
+    if (wantImg) {
     const k = Math.min(2, 1600 / Math.max(W, H));
     const cv = document.createElement("canvas");
     cv.width = Math.round(W * k); cv.height = Math.round(H * k);
@@ -95,12 +102,32 @@ async function renderFloorShot(i, band, view) {
     c.restore();
     const u = Math.max(1, k * 0.8);
     drawScaleBar(c, cv.width - 8 * u, cv.height - 8 * u, k / project.mPerPx, { u, theme: CANVAS_THEMES.light, maxW: Math.max(150 * u, cv.width * 0.18) });
+    url = opts.png ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg", 0.9);
+    }
     const box = buildingBox(project);
     const cov = heat && project.aps.length + crossFloorAps(project, band).length ? coverageStats(heat, effMinDbm(), heatReq || reqDbm(), box, heatMask) : null;
     const def = VIEW_DEFS[view];
     const vst = cov && viewGrids?.per && (def.good != null || def.goodMax != null) ? viewStats(viewGrids, view, box, heatMask, effMinDbm()) : null;
-    out = { url: cv.toDataURL("image/jpeg", 0.9), cov, vst, caps: capLoads ? capLoads.slice(0, project.aps.length) : null,
-            area: (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2, aps: project.aps.slice() };
+    // signal statistics inside the design area, per boundary area, weak spots
+    let sum = 0, n = 0, mn = Infinity;
+    const c0 = Math.max(0, Math.floor(box.x0 / heat.cell)), c1 = Math.min(heat.cols, Math.ceil(box.x1 / heat.cell));
+    const r0 = Math.max(0, Math.floor(box.y0 / heat.cell)), r1 = Math.min(heat.rows, Math.ceil(box.y1 / heat.cell));
+    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
+      const k = r * heat.cols + c, v = heat.data[k];
+      if (heatMask && !heatMask[k]) continue;
+      if (Number.isFinite(v)) { sum += v; n++; mn = Math.min(mn, v); }
+    }
+    const A = projectAreas(project), aN = new Array(A.length).fill(0), aOk = new Array(A.length).fill(0);
+    if (heatAreaIdx) for (let k = 0; k < heatAreaIdx.length; k++) {
+      const ai = heatAreaIdx[k];
+      if (ai < 0) continue;
+      aN[ai]++;
+      if (heat.data[k] >= (heatReq ? heatReq[k] : reqDbm())) aOk[ai]++;
+    }
+    out = { url, cov, vst, caps: capLoads ? capLoads.slice(0, project.aps.length) : null,
+            area: (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2, aps: project.aps.slice(),
+            avg: n ? sum / n : NaN, min: n ? mn : NaN, areaMeet: A.map((a, k) => aN[k] ? aOk[k] / aN[k] : null),
+            weak: cov ? weakRegions(project, heat, heatReq || reqDbm(), 10) : [], viewAvg: vst ? vst.avg : NaN };
   } finally {
     project.floorIdx = keep.idx;
     Object.assign(project, pickFloor(project.floors[keep.idx]));
@@ -240,7 +267,7 @@ async function buildReport(opts, onProgress) {
   </section>
   ${floorSecs}
   ${apTbl}
-  ${wallTbl || calTbl ? `<section class="r-page r-flow"><h2>${esc(t("pdfDetails"))}</h2>${wallTbl}${calTbl}</section>` : ""}
+  ${opts.details !== false && (wallTbl || calTbl) ? `<section class="r-page r-flow"><h2>${esc(t("pdfDetails"))}</h2>${wallTbl}${calTbl}</section>` : ""}
   ${quote}`;
 }
 

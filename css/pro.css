@@ -116,3 +116,16 @@
 .pat-tbl td, .pat-tbl th { text-align: left !important; }
 .pat-tbl td:last-child { white-space: nowrap; }
 .pat-state { font-weight: 600; font-size: 12px; }
+
+/* export menu */
+.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 4px 0 12px; }
+@media (max-width: 560px) { .exp-grid { grid-template-columns: 1fr; } }
+.exp-item { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.exp-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.exp-item:disabled { opacity: .5; cursor: progress; }
+.exp-item b { display: block; font-weight: 600; }
+.exp-item small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.4; margin-top: 2px; }
+.exp-ic { flex-shrink: 0; width: 42px; height: 42px; border-radius: 8px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent); }
+.exp-item[data-exp=xlsx] .exp-ic { background: #1d7a46; }
+.exp-item[data-exp=zip] .exp-ic, .exp-item[data-exp=png] .exp-ic { background: #8a5a14; }
+.exp-item[data-exp=csv] .exp-ic, .exp-item[data-exp=json] .exp-ic { background: #5b6880; }

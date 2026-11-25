@@ -2444,9 +2444,7 @@ $("#fileSurvey").addEventListener("change", e => {
     flash(tf("surveyImported", { n: inside.length, s: rows.length - inside.length }));
   }).catch(() => flash(t("badFile")));
 });
-$("#btnExport").addEventListener("click", exportPng);
-$("#btnPdf").addEventListener("click", () => { View3D.close(); openReportDialog(); });
-$("#btnExportData").addEventListener("click", exportDesignCsv);
+$("#btnExportMenu").addEventListener("click", openExportMenu);
 $("#langSel").addEventListener("change", e => {
   setLang(e.target.value);
   renderFloorBar();
