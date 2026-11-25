@@ -165,6 +165,7 @@ js/xlsx.js      small ZIP / XLSX writer (no library)
 js/cad.js       DXF import, wall detection from plan images
 js/templates.js building templates (dorm, condo, hotel, house, shop, office, school, warehouse, hall …)
 js/i18n-pro.js  UI text for the features above (Thai, English)
+js/i18n-pro-*.js the same texts in Chinese, Japanese, Korean, Vietnamese, Lao and Burmese
 js/optimizer.js AP auto-placement, channel assignment, weak-area detection
 js/survey.js    site-survey points, error stats, model calibration
 js/report.js    design data export (CSV)
@@ -178,4 +179,3 @@ js/app.js       canvas, tools, editing, save / export
 - Live walk-through surveys: browsers cannot read Wi-Fi signal levels, so measurements come from a phone app and are entered or imported as CSV.
 - Spectrum analysis, packet capture and cloud collaboration (Beamwise keeps everything on the device).
 - DWG files (save as DXF first).
-- The new texts are in Thai and English; the other languages show English for them.
