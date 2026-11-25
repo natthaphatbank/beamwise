@@ -30,6 +30,10 @@ const VIEW_DEFS = {
     { v: 0, rgb: [230, 60, 60], label: "0" }, { v: 1, rgb: [250, 170, 40], label: "1" },
     { v: 2, rgb: [110, 210, 70], label: "2" }, { v: 3, rgb: [0, 180, 120], label: "3+" }] },
   serving: { unit: "", stops: null },
+  capacity: { unit: "%", goodMax: 80, stops: [
+    { v: 120, rgb: [150, 30, 60], label: "> 100" }, { v: 100, rgb: [230, 60, 60], label: "100" },
+    { v: 80, rgb: [250, 170, 40], label: "80" }, { v: 50, rgb: [200, 220, 50], label: "50" },
+    { v: 0, rgb: [0, 190, 110], label: "0" }], ascending: true },
 };
 VIEW_DEFS.sinr.stops = VIEW_DEFS.snr.stops;
 const VIEW_KEYS = Object.keys(VIEW_DEFS);
@@ -56,6 +60,61 @@ function viewColor(view, v) {
     }
   }
   return s[s.length - 1].rgb;
+}
+
+// ---------- area requirements and capacity ----------
+// A boundary area can carry its own requirement and a demand:
+//   area.req: "auto" (use the project requirement) or a minimum RSSI (dBm)
+//   area.devices: devices in the area at the busy hour, area.app / area.mbps: demand per device
+const APP_PROFILES = { web: 2, video: 5, call: 4, video4k: 25, voice: 0.3, iot: 0.1, custom: null };
+const AIRTIME_EFF = 0.6;                // MAC efficiency: share of the PHY rate that carries data
+const DEVICES_PER_RADIO = 50;           // planning limit of active devices per radio
+const areaMbps = a => APP_PROFILES[a.app] != null ? APP_PROFILES[a.app] : Math.max(0, +a.mbps || 0);
+const hasDemand = project => projectAreas(project).some(a => +a.devices > 0);
+
+// Index of the area each grid cell belongs to (-1: none). Later areas sit on top.
+function areaIndexGrid(project, grid) {
+  const A = projectAreas(project), n = grid.cols * grid.rows;
+  const idx = new Int16Array(n).fill(-1);
+  if (!A.length) return idx;
+  for (let r = 0; r < grid.rows; r++) for (let c = 0; c < grid.cols; c++) {
+    const x = (c + 0.5) * grid.cell, y = (r + 0.5) * grid.cell;
+    for (let i = A.length - 1; i >= 0; i--) if (pointInPoly(x, y, A[i].pts)) { idx[r * grid.cols + c] = i; break; }
+  }
+  return idx;
+}
+// Requirement (dBm, margin included) per cell: the area's own value, else the project's.
+function reqGrid(project, grid, globalReq, margin, aIdx = areaIndexGrid(project, grid)) {
+  const A = projectAreas(project);
+  const out = new Float32Array(grid.cols * grid.rows).fill(globalReq);
+  for (let k = 0; k < out.length; k++) {
+    const a = A[aIdx[k]];
+    if (a && a.req !== "auto" && Number.isFinite(+a.req)) out[k] = +a.req + margin;
+  }
+  return out;
+}
+
+/**
+ * Airtime each AP needs on a band to serve the devices in its zone:
+ * Σ (devices in its cells × Mbps per device) / (PHY rate there × MAC efficiency).
+ * Returns per source { devices, demand (Mbps), airtime (0..1+), unserved (devices without a usable link) }.
+ */
+function capacityLoads(project, grid, serving, rate, aIdx, nSrc) {
+  const A = projectAreas(project);
+  const cellsPer = new Array(A.length).fill(0);
+  for (let k = 0; k < aIdx.length; k++) if (aIdx[k] >= 0) cellsPer[aIdx[k]]++;
+  const loads = Array.from({ length: nSrc }, () => ({ devices: 0, demand: 0, airtime: 0, unserved: 0 }));
+  for (let k = 0; k < aIdx.length; k++) {
+    const ai = aIdx[k], s = serving[k];
+    if (ai < 0 || s < 0 || !cellsPer[ai]) continue;
+    const a = A[ai], dev = (+a.devices || 0) / cellsPer[ai];
+    if (!dev) continue;
+    const mb = dev * areaMbps(a), L = loads[s];
+    if (!(rate[k] > 0)) { L.unserved += dev; continue; }      // no usable link there: those devices cannot connect
+    L.devices += dev; L.demand += mb;
+    L.airtime += mb / (rate[k] * AIRTIME_EFF);
+  }
+  return loads;
 }
 
 // Per-source radio facts for a band: channel span, noise floor, standard.
@@ -134,16 +193,23 @@ function computeViewGrids(project, band, cellPx, view) {
   }
   const g = computeApGrids(project, band, cellPx);
   const n = g.cols * g.rows, data = new Float32Array(n), bestData = new Float32Array(n);
+  const serving = new Int16Array(n), rate = new Float32Array(n);
   const ctx = viewCtx(project, band, g.aps);
   const sig = new Float32Array(g.per.length);
   for (let k = 0; k < n; k++) {
     for (let j = 0; j < g.per.length; j++) sig[j] = g.per[j][k];
     const m = cellMetrics(sig, ctx);
-    bestData[k] = m.best;
-    data[k] = view === "secondary" ? m.second : view === "apcount" ? m.heard : m[view];
+    bestData[k] = m.best; serving[k] = m.serving; rate[k] = m.rate;
+    data[k] = view === "secondary" ? m.second : view === "apcount" ? m.heard : view === "capacity" ? 0 : m[view];
   }
   const shape = { cols: g.cols, rows: g.rows, cell: g.cell };
-  return { best: { ...shape, data: bestData }, view: { ...shape, data }, per: g };
+  let loads = null;
+  if (hasDemand(project)) {
+    const aIdx = areaIndexGrid(project, shape);
+    loads = capacityLoads(project, shape, serving, rate, aIdx, g.per.length);
+    if (view === "capacity") for (let k = 0; k < n; k++) data[k] = serving[k] >= 0 ? loads[serving[k]].airtime * 100 : NaN;
+  } else if (view === "capacity") data.fill(0);
+  return { best: { ...shape, data: bestData }, view: { ...shape, data }, per: g, serving, rate, loads };
 }
 
 // Canvas image of a view. Cells below the display floor (no usable signal) stay transparent.

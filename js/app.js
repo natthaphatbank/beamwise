@@ -115,7 +115,9 @@ let cursor = null;                 // world coords
 let spaceDown = false;
 let undoStack = [], redoStack = [];
 let heat = null, heatCanvas = null, heatDirty = true, heatCoarse = false;
-let viewGrids = null;              // {best, view, per} from computeViewGrids (views.js)
+let viewGrids = null;              // {best, view, per, loads} from computeViewGrids (views.js)
+let heatAreaIdx = null, heatReq = null;   // area index / requirement per heat cell (areas with their own requirement)
+let capLoads = null;               // airtime per AP on the band shown (capacityLoads), null without demand
 const curView = () => VIEW_DEFS[project.settings.view] ? project.settings.view : "signal";
 let needsRender = true;
 let nextId = 1;
@@ -255,6 +257,15 @@ function updateHeat() {
   viewGrids = computeViewGrids(project, project.settings.band, cell, view);
   heat = viewGrids.best;
   heatCanvas = view === "signal" ? heatmapToCanvas(heat, effMinDbm()) : viewToCanvas(viewGrids, view, effMinDbm());
+  heatAreaIdx = projectAreas(project).length ? areaIndexGrid(project, heat) : null;
+  heatReq = heatAreaIdx && projectAreas(project).some(a => a.req !== "auto" && a.req != null)
+    ? reqGrid(project, heat, reqDbm(), +project.settings.margin || 0, heatAreaIdx) : null;
+  // capacity: from the view's own per-AP grid, else a coarse extra pass (skipped while dragging)
+  capLoads = viewGrids.loads || null;
+  if (!capLoads && hasDemand(project) && project.aps.length && !heatCoarse)
+    capLoads = computeViewGrids(project, project.settings.band, Math.max(2, Math.max(W, H) / 120), "capacity").loads;
+  const slot = $("#apLoadSlot");
+  if (slot && selection?.type === "ap") { const ap = findSel(); slot.innerHTML = ap ? apLoadHtml(ap) : ""; }
   heatMask = areaMask(project, heat);
   heatDirty = false;
   renderStats();
@@ -631,6 +642,7 @@ function fmtViewNum(v, x) {
   if (v === "signal" || v === "secondary") return fmtDbm(x);
   if (v === "rate") return `${x >= 100 ? Math.round(x) : x.toFixed(1)} Mbps`;
   if (v === "cci" || v === "apcount") return String(Math.round(x * 10) / 10);
+  if (v === "capacity") return `${Math.round(x)}%`;
   return `${Math.round(x)} dB`;
 }
 function fmtViewVal(v, x) {
@@ -1281,7 +1293,7 @@ function finishArea() {
       changed();
       flash(t("attenAdded"));
     } else {
-      const a = { id: uid(), pts };
+      const a = { id: uid(), pts, name: "", req: "auto", devices: 0, app: "web", mbps: 2 };
       project.areas = [...(project.areas || []), a];
       selection = { type: "area", id: a.id };
       changed();
@@ -1520,6 +1532,13 @@ function panelTitle(o) {
 
 // AP settings for one AP or several at once. With several, a field shows its value when
 // every selected AP agrees, otherwise it is blank ("mixed"); editing it sets all of them.
+function apLoadHtml(ap) {
+  const i = project.aps.indexOf(ap), L = capLoads?.[i];
+  if (!L) return "";
+  const over = L.airtime > 1 || L.devices > DEVICES_PER_RADIO;
+  return `<p class="unit ap-load ${over ? "warn-text" : ""}">${tf("apLoad", { b: project.settings.band, d: Math.round(L.devices), m: Math.round(L.demand), p: L.airtime > 9.99 ? "> 999" : Math.round(L.airtime * 100) })}</p>`;
+}
+
 function renderApPanel(el, aps) {
   const one = aps.length === 1, o = aps[0];
   const same = f => aps.every(a => a[f] === o[f]);
@@ -1549,6 +1568,7 @@ function renderApPanel(el, aps) {
     <label class="row"><span>${t("azimuth")} <span class="u">(°)</span></span><input type="number" data-f="az" min="-360" max="360" step="5" value="${val("az") ?? ""}" ${same("az") ? "" : `placeholder="${mixed}"`}></label>
     <label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}
     <p class="unit eirp">${eirpLine()}</p>
+    <div id="apLoadSlot">${one ? apLoadHtml(o) : ""}</div>
     ${one && project.aps.length > 1 ? `<button class="btn" id="applyAllBtn">${t("applyToAll")}</button>` : ""}
     ${project.aps.length > aps.length ? `<button class="btn" id="selAllBtn">${t("selectAllAps")}</button>` : ""}
     ${one ? `<p class="unit">${t("multiTip")}</p>` : ""}
@@ -1710,11 +1730,7 @@ function renderPanel() {
       <p class="unit">${t("attenNote")}</p>`;
     $("#attenNew").addEventListener("change", e => { project.newAttenPreset = e.target.value; });
   } else if (o && selection.type === "area") {
-    el.innerHTML = `
-      <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
-      <div class="row"><span>${t("areaPoints")}</span><b>${o.pts.length}</b></div>
-      <p class="unit">${t("areaEditHelp")}</p>
-      <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+    renderAreaPanel(el, o);
   } else if (tool === "area") {
     const n = projectAreas(project).length;
     el.innerHTML = `<p class="empty">${t("areaHelp")}</p>` + (n ? `
@@ -1749,6 +1765,33 @@ function probeMetricsHtml(pt) {
     <div class="row"><span>${t("view_cci")}</span><b>${sw("cci", m.cci)}${m.cci}</b></div>
     <div class="row"><span>${t("view_rate")}</span><b>${sw("rate", m.rate)}${m.rate >= 100 ? Math.round(m.rate) : m.rate.toFixed(1)} Mbps</b></div>
   </div>`;
+}
+
+// Boundary area: name, its own requirement and the devices / demand it must carry.
+function renderAreaPanel(el, o) {
+  const reqOpts = `<option value="auto" ${o.req === "auto" || o.req == null ? "selected" : ""}>${t("areaReqProject")} (${baseReqDbm()} dBm)</option>` +
+    REQ_PROFILES.map(p => `<option value="${p.dbm}" ${+o.req === p.dbm ? "selected" : ""}>${p.dbm} dBm · ${t(p.key)}</option>`).join("");
+  const appOpts = Object.keys(APP_PROFILES).map(k => `<option value="${k}" ${o.app === k ? "selected" : ""}>${t("app_" + k)}${APP_PROFILES[k] != null ? ` (${APP_PROFILES[k]} Mbps)` : ""}</option>`).join("");
+  el.innerHTML = `
+    <label class="row"><span>${t("areaName")}</span><input type="text" id="arName" value="${esc(o.name || "")}" placeholder="${esc(t("areaNamePh"))}"></label>
+    <label class="row"><span>${t("requirement")}</span><select id="arReq">${reqOpts}</select></label>
+    <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
+    <h4 class="sub-h">${t("capTitle")}</h4>
+    <label class="row"><span>${t("capDevicesLbl")}</span><input type="number" id="arDev" min="0" max="5000" step="1" value="${+o.devices || 0}"></label>
+    <label class="row"><span>${t("capApp")}</span><select id="arApp">${appOpts}</select></label>
+    <label class="row" ${o.app === "custom" ? "" : "hidden"} id="arMbpsRow"><span>${t("capMbps")} <span class="u">(Mbps)</span></span><input type="number" id="arMbps" min="0" max="1000" step="0.1" value="${+o.mbps || 0}"></label>
+    <p class="unit">${t("capAreaHelp")}</p>
+    <p class="unit">${t("areaEditHelp")}</p>
+    <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+  const set = (f, v, panel = false) => { o[f] = v; changed({ panel }); };
+  $("#arName").addEventListener("focus", pushHistory);
+  $("#arName").addEventListener("input", e => { o.name = e.target.value.slice(0, 60); renderStats(); });
+  $("#arReq").addEventListener("change", e => { pushHistory(); set("req", e.target.value === "auto" ? "auto" : +e.target.value); });
+  $("#arDev").addEventListener("focus", pushHistory);
+  $("#arDev").addEventListener("input", e => { const v = parseInt(e.target.value, 10); if (v >= 0) set("devices", Math.min(5000, v)); });
+  $("#arApp").addEventListener("change", e => { pushHistory(); set("app", e.target.value, true); });
+  $("#arMbps").addEventListener("focus", pushHistory);
+  $("#arMbps").addEventListener("input", e => { const v = parseFloat(e.target.value); if (v >= 0) set("mbps", Math.min(1000, v)); });
 }
 
 const attenOptions = sel => Object.entries(ATTEN_PRESETS).map(([k, v]) =>
@@ -1911,7 +1954,7 @@ function renderStats() {
   const box = buildingBox(project);
   const area = (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2;
   const req = reqDbm();
-  const cov = heat && project.aps.length ? coverageStats(heat, effMinDbm(), req, box, heatMask) : null;
+  const cov = heat && project.aps.length ? coverageStats(heat, effMinDbm(), heatReq || req, box, heatMask) : null;
   const v = curView(), def = VIEW_DEFS[v];
   const vst = cov && viewGrids?.per && (def.good != null || def.goodMax != null) ? viewStats(viewGrids, v, box, heatMask, effMinDbm()) : null;
   const noRadio = project.aps.length && !project.aps.some(a => apTx(a, project.settings.band) > 0);
@@ -1924,16 +1967,47 @@ function renderStats() {
     <span class="k">${t("wallCount")}</span><span class="v">${project.walls.length}</span>
     <span class="k">${t("area")}${projectAreas(project).length ? ` (${t("areaBoundaryShort")})` : ""}</span><span class="v">${project.scaleSet || !project.plan.image ? area.toFixed(0) + " m²" : "—"}</span>
     ${cov ? `
-    <span class="k">${t("meetsReq")} (≥ ${req})</span><span class="v ${cls(cov.meet, 0.95, 0.8)}">${pct(cov.meet)}</span>
+    <span class="k">${t("meetsReq")} (${heatReq ? t("perArea") : `≥ ${req}`})</span><span class="v ${cls(cov.meet, 0.95, 0.8)}">${pct(cov.meet)}</span>
     <span class="k">${t("covNone")}</span><span class="v ${cov.none < 0.02 ? "good" : cov.none < 0.1 ? "warn" : "bad"}">${pct(cov.none)}</span>` : ""}
     ${vst ? `<span class="k">${tf("viewGood_" + v, { n: def.good ?? def.goodMax })}</span><span class="v ${cls(vst.good, 0.9, 0.7)}">${pct(vst.good)}</span>
-    ${Number.isFinite(vst.avg) && v !== "cci" && v !== "apcount" ? `<span class="k">${t("viewAvg")}</span><span class="v">${fmtViewNum(v, vst.avg)}</span>` : ""}` : ""}
+    ${Number.isFinite(vst.avg) && v !== "cci" && v !== "apcount" && v !== "capacity" ? `<span class="k">${t("viewAvg")}</span><span class="v">${fmtViewNum(v, vst.avg)}</span>` : ""}` : ""}
     ${noRadio ? `<div class="models warn-text">${tf("noBandRadio", { b: project.settings.band })}</div>` : ""}
+    ${capacitySummaryHtml()}
+    ${areaTableHtml()}
     ${project.aps.length ? `<div class="models"><b>${t("apModels")}:</b><br>${Object.entries(counts).map(([k, n]) => `${n} × ${esc(k)}`).join("<br>")}</div>` : ""}`;
   renderCalib();
   if (!$("#legendCard").hidden) renderLegend();
   $("#stScale").textContent = project.scaleSet || !project.plan.image
     ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : t("noScale");
+}
+
+// Capacity on the band shown: total devices, busiest AP, overloaded APs.
+function capacitySummaryHtml() {
+  if (!capLoads || !project.aps.length) return "";
+  const own = capLoads.slice(0, project.aps.length);
+  const dev = own.reduce((s, L) => s + L.devices, 0), unserved = own.reduce((s, L) => s + L.unserved, 0);
+  const worst = own.reduce((m, L, i) => L.airtime > m.v ? { v: L.airtime, i } : m, { v: 0, i: -1 });
+  const over = own.filter(L => L.airtime > 1 || L.devices > DEVICES_PER_RADIO).length;
+  const pctA = v => v > 9.99 ? "> 999%" : Math.round(v * 100) + "%";
+  return `<div class="models cap-sum"><b>${t("capTitle")} · ${project.settings.band} GHz</b><br>
+    ${tf("capDevices", { n: Math.round(dev) })}${unserved >= 1 ? ` · <span class="bad">${tf("capUnserved", { n: Math.round(unserved) })}</span>` : ""}<br>
+    ${worst.i >= 0 ? tf("capBusiest", { ap: esc(project.aps[worst.i].name || "AP"), p: pctA(worst.v) }) + "<br>" : ""}
+    <span class="${over ? "bad" : "good"}">${over ? tf("capOver", { n: over }) : t("capOk")}</span></div>`;
+}
+// Per-area coverage (areas with a name, their own requirement or devices).
+function areaTableHtml() {
+  const A = projectAreas(project);
+  if (!heat || !heatAreaIdx || !A.length || !A.some(a => a.name || a.req !== "auto" || +a.devices > 0)) return "";
+  const n = new Array(A.length).fill(0), ok = new Array(A.length).fill(0), glob = reqDbm();
+  for (let k = 0; k < heatAreaIdx.length; k++) {
+    const i = heatAreaIdx[k];
+    if (i < 0) continue;
+    n[i]++;
+    if (heat.data[k] >= (heatReq ? heatReq[k] : glob)) ok[i]++;
+  }
+  return `<table class="calib-tbl area-tbl"><thead><tr><th>${t("areaName")}</th><th>${t("requirementShort")}</th><th>${t("capDevShort")}</th><th>${t("meetsShort")}</th></tr></thead><tbody>
+    ${A.map((a, i) => { const p = n[i] ? ok[i] / n[i] : 0; return `<tr><td>${esc(a.name || `#${i + 1}`)}</td><td>${a.req === "auto" || a.req == null ? baseReqDbm() : a.req}</td><td>${+a.devices || 0}</td>
+      <td class="${p >= 0.95 ? "good" : p >= 0.8 ? "warn" : "bad"}">${Math.round(p * 100)}%</td></tr>`; }).join("")}</tbody></table>`;
 }
 
 // ---------- calibration card ----------
@@ -2012,6 +2086,15 @@ function renderAiModel() {
 }
 $("#aiModel").addEventListener("change", e => { project.newApModel = e.target.value; scheduleAutosave(); });
 
+// Requirement at a point (dBm, margin included): the area's own value, else the project's.
+function areaReqAt(x, y) {
+  const A = projectAreas(project);
+  for (let i = A.length - 1; i >= 0; i--) if (pointInPoly(x, y, A[i].pts)) {
+    const r = A[i].req;
+    return r !== "auto" && r != null && Number.isFinite(+r) ? +r + (+project.settings.margin || 0) : reqDbm();
+  }
+  return reqDbm();
+}
 let aiBusy = false;
 $("#btnAutoPlace").addEventListener("click", async () => {
   if (aiBusy) return;
@@ -2022,7 +2105,7 @@ $("#btnAutoPlace").addEventListener("click", async () => {
   try {
     const keep = $("#aiKeep").checked;
     const res = await autoPlace(project, {
-      band: project.settings.band, req: reqDbm(), target: +$("#aiTarget").value,
+      band: project.settings.band, req: reqDbm(), reqAt: areaReqAt, target: +$("#aiTarget").value,
       maxAps: Math.max(1, Math.min(50, +$("#aiMax").value || 12)), keep, modelId: project.newApModel,
     }, p => { bar.firstElementChild.style.width = (p * 100).toFixed(0) + "%"; });
     if (!res.aps.length) { flash(t("aiNoGain")); return; }
@@ -2099,7 +2182,10 @@ function sanitizeProject(data) {
                                    w24: numOr(a.w24, null), w5: numOr(a.w5, null), w6: numOr(a.w6, null),
                                    mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
                                    az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))) })),
-    areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
+    areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
+                                       name: strOr(a.name, "", 60), req: a.req == null || a.req === "auto" ? "auto" : Math.min(-30, Math.max(-95, numOr(a.req, -67))),
+                                       devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),
+                                       app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))) })),
     attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                          db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),

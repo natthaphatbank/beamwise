@@ -24,6 +24,11 @@ async function autoPlace(project, opts, onProgress = () => {}) {
   const cells = [];
   for (let y = box.y0 + cell / 2; y < box.y1; y += cell) for (let x = box.x0 + cell / 2; x < box.x1; x += cell) if (inAreas(project, x, y)) cells.push(x, y);
   const nc = cells.length / 2;
+  // requirement per evaluation cell (areas may have their own)
+  const reqC = new Float32Array(nc);
+  for (let i = 0; i < nc; i++) reqC[i] = opts.reqAt ? opts.reqAt(cells[2 * i], cells[2 * i + 1]) : opts.req;
+  let reqMin = Infinity;
+  for (let i = 0; i < nc; i++) reqMin = Math.min(reqMin, reqC[i]);
   const step = Math.max(Math.sqrt((bw * bh) / 300), 1 / mpp);
   const cands = [];
   for (let y = box.y0 + step / 2; y < box.y1; y += step) for (let x = box.x0 + step / 2; x < box.x1; x += step) if (inAreas(project, x, y)) cands.push({ x, y });
@@ -37,7 +42,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
   if (opts.keep) fill(cover, existing);
 
   // signal map of every candidate (computed in chunks to keep the page responsive)
-  const floor = opts.req - 25;
+  const floor = reqMin - 25;
   for (let k = 0; k < cands.length; k++) {
     const v = new Float32Array(nc);
     const src = srcAt(cands[k].x, cands[k].y);
@@ -47,7 +52,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
     if (k % 4 === 0) { onProgress(0.85 * k / cands.length); await tick(); }
   }
 
-  const meets = c => { let m = 0; for (let i = 0; i < nc; i++) if (c[i] >= opts.req) m++; return m / nc; };
+  const meets = c => { let m = 0; for (let i = 0; i < nc; i++) if (c[i] >= reqC[i]) m++; return m / nc; };
   const placed = [];
   let coverage = meets(cover);
 
@@ -57,7 +62,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
       let gain = 0, soft = 0;
       for (let i = 0; i < nc; i++) {
         const v = cd.v[i];
-        if (cover[i] < opts.req && v >= opts.req) gain++;
+        if (cover[i] < reqC[i] && v >= reqC[i]) gain++;
         if (v > cover[i]) soft += Math.min(v - cover[i], 10);
       }
       const score = gain + soft * 1e-4;
@@ -77,7 +82,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
       base.fill(-Infinity);
       if (opts.keep) fill(base, existing);
       placed.forEach((q, j) => { if (j !== p) for (let i = 0; i < nc; i++) if (q.v[i] > base[i]) base[i] = q.v[i]; });
-      const score = cd => { let m = 0; for (let i = 0; i < nc; i++) if (Math.max(base[i], cd.v[i]) >= opts.req) m++; return m; };
+      const score = cd => { let m = 0; for (let i = 0; i < nc; i++) if (Math.max(base[i], cd.v[i]) >= reqC[i]) m++; return m; };
       let cur = score(placed[p]);
       for (const cd of cands) {
         if (Math.hypot(cd.x - placed[p].x, cd.y - placed[p].y) > 3.2 * step || placed.includes(cd)) continue;
@@ -140,7 +145,9 @@ function assignChannels(project, all = null, signalAt = null) {
 }
 
 /** Connected areas below the requirement inside the building (for the AI report). */
-function weakRegions(project, heat, reqDbm, limit = 6) {
+function weakRegions(project, heat, reqIn, limit = 6) {
+  const reqDbm = typeof reqIn === "number" ? reqIn : -Infinity, reqArr = typeof reqIn === "number" ? null : reqIn;
+  const below = k => heat.data[k] < (reqArr ? reqArr[k] : reqDbm);
   const box = buildingBox(project);
   const { cols, rows, cell, data } = heat;
   const c0 = Math.max(0, Math.floor(box.x0 / cell)), c1 = Math.min(cols, Math.ceil(box.x1 / cell));
@@ -151,7 +158,7 @@ function weakRegions(project, heat, reqDbm, limit = 6) {
   const out = [];
   for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) {
     const s = r * cols + c;
-    if (seen[s] || data[s] >= reqDbm || (mask && !mask[s])) continue;
+    if (seen[s] || !below(s) || (mask && !mask[s])) continue;
     let n = 0, sx = 0, sy = 0, worst = Infinity;
     const stack = [s]; seen[s] = 1;
     while (stack.length) {
@@ -161,7 +168,7 @@ function weakRegions(project, heat, reqDbm, limit = 6) {
         const nr = kr + dr, ncc = kc + dc;
         if (nr < r0 || nr >= r1 || ncc < c0 || ncc >= c1) continue;
         const q = nr * cols + ncc;
-        if (!seen[q] && data[q] < reqDbm && (!mask || mask[q])) { seen[q] = 1; stack.push(q); }
+        if (!seen[q] && below(q) && (!mask || mask[q])) { seen[q] = 1; stack.push(q); }
       }
     }
     const area = n * cellM2;

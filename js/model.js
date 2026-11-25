@@ -757,8 +757,10 @@ function heatmapToCanvas(heat, minDbm) {
 }
 
 // Share of the building area meeting the requirement / above the display floor.
-// `mask` (optional, from areaMask) limits the count to the drawn boundary.
+// `mask` (optional, from areaMask) limits the count to the drawn boundary. `reqDbm` is a number
+// or a per-cell array (areas with their own requirement, see reqGrid in views.js).
 function coverageStats(heat, minDbm, reqDbm, box, mask = null) {
+  const reqArr = typeof reqDbm === "number" ? null : reqDbm;
   const c0 = Math.max(0, Math.floor(box.x0 / heat.cell)), c1 = Math.min(heat.cols, Math.ceil(box.x1 / heat.cell));
   const r0 = Math.max(0, Math.floor(box.y0 / heat.cell)), r1 = Math.min(heat.rows, Math.ceil(box.y1 / heat.cell));
   let total = 0, meet = 0, none = 0;
@@ -768,7 +770,7 @@ function coverageStats(heat, minDbm, reqDbm, box, mask = null) {
       if (mask && !mask[k]) continue;
       const db = heat.data[k];
       total++;
-      if (db >= reqDbm) meet++;
+      if (db >= (reqArr ? reqArr[k] : reqDbm)) meet++;
       if (db < minDbm) none++;
     }
   }

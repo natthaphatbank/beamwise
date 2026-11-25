@@ -19,3 +19,13 @@
 .probe-metrics { margin: 6px 0; padding-top: 4px; border-top: 1px solid var(--line); }
 .probe-metrics .row { margin: 4px 0; }
 .probe-metrics .unit { font-weight: 400; }
+
+/* areas and capacity */
+.sub-h { margin: 12px 0 4px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; }
+.stats .cap-sum .good { color: var(--good); }
+.stats .cap-sum .bad { color: var(--danger); }
+.stats .area-tbl { grid-column: 1 / -1; margin-top: 4px; font-size: 12px; }
+.area-tbl td.good { color: var(--good); font-weight: 600; }
+.area-tbl td.warn { color: var(--warn); font-weight: 600; }
+.area-tbl td.bad { color: var(--danger); font-weight: 600; }
+.ap-load { margin: 2px 0 0; }
