@@ -184,3 +184,54 @@ function weakRegions(project, heat, reqIn, limit = 6) {
   }
   return out.sort((a, b) => b.area_m2 - a.area_m2).slice(0, limit);
 }
+
+/**
+ * Capacity: where should one more AP go? Finds the most overloaded AP on the band (airtime over
+ * 80% or more than DEVICES_PER_RADIO devices), takes the demand cells it serves, splits them in
+ * two along their longer spread and returns the centre of the half farther from that AP, so
+ * the new AP takes over part of the load. Null when no AP is overloaded.
+ */
+function capacityRelief(project, band) {
+  if (!project.aps.length || !hasDemand(project)) return null;
+  const { width: W, height: H } = project.plan;
+  const g = computeViewGrids(project, band, Math.max(2, Math.max(W, H) / 120), "capacity");
+  if (!g.loads) return null;
+  let worst = -1, wv = 1;
+  for (let i = 0; i < project.aps.length; i++) {
+    const L = g.loads[i], v = Math.max(L.airtime / 0.8, L.devices / DEVICES_PER_RADIO);
+    if (v > wv) { wv = v; worst = i; }
+  }
+  if (worst < 0) return null;
+  const shape = g.best, aIdx = areaIndexGrid(project, shape), A = projectAreas(project);
+  const pts = [];
+  for (let k = 0; k < aIdx.length; k++) {
+    if (g.serving[k] !== worst || aIdx[k] < 0 || !(+A[aIdx[k]].devices > 0)) continue;
+    pts.push([(k % shape.cols + 0.5) * shape.cell, (Math.floor(k / shape.cols) + 0.5) * shape.cell]);
+  }
+  if (pts.length < 4) return null;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const ax = x1 - x0 >= y1 - y0 ? 0 : 1, mid = ax ? (y0 + y1) / 2 : (x0 + x1) / 2;
+  const halves = [pts.filter(p => p[ax] < mid), pts.filter(p => p[ax] >= mid)].filter(h => h.length);
+  const cen = h => [h.reduce((s, p) => s + p[0], 0) / h.length, h.reduce((s, p) => s + p[1], 0) / h.length];
+  const ap = project.aps[worst];
+  const c = halves.map(cen).sort((a, b) => Math.hypot(b[0] - ap.x, b[1] - ap.y) - Math.hypot(a[0] - ap.x, a[1] - ap.y))[0];
+  return { x: c[0], y: c[1], from: worst, load: wv };
+}
+
+// Add APs until none is overloaded (or `maxAdd` reached). An AP that does not lower the worst
+// load is taken out again and the search stops: the area is then limited by interference
+// (too many APs sharing channels), where more APs do not help; narrower channels or DFS do.
+// Returns how many were added.
+async function addApsForCapacity(project, band, maxAdd, makeApFn, onProgress = () => {}) {
+  let added = 0, p = capacityRelief(project, band);
+  while (p && added < maxAdd) {
+    project.aps.push(makeApFn({ x: p.x, y: p.y }));
+    const next = capacityRelief(project, band);
+    if (next && next.load >= p.load * 0.97) { project.aps.pop(); break; }
+    added++; p = next;
+    onProgress(added / maxAdd);
+    await tick();
+  }
+  return added;
+}

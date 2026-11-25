@@ -26,6 +26,8 @@ On iPhone, iPad and Android the top-bar actions move into a **Menu** button (als
 
 ## How to use
 
+**Quick start with a building template** (Templates in the top bar, or in the welcome window): pick dormitory / apartment, condominium, hotel, townhouse / shophouse, detached house, café / restaurant, minimart / shop, office, school building, warehouse or banquet / seminar hall, enter a few sizes (rooms per side, room size, corridor, floors, devices, staff, shelf or rack rows …) and Beamwise draws the walls with common Thai materials and doors, adds attenuation zones (counters, shelving, racks, desks, crowds), boundary areas with device counts and their own requirements (meeting rooms, classrooms), creates every floor, and can place APs on every floor (for coverage, then more APs where they are overloaded by the devices) and plan channels. Everything stays editable. The AI card's **Add APs for the device count** runs the same capacity step on any project; it stops when another AP would not lower the load (then the area is limited by interference: use narrower channels or DFS).
+
 1. **Import floor plan** (นำเข้าแบบแปลน): a PNG, JPG or PDF file. You can also drag it onto the canvas. For a PDF with several pages you pick the page; it is rendered to an image in the browser with [pdf.js](https://mozilla.github.io/pdf.js/) (Apache 2.0, bundled in `js/vendor/pdfjs`, so it works offline).
 2. **Set scale (S)**: click both ends of something with a known length, then type its real length in metres. One line is enough: a plan has the same scale across and down, and the longest distance you know gives the best accuracy. To check it, draw a second line in the other direction: the panel shows what the current scale measures and the difference from the real length (over 2% means the plan image is probably stretched, or a point was misplaced). A scale bar in the bottom-right corner of the plan (and in the exported image) shows the scale in use, or warns while it is only an estimate.
 3. **Draw walls (W)**: pick a material, then click to draw connected walls. Double-click, Esc or right-click ends a chain. Hold Shift to lock angles; ends snap to existing walls.
@@ -161,6 +163,7 @@ js/report-pdf.js PDF report (print to PDF)
 js/export.js    export menu, Excel summary, heatmap images ZIP
 js/xlsx.js      small ZIP / XLSX writer (no library)
 js/cad.js       DXF import, wall detection from plan images
+js/templates.js building templates (dorm, condo, hotel, house, shop, office, school, warehouse, hall …)
 js/i18n-pro.js  UI text for the features above (Thai, English)
 js/optimizer.js AP auto-placement, channel assignment, weak-area detection
 js/survey.js    site-survey points, error stats, model calibration

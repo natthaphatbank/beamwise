@@ -2153,6 +2153,18 @@ $("#btnAutoPlace").addEventListener("click", async () => {
   }
 });
 
+$("#btnCapacity").addEventListener("click", async () => {
+  if (aiBusy) return;
+  if (!project.aps.length) { flash(t("aiNeedAps")); return; }
+  if (!hasDemand(project)) { flash(t("aiCapNeedDemand")); return; }
+  aiBusy = true;
+  try {
+    pushHistory();
+    const n = await addApsForCapacity(project, project.settings.band, 30, makeAp);
+    if (n) { assignChannelsAllFloors(); changed(); }
+    flash(n ? tf("aiCapAdded", { n }) : t("aiCapOk"));
+  } finally { aiBusy = false; }
+});
 $("#btnChannels").addEventListener("click", () => {
   if (!project.aps.length) { flash(t("aiNeedAps")); return; }
   pushHistory(); assignChannelsAllFloors(); changed(); flash(t("aiChannelsDone"));
@@ -2416,6 +2428,7 @@ function startBlank() {
 const floorHasWork = f => !!f.plan?.image || (f.walls || []).length > 0 || (f.aps || []).length > 0 || (f.areas || []).length > 0 || (f.attens || []).length > 0;
 const hasWork = () => (syncActive(), project.floors.length > 1 || project.floors.some(floorHasWork)) || !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.attens || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
 $("#btnNew").addEventListener("click", () => guardUnsaved(startBlank));
+$("#btnTemplates").addEventListener("click", () => { View3D.close(); openTemplates(); });
 // file pickers must open from a user gesture; guardUnsaved runs the action inside a click
 // Importing a plan replaces this floor only: no need to ask when this floor is still empty.
 function pickPlan() { if (project.floors.length > 1 && !floorHasWork(project)) $("#filePlan").click(); else guardUnsaved(() => $("#filePlan").click()); }
@@ -2500,7 +2513,8 @@ function showWelcome() {
     ${shortcutsHtml()}
     <p class="help-note">${t("disclaimer")}</p>
     <div class="btns help-btns">
-      <button class="primary" data-act="demo">${t("tryDemo")}</button>
+      <button class="primary" data-act="tpl">${t("tplStart")}</button>
+      <button data-act="demo">${t("tryDemo")}</button>
       <button data-act="plan">${t("startOwn")}</button>
       <button data-act="blank">${t("startBlank")}</button>
     </div>`, null, "help");
@@ -2510,6 +2524,7 @@ function showWelcome() {
     guardUnsaved(loadSample);
   };
   box.querySelector('[data-act="plan"]').onclick = () => { closeModal(); pickPlan(); };
+  box.querySelector('[data-act="tpl"]').onclick = () => { closeModal(); openTemplates(); };
   box.querySelector('[data-act="blank"]').onclick = () => { closeModal(); guardUnsaved(startBlank); };
   try { localStorage.setItem("wpth-welcomed", "1"); } catch (e) {}
 }
