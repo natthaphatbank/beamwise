@@ -265,7 +265,8 @@ function indexNodes(nd, areaM2, mpp) {
 // same drawing (both bands, calibration fits) shares them.
 const _geomCache = new Map();
 function wallGeometry(project) {
-  const key = JSON.stringify([project.mPerPx, project.plan.width, project.plan.height, project.walls]);
+  // attenuation zones are part of the key: node-to-node links include their loss
+  const key = JSON.stringify([project.mPerPx, project.plan.width, project.plan.height, project.walls, project.attens || []]);
   let g = _geomCache.get(key);
   if (g) return g;
   const nw = project.walls.length;
@@ -290,6 +291,56 @@ function wallGeometry(project) {
   return g;
 }
 
+// ---------- attenuation zones ----------
+// project.attens = [{id, pts, preset, db24, db5, db6}]: areas that weaken signal per metre
+// travelled through them (shelving, racks, crowds, furniture, foliage). Values in dB/m.
+const ATTEN_PRESETS = {
+  furniture: { db24: 0.3, db5: 0.4, db6: 0.45, color: "#b08968" },
+  shelving:  { db24: 0.8, db5: 1.2, db6: 1.4,  color: "#e09f3e" },
+  racks:     { db24: 1.5, db5: 2.5, db6: 2.8,  color: "#c75146" },
+  crowd:     { db24: 0.5, db5: 0.8, db6: 0.9,  color: "#9d4edd" },
+  foliage:   { db24: 0.3, db5: 0.5, db6: 0.55, color: "#52b788" },
+  custom:    { db24: 1,   db5: 1.5, db6: 1.7,  color: "#6c757d" },
+};
+const ATTEN_MAX_DB = 40;              // per zone crossing: beyond this the zone is effectively opaque
+
+// Zones ready for ray tests on one band: bounding box, edges and loss per plan pixel.
+function zoneList(project, band) {
+  return (project.attens || []).filter(z => z.pts && z.pts.length >= 3).map(z => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const q of z.pts) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    const dbm = +z["db" + BK[band]];
+    return { pts: z.pts, x0, y0, x1, y1, kPx: (Number.isFinite(dbm) ? Math.max(0, dbm) : 0) * project.mPerPx };
+  }).filter(z => z.kPx > 0);
+}
+
+// Loss (dB) along segment a-c through the zones: the length inside each polygon × its dB/m.
+function zoneLoss(zones, ax, ay, cx, cy) {
+  let sum = 0;
+  const minX = Math.min(ax, cx), maxX = Math.max(ax, cx), minY = Math.min(ay, cy), maxY = Math.max(ay, cy);
+  const len = Math.hypot(cx - ax, cy - ay);
+  if (!len) return 0;
+  for (const z of zones) {
+    if (z.x1 < minX || z.x0 > maxX || z.y1 < minY || z.y0 > maxY) continue;
+    const ts = [0, 1], P = z.pts;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const d = (cx - ax) * (P[i].y - P[j].y) - (cy - ay) * (P[i].x - P[j].x);
+      if (!d) continue;
+      const u = ((P[j].x - ax) * (P[i].y - P[j].y) - (P[j].y - ay) * (P[i].x - P[j].x)) / d;
+      const v = ((P[j].x - ax) * (cy - ay) - (P[j].y - ay) * (cx - ax)) / d;
+      if (u > 0 && u < 1 && v >= 0 && v <= 1) ts.push(u);
+    }
+    ts.sort((a, b) => a - b);
+    let inside = 0;
+    for (let k = 0; k + 1 < ts.length; k++) {
+      const tm = (ts[k] + ts[k + 1]) / 2;
+      if (ts[k + 1] - ts[k] > 1e-9 && pointInPoly(ax + (cx - ax) * tm, ay + (cy - ay) * tm, P)) inside += ts[k + 1] - ts[k];
+    }
+    if (inside) sum += Math.min(ATTEN_MAX_DB, inside * len * z.kPx);
+  }
+  return sum;
+}
+
 const NO_NODES = { n: 0, x: new Float64Array(0), y: new Float64Array(0), links: {}, R: 1, bk: null };
 
 // Everything the per-point model needs, prepared once per computation.
@@ -310,12 +361,19 @@ function rfContext(project, band, override = null) {
     clientOff: CLIENTS[st.client] ?? 0, clientH, diffK: DIFF_DB_PER_DEG[band],
     nodes: paths ? geo.nodes : NO_NODES,
     area: project.plan.width * project.plan.height * project.mPerPx ** 2,
+    zones: zoneList(project, band),
     srcCache: new Map(),
   };
 }
 
-// Wall loss along a straight leg (plan px), incidence-adjusted. Stops once it exceeds `budget`.
+// Wall loss along a straight leg (plan px), incidence-adjusted, plus attenuation zones.
+// Stops once it exceeds `budget`.
 function wallLoss(rf, ax, ay, cx, cy, budget = Infinity) {
+  if (!rf.zones.length) return wallOnlyLoss(rf, ax, ay, cx, cy, budget);
+  const z = zoneLoss(rf.zones, ax, ay, cx, cy);
+  return z > budget ? z : z + wallOnlyLoss(rf, ax, ay, cx, cy, budget - z);
+}
+function wallOnlyLoss(rf, ax, ay, cx, cy, budget = Infinity) {
   const W = rf.W, LOSS = rf.loss;
   const len = Math.hypot(cx - ax, cy - ay) || 1, dx = (cx - ax) / len, dy = (cy - ay) / len;
   let sum = 0, corners = null;           // wall end points already crossed (rare)
@@ -553,7 +611,7 @@ function hintCellPx(project, cellPx) {
 const _modelCache = new Map();
 function modelFor(project, band, override = null) {
   const st = project.settings || {};
-  const key = JSON.stringify([band, override, project.mPerPx, project.calib, project.walls,
+  const key = JSON.stringify([band, override, project.mPerPx, project.calib, project.walls, project.attens,
     st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height]);
   let rf = _modelCache.get(key);
   if (rf) { _modelCache.delete(key); _modelCache.set(key, rf); }

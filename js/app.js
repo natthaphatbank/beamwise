@@ -14,6 +14,7 @@ function newProject() {
     walls: [],                     // {id, x1, y1, x2, y2, mat}
     aps: [],                       // {id, name, x, y, model, tx24/5/6, gain24/5/6, ch24/5/6, w24/5/6 (MHz), mount, h, az, bw}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
+    attens: [],                    // attenuation zones {id, pts, preset, db24, db5, db6 (dB/m)} (model.js)
     survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
     probes: [],                    // signal check pins {id, x, y}
     calib: null,                   // fitted model correction {n, off24, off5, off6, ...} or null
@@ -35,6 +36,7 @@ function newProject() {
     },
     newWallMat: "brick",
     newApModel: "generic-ax",
+    newAttenPreset: "shelving",
   };
 }
 
@@ -122,7 +124,7 @@ const uid = () => (nextId++).toString(36) + Date.now().toString(36).slice(-4);
 
 // ---------- history ----------
 function snapshot() {
-  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, survey: project.survey, probes: project.probes, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
+  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, attens: project.attens, survey: project.survey, probes: project.probes, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
 }
 function pushHistory() {
   undoStack.push(snapshot());
@@ -201,7 +203,7 @@ function findSel() {
   if (selection.type === "aps") { const l = selectedAps(); return l.length ? l : null; }
   if (selection.type === "walls") { const l = selectedWalls(); return l.length ? l : null; }
   if (selection.type === "mixed") { const a = selectedAps(), w = selectedWalls(); return a.length || w.length ? { aps: a, walls: w } : null; }
-  const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas
+  const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas : selection.type === "atten" ? (project.attens || [])
     : selection.type === "survey" ? (project.survey || []) : project.walls;
   return list.find(o => o.id === selection.id) || null;
 }
@@ -361,6 +363,26 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
     if (isSel && selection.type === "wall") for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
   }
 
+  // attenuation zones: tinted, hatched polygons
+  for (const z of project.attens || []) {
+    if (!z.pts || z.pts.length < 3) continue;
+    const isSel = interactive && selection?.type === "atten" && selection.id === z.id;
+    const col = (ATTEN_PRESETS[z.preset] || ATTEN_PRESETS.custom).color;
+    c.save();
+    c.beginPath(); z.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.fillStyle = col + "33"; c.fill();
+    c.clip();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const q of z.pts) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    c.strokeStyle = col + "88"; c.lineWidth = 1.2 * px; c.beginPath();
+    const step = 10 * px;
+    for (let k = x0 - (y1 - y0); k < x1; k += step) { c.moveTo(k, y1); c.lineTo(k + (y1 - y0), y0); }
+    c.stroke(); c.restore();
+    c.beginPath(); z.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.strokeStyle = isSel ? P.sel : col; c.lineWidth = (isSel ? 3 : 1.8) * px; c.stroke();
+    if (isSel) for (const q of z.pts) handle(c, px, q.x, q.y);
+  }
+
   // coverage boundary
   for (const a of projectAreas(project)) {
     const isSel = interactive && selection?.type === "area" && selection.id === a.id;
@@ -408,7 +430,7 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
   }
 
   // boundary being drawn
-  if (tool === "area" && areaDraft) {
+  if (isPolyTool() && areaDraft) {
     const pts = cursor ? [...areaDraft, snapArea(cursor, false)] : areaDraft;
     c.beginPath();
     pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y));
@@ -819,10 +841,12 @@ function hitWall(p) {
   }
   return best;
 }
-function hitArea(p) {
+const isPolyTool = () => tool === "area" || tool === "atten";
+const hitAtten = p => hitArea(p, project.attens) || (project.attens || []).slice().reverse().find(z => z.pts?.length >= 3 && pointInPoly(p.x, p.y, z.pts)) || null;
+function hitArea(p, list = project.areas) {
   const tol = 8 * touchK / view.s;
   let best = null, bd = tol;
-  for (const a of project.areas || []) {
+  for (const a of list || []) {
     for (let i = 0; i < a.pts.length; i++) {
       const u = a.pts[i], v = a.pts[(i + 1) % a.pts.length];
       const d = distToSeg(p, u.x, u.y, v.x, v.y);
@@ -876,7 +900,7 @@ function setOrtho(on) {
 function updateOrthoBtn() {
   const b = $("#btnOrtho");
   if (!b) return;
-  b.hidden = !(tool === "wall" || tool === "area" || selection?.type === "wall");
+  b.hidden = !(tool === "wall" || isPolyTool() || selection?.type === "wall");
   b.classList.toggle("on", orthoOn);
   b.setAttribute("aria-pressed", String(orthoOn));
   b.innerHTML = t(orthoOn ? "orthoOn" : "orthoOff") + (touchUI ? "" : ` <small>${t(orthoOn ? "orthoShiftFree" : "orthoShiftLock")}</small>`);   // no Shift key on touch
@@ -902,13 +926,13 @@ function showHint(text) {
 const hintKey = k => (touchUI && I18N.en[k + "Touch"] ? k + "Touch" : k);
 
 function setTool(name) {
-  if (name !== "area") finishArea();
+  if (name !== tool) finishArea();
   tool = name;
   wallChain = null;
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", survey: "hintSurvey", probe: "hintProbe" };
+  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe" };
   showHint(t(hintKey(hints[name])));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
@@ -934,6 +958,7 @@ function deleteSelection() {
   else if (selection.type === "walls") project.walls = project.walls.filter(w => !o.includes(w));
   else if (selection.type === "mixed") { project.aps = project.aps.filter(a => !o.aps.includes(a)); project.walls = project.walls.filter(w => !o.walls.includes(w)); }
   else if (selection.type === "area") project.areas = project.areas.filter(a => a !== o);
+  else if (selection.type === "atten") project.attens = project.attens.filter(a => a !== o);
   else if (selection.type === "survey") project.survey = project.survey.filter(q => q !== o);
   else project.walls = project.walls.filter(w => w !== o);
   selection = null;
@@ -974,11 +999,11 @@ canvas.addEventListener("pointerdown", e => {
 
   const p = toWorld(e);
   if (e.button === 1 || spaceDown || tool === "pan") { startPan(e); return; }
-  if (e.button === 2 && tool !== "wall" && tool !== "area") {        // right-click a pin: remove it
+  if (e.button === 2 && tool !== "wall" && !isPolyTool()) {        // right-click a pin: remove it
     const pi = hitProbe(p);
     if (pi >= 0) { deleteProbe(pi); return; }
   }
-  if (e.button === 2) { if (tool === "wall") finishWall(); else if (tool === "area") finishArea(); else if (tool === "select") startPan(e); return; }
+  if (e.button === 2) { if (tool === "wall") finishWall(); else if (isPolyTool()) finishArea(); else if (tool === "select") startPan(e); return; }
 
   if (tool === "select") {
     const sel = findSel();
@@ -986,7 +1011,7 @@ canvas.addEventListener("pointerdown", e => {
       const end = hitWallEnd(p, sel);
       if (end) { drag = { type: "wallEnd", wall: sel, end, pushed: false }; return; }
     }
-    if (sel && selection.type === "area") {
+    if (sel && (selection.type === "area" || selection.type === "atten")) {
       const i = hitAreaPt(p, sel);
       if (i >= 0) { drag = { type: "areaPt", area: sel, i, pushed: false }; return; }
     }
@@ -1017,7 +1042,7 @@ canvas.addEventListener("pointerdown", e => {
       return;
     }
     // Shift+drag, or any mouse drag on empty space: box-select APs and walls
-    if (multi || (e.pointerType === "mouse" && !wHit && !hitSurvey(p) && !hitArea(p))) {
+    if (multi || (e.pointerType === "mouse" && !wHit && !hitSurvey(p) && !hitArea(p) && !hitAtten(p))) {
       const ids = multi ? selIds() : { aps: [], walls: [] };
       drag = { type: "marquee", a: p, b: p, sx: e.clientX, sy: e.clientY, base: ids };
       return;
@@ -1040,6 +1065,13 @@ canvas.addEventListener("pointerdown", e => {
     if (ar) {
       selection = { type: "area", id: ar.id };
       drag = { type: "area", area: ar, last: p, pushed: false };
+      renderPanel(); requestRender();
+      return;
+    }
+    const zn = hitAtten(p);
+    if (zn) {
+      selection = { type: "atten", id: zn.id };
+      drag = { type: "area", area: zn, last: p, pushed: false };
       renderPanel(); requestRender();
       return;
     }
@@ -1139,10 +1171,10 @@ canvas.addEventListener("pointermove", e => {
   }
 
   if (tool === "select" && e.pointerType === "mouse") {
-    canvas.style.cursor = hitAp(p) || hitSurvey(p) || hitWall(p) || hitArea(p) ? "pointer" : "default";
+    canvas.style.cursor = hitAp(p) || hitSurvey(p) || hitWall(p) || hitArea(p) || hitAtten(p) ? "pointer" : "default";
   }
   if (rulersOn()) requestRender();
-  if ((tool === "wall" && wallChain) || (tool === "area" && areaDraft) || (tool === "scale" && scaleLine && !scaleLine.b)) requestRender();
+  if ((tool === "wall" && wallChain) || (isPolyTool() && areaDraft) || (tool === "scale" && scaleLine && !scaleLine.b)) requestRender();
 });
 
 function endPointer(e) {
@@ -1212,7 +1244,7 @@ function tapAction({ p, shift }) {
     requestRender();
     return;
   }
-  if (tool === "area") {
+  if (isPolyTool()) {
     const q = snapArea(p, shift);
     if (!areaDraft) { areaDraft = [q]; }
     else {
@@ -1240,11 +1272,21 @@ function finishArea() {
   areaDraft = null;
   if (pts.length >= 3 && Math.abs(polyArea(pts)) * view.s * view.s > 25) {
     pushHistory();
-    const a = { id: uid(), pts };
-    project.areas = [...(project.areas || []), a];
-    selection = { type: "area", id: a.id };
-    changed();
-    flash(t("areaAdded"));
+    if (tool === "atten") {
+      const pr = ATTEN_PRESETS[project.newAttenPreset] ? project.newAttenPreset : "shelving";
+      const P0 = ATTEN_PRESETS[pr];
+      const z = { id: uid(), pts, preset: pr, db24: P0.db24, db5: P0.db5, db6: P0.db6 };
+      project.attens = [...(project.attens || []), z];
+      selection = { type: "atten", id: z.id };
+      changed();
+      flash(t("attenAdded"));
+    } else {
+      const a = { id: uid(), pts };
+      project.areas = [...(project.areas || []), a];
+      selection = { type: "area", id: a.id };
+      changed();
+      flash(t("areaAdded"));
+    }
   }
   updateFinishBtn();
   requestRender();
@@ -1252,14 +1294,14 @@ function finishArea() {
 function cancelArea() { areaDraft = null; updateFinishBtn(); requestRender(); }
 function updateFinishBtn() {
   const b = $("#btnFinishWall");
-  const wall = tool === "wall" && wallChain, area = tool === "area" && areaDraft;
+  const wall = tool === "wall" && wallChain, area = isPolyTool() && areaDraft;
   b.hidden = !(wall || area);
   b.textContent = t(area ? "finishArea" : "finishWall");
   b.disabled = !!area && areaDraft.length < 3;
 }
-$("#btnFinishWall").addEventListener("click", () => { if (tool === "area") finishArea(); else finishWall(); });
+$("#btnFinishWall").addEventListener("click", () => { if (isPolyTool()) finishArea(); else finishWall(); });
 
-canvas.addEventListener("dblclick", () => { if (tool === "wall") finishWall(); if (tool === "area") finishArea(); });
+canvas.addEventListener("dblclick", () => { if (tool === "wall") finishWall(); if (isPolyTool()) finishArea(); });
 
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
@@ -1285,13 +1327,13 @@ window.addEventListener("keydown", e => {
   if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
   if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
     if (e.key === "Escape") View3D.close();
-    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey", p: "probe" };
+    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe" };
     if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
     View3D.close();
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", m: "survey", p: "probe" };
+  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
@@ -1467,6 +1509,8 @@ function panelTitle(o) {
   if (o && selection.type === "walls") return tf("wallsSelected", { n: o.length });
   if (o && selection.type === "mixed") return tf("itemsSelected", { a: o.aps.length, w: o.walls.length });
   if (o && selection.type === "area") return t("areaBoundary");
+  if (o && selection.type === "atten") return t("attenZone");
+  if (tool === "atten") return noKey(t("toolAtten"));
   if (o && selection.type === "survey") return `${t("surveyPoint")} #${project.survey.indexOf(o) + 1}`;
   if (tool === "survey") return noKey(t("toolSurvey"));
   if (tool === "area") return noKey(t("toolArea"));
@@ -1658,6 +1702,13 @@ function renderPanel() {
     }));
   } else if (tool === "survey") {
     el.innerHTML = `<p class="empty">${t("surveyHelp")}</p>`;
+  } else if (o && selection.type === "atten") {
+    renderAttenPanel(el, o);
+  } else if (tool === "atten") {
+    el.innerHTML = `<p class="empty">${t("attenHelp")}</p>
+      <div class="row"><span>${t("attenPresetNew")}</span><select id="attenNew">${attenOptions(project.newAttenPreset)}</select></div>
+      <p class="unit">${t("attenNote")}</p>`;
+    $("#attenNew").addEventListener("change", e => { project.newAttenPreset = e.target.value; });
   } else if (o && selection.type === "area") {
     el.innerHTML = `
       <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
@@ -1698,6 +1749,37 @@ function probeMetricsHtml(pt) {
     <div class="row"><span>${t("view_cci")}</span><b>${sw("cci", m.cci)}${m.cci}</b></div>
     <div class="row"><span>${t("view_rate")}</span><b>${sw("rate", m.rate)}${m.rate >= 100 ? Math.round(m.rate) : m.rate.toFixed(1)} Mbps</b></div>
   </div>`;
+}
+
+const attenOptions = sel => Object.entries(ATTEN_PRESETS).map(([k, v]) =>
+  `<option value="${k}" ${k === sel ? "selected" : ""}>${t("atten_" + k)}${k === "custom" ? "" : ` (${v.db24}/${v.db5}/${v.db6} dB/m)`}</option>`).join("");
+function renderAttenPanel(el, z) {
+  const areaM2 = Math.abs(polyArea(z.pts)) * project.mPerPx ** 2;
+  el.innerHTML = `
+    <div class="row"><span>${t("attenPreset")}</span><select id="attenPreset">${attenOptions(z.preset)}</select></div>
+    <table class="band-grid"><thead><tr><th>GHz</th><th>dB/m</th></tr></thead><tbody>
+      ${BAND_LIST.map(b => `<tr><th>${b}</th><td><input type="number" data-zf="db${BK[b]}" min="0" max="20" step="0.1" value="${z["db" + BK[b]]}"></td></tr>`).join("")}
+    </tbody></table>
+    <div class="row"><span>${t("area")}</span><b>${areaM2.toFixed(1)} m²</b></div>
+    <p class="unit">${t("attenNote")}</p>
+    <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+  $("#attenPreset").addEventListener("change", e => {
+    pushHistory();
+    const pr = ATTEN_PRESETS[e.target.value];
+    z.preset = e.target.value; project.newAttenPreset = z.preset;
+    if (e.target.value !== "custom") Object.assign(z, { db24: pr.db24, db5: pr.db5, db6: pr.db6 });
+    changed();
+  });
+  el.querySelectorAll("[data-zf]").forEach(inp => {
+    inp.addEventListener("focus", pushHistory);
+    inp.addEventListener("input", () => {
+      const v = parseFloat(inp.value);
+      if (!(v >= 0)) return;
+      z[inp.dataset.zf] = Math.min(20, v); z.preset = "custom";
+      $("#attenPreset").value = "custom";
+      changed({ panel: false });
+    });
+  });
 }
 
 function renderProbePanel(el) {
@@ -1816,7 +1898,7 @@ function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
-    [K("P"), "k_probe"], [K("3"), "k_3d"],
+    [K("Z"), "k_atten"], [K("P"), "k_probe"], [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
@@ -2018,6 +2100,9 @@ function sanitizeProject(data) {
                                    mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
                                    az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))) })),
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
+    attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
+                                         pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
+                                         db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),
     survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
                                          band: BAND_LIST.includes(p.band) ? p.band : "5" })),
     probes: arr(data.probes).slice(0, 500).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0) })),
@@ -2047,6 +2132,7 @@ function sanitizeProject(data) {
     },
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),
+    newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,
     customModels: arr(data.customModels).map(cleanModel).filter(Boolean),
   };
 }
@@ -2088,7 +2174,7 @@ function loadPlanFile(file) {
       project.plan = { image: dataUrl, width: w, height: h };
       project.mPerPx = 30 / Math.max(w, h);
       project.scaleSet = false;
-      project.walls = []; project.aps = []; project.areas = []; project.survey = []; project.calib = null;
+      project.walls = []; project.aps = []; project.areas = []; project.attens = []; project.survey = []; project.calib = null;
       undoStack = []; redoStack = [];
       selection = null;
       planImg = plan; clearProbes();
@@ -2144,7 +2230,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   const p = project;
-  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.survey, p.probes, p.calib, p.mPerPx, p.scaleSet]);
+  return JSON.stringify([p.plan.image, p.walls, p.aps, p.areas, p.attens, p.survey, p.probes, p.calib, p.mPerPx, p.scaleSet]);
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };
@@ -2176,7 +2262,7 @@ function startBlank() {
   renderSettings(); setTool("select"); fit(); changed(); markSaved();
   flash(t("blankPlan"));
 }
-const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
+const hasWork = () => !!project.plan.image || project.walls.length > 0 || project.aps.length > 0 || (project.areas || []).length > 0 || (project.attens || []).length > 0 || (project.survey || []).length > 0 || (project.probes || []).length > 0;
 $("#btnNew").addEventListener("click", () => guardUnsaved(startBlank));
 // file pickers must open from a user gesture; guardUnsaved runs the action inside a click
 function pickPlan() { guardUnsaved(() => $("#filePlan").click()); }
