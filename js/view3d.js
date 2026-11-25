@@ -104,7 +104,7 @@ const View3D = (() => {
       if (!snapR) {
         snapR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         snapR.outputColorSpace = THREE.SRGBColorSpace;
-        snapR.setPixelRatio(1);
+        snapR.setPixelRatio(2);                    // rendered at twice the size: sharp edges and labels
       }
     } catch (e) { return null; }
     initScene();
@@ -115,8 +115,17 @@ const View3D = (() => {
       renderer = snapR; open = true; uiTheme = "light"; seeThrough = false;
       wallH = Math.min(6, Math.max(3.0, Math.ceil((top + 0.3) * 10) / 10));
       camera.aspect = w / h; camera.updateProjectionMatrix();
-      rebuild(); frame(); render();
-      return snapR.domElement.toDataURL("image/png");
+      rebuild();
+      cam.yaw = -0.62; cam.pitch = 0.78;           // a bit lower than the on-screen default: walls read better
+      fitToContent(0.94);
+      render();
+      // downscale the 2x render: smooth edges at a normal file size
+      const out = document.createElement("canvas");
+      out.width = w; out.height = h;
+      const c = out.getContext("2d");
+      c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+      c.drawImage(snapR.domElement, 0, 0, w, h);
+      return out.toDataURL("image/png");
     } catch (e) {
       console.error(e); return null;
     } finally {
@@ -328,22 +337,70 @@ const View3D = (() => {
   }
 
   // ---------- camera ----------
-  function frame() {
-    const { w, d } = planSizeM();
-    cam.tx = 0; cam.ty = 0; cam.tz = 0;
-    cam.yaw = -0.6; cam.pitch = 0.85;
-    const span = Math.max(w, d, 4);
-    cam.dist = span * 1.05 / Math.tan(camera.fov * Math.PI / 360) / Math.max(1, Math.min(camera.aspect, 1.6)) * 0.95;
+  // What is worth looking at: walls, boundaries and APs of this floor (and the outlines of the
+  // other floors), else the whole plan. Scene metres: x, y (up), z.
+  function contentBox() {
+    const b = { x0: Infinity, x1: -Infinity, y0: 0, y1: wallH, z0: Infinity, z1: -Infinity };
+    const add = (x, z) => { b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x); b.z0 = Math.min(b.z0, z); b.z1 = Math.max(b.z1, z); };
+    for (const w of project.walls) { add(...toScene(w.x1, w.y1)); add(...toScene(w.x2, w.y2)); }
+    for (const a of projectAreas(project)) for (const q of a.pts) add(...toScene(q.x, q.y));
+    for (const ap of project.aps) { add(...toScene(ap.x, ap.y)); b.y1 = Math.max(b.y1, (+ap.h || 2.7) + 0.6); }
+    const F = project.floors || [];
+    if (F.length > 1 && project.walls.length) {
+      const el = floorElevations(F), me = project.floorIdx;
+      F.forEach((f, j) => { if (j !== me && (f.walls || []).length) { b.y0 = Math.min(b.y0, el[j] - el[me]); b.y1 = Math.max(b.y1, el[j] - el[me] + Math.max(2, +f.height || 3)); } });
+    }
+    if (!Number.isFinite(b.x0) || b.x1 - b.x0 < 1 || b.z1 - b.z0 < 1) {
+      const { w, d } = planSizeM();
+      Object.assign(b, { x0: -w / 2, x1: w / 2, z0: -d / 2, z1: d / 2 });
+    }
+    return b;
   }
-  function render() {
-    if (!open || !renderer || !built) return;
+  function placeCamera() {
     const cp = Math.cos(cam.pitch);
     camera.position.set(cam.tx + cam.dist * cp * Math.sin(cam.yaw), cam.ty + cam.dist * Math.sin(cam.pitch), cam.tz + cam.dist * cp * Math.cos(cam.yaw));
     camera.lookAt(cam.tx, cam.ty, cam.tz);
     camera.near = Math.max(0.05, cam.dist / 500); camera.far = cam.dist * 20 + 500;
     camera.updateProjectionMatrix();
+  }
+  // Move and zoom so the content box fills `fill` of the picture (both ways), centred.
+  function fitToContent(fill = 0.9) {
+    const b = contentBox();
+    cam.tx = (b.x0 + b.x1) / 2; cam.tz = (b.z0 + b.z1) / 2; cam.ty = (b.y0 + b.y1) / 2 * 0.5;
+    cam.dist = Math.max(4, Math.hypot(b.x1 - b.x0, b.z1 - b.z0, b.y1 - b.y0));
+    const corners = [];
+    for (const x of [b.x0, b.x1]) for (const y of [b.y0, b.y1]) for (const z of [b.z0, b.z1]) corners.push(new THREE.Vector3(x, y, z));
+    const v = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
+    for (let it = 0; it < 30; it++) {
+      placeCamera();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const c of corners) { v.copy(c).project(camera); x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y); }
+      // recentre: shift the target along the camera's right / up axes by the picture offset
+      const halfH = cam.dist * Math.tan(camera.fov * Math.PI / 360), halfW = halfH * camera.aspect;
+      right.setFromMatrixColumn(camera.matrixWorld, 0); up.setFromMatrixColumn(camera.matrixWorld, 1);
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+      cam.tx += right.x * mx * halfW * 0.8 + up.x * my * halfH * 0.8;
+      cam.ty += right.y * mx * halfW * 0.8 + up.y * my * halfH * 0.8;
+      cam.tz += right.z * mx * halfW * 0.8 + up.z * my * halfH * 0.8;
+      const span = Math.max((x1 - x0) / 2, (y1 - y0) / 2) / fill;   // 1 = exactly the picture
+      cam.dist *= Math.max(0.5, Math.min(2, Math.pow(span, 0.8)));
+      if (Math.abs(span - 1) < 0.01 && Math.abs(mx) < 0.01 && Math.abs(my) < 0.01) break;
+    }
+  }
+  function frame() {
+    cam.yaw = -0.6; cam.pitch = 0.85;
+    if (THREE && camera) fitToContent(0.86);
+    else {
+      const { w, d } = planSizeM();
+      cam.tx = 0; cam.ty = 0; cam.tz = 0;
+      cam.dist = Math.max(w, d, 4) * 1.05 / Math.tan(camera.fov * Math.PI / 360) / Math.max(1, Math.min(camera.aspect, 1.6)) * 0.95;
+    }
+  }
+  function render() {
+    if (!open || !renderer || !built) return;
+    placeCamera();
     // name tags: constant size on screen
-    const hpx = renderer.domElement.clientHeight || renderer.domElement.height || 600;
+    const hpx = renderer.domElement.clientHeight || renderer.domElement.height / renderer.getPixelRatio() || 600;
     const v = new THREE.Vector3();
     root?.children.forEach(o => {
       if (!o.isSprite) return;
