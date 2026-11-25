@@ -28,7 +28,7 @@ function tplKit() {
 
 const TEMPLATES = {
   dorm: {
-    icon: "🏢", env: 2,
+    env: 2,
     params: { rooms: [8, 2, 30, 1], roomW: [3.5, 2.8, 6, 0.1], roomD: [6, 4, 10, 0.1], corridor: [1.8, 1.2, 4, 0.1], floors: [4, 1, 30, 1], devPer: [3, 1, 10, 1] },
     build(p, k) {
       const n = p.rooms, W = n * p.roomW, rd = p.roomD, cw = p.corridor, H = 2 * rd + cw;
@@ -47,7 +47,7 @@ const TEMPLATES = {
     },
   },
   condo: {
-    icon: "🏙️", env: 2,
+    env: 2,
     params: { units: [6, 2, 20, 1], unitW: [5, 3.5, 10, 0.1], unitD: [8, 5, 14, 0.1], corridor: [2, 1.4, 4, 0.1], floors: [8, 1, 60, 1], devPer: [5, 1, 15, 1] },
     build(p, k) {
       const n = p.units, uw = p.unitW, ud = p.unitD, cw = p.corridor, W = n * uw, H = 2 * ud + cw;
@@ -70,7 +70,7 @@ const TEMPLATES = {
     },
   },
   hotel: {
-    icon: "🏨", env: 2, req: -67,
+    env: 2, req: -67,
     params: { rooms: [10, 2, 40, 1], roomW: [4, 3, 7, 0.1], roomD: [8, 5, 12, 0.1], corridor: [2, 1.4, 4, 0.1], floors: [6, 1, 50, 1], devPer: [3, 1, 10, 1] },
     build(p, k) {
       const n = p.rooms, rw = p.roomW, rd = p.roomD, cw = p.corridor, W = n * rw, H = 2 * rd + cw;
@@ -87,7 +87,7 @@ const TEMPLATES = {
     },
   },
   townhouse: {
-    icon: "🏘️", env: 2,
+    env: 2,
     params: { width: [4.5, 3.5, 8, 0.1], depth: [16, 8, 30, 0.1], floors: [3, 1, 5, 1], devices: [8, 1, 40, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, mid = D * 0.55;
@@ -101,7 +101,7 @@ const TEMPLATES = {
     },
   },
   house: {
-    icon: "🏠", env: 2,
+    env: 2,
     params: { width: [10, 7, 20, 0.1], depth: [12, 7, 20, 0.1], floors: [2, 1, 3, 1], devices: [10, 1, 50, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, h = W / 2;
@@ -116,7 +116,7 @@ const TEMPLATES = {
     },
   },
   cafe: {
-    icon: "☕", env: 1,
+    env: 1,
     params: { width: [12, 6, 40, 0.1], depth: [10, 6, 30, 0.1], seats: [40, 5, 300, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, kx = W * 0.6;
@@ -130,7 +130,7 @@ const TEMPLATES = {
     },
   },
   minimart: {
-    icon: "🛒", env: 1,
+    env: 1,
     params: { width: [15, 8, 60, 0.1], depth: [12, 8, 40, 0.1], shelves: [5, 1, 20, 1], devices: [15, 2, 200, 1] },
     build(p, k) {
       const W = p.width, D = p.depth;
@@ -144,7 +144,7 @@ const TEMPLATES = {
     },
   },
   office: {
-    icon: "💼", env: 1,
+    env: 1,
     params: { width: [30, 12, 100, 0.5], depth: [20, 10, 60, 0.5], staff: [60, 5, 600, 1], meetings: [4, 0, 12, 1], managers: [2, 0, 12, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, rd = 4.5, ry = D - rd;
@@ -168,7 +168,7 @@ const TEMPLATES = {
     },
   },
   school: {
-    icon: "🏫", env: 1,
+    env: 1,
     params: { classes: [6, 1, 20, 1], classW: [8, 6, 12, 0.1], classD: [9, 6, 12, 0.1], corridor: [3, 2, 5, 0.1], floors: [3, 1, 8, 1], students: [40, 10, 80, 1] },
     build(p, k) {
       const n = p.classes, cw = p.classW, cd = p.classD, W = n * cw, H = cd + p.corridor;
@@ -185,7 +185,7 @@ const TEMPLATES = {
     },
   },
   warehouse: {
-    icon: "🏭", env: 0, req: -72,
+    env: 0, req: -72,
     params: { width: [60, 20, 200, 1], depth: [40, 15, 150, 1], racks: [8, 0, 40, 1], devices: [30, 1, 500, 1] },
     build(p, k) {
       const W = p.width, D = p.depth;
@@ -201,7 +201,7 @@ const TEMPLATES = {
     },
   },
   hall: {
-    icon: "🎤", env: 0, req: -65,
+    env: 0, req: -65,
     params: { width: [30, 10, 100, 0.5], depth: [20, 8, 80, 0.5], people: [300, 20, 3000, 10] },
     build(p, k) {
       const W = p.width, D = p.depth;
@@ -213,7 +213,7 @@ const TEMPLATES = {
     },
   },
   clinic: {
-    icon: "🏥", env: 2, req: -67,
+    env: 2, req: -67,
     params: { rooms: [8, 2, 30, 1], roomW: [4, 3, 8, 0.1], roomD: [6, 4, 10, 0.1], corridor: [2.4, 1.8, 4, 0.1], floors: [3, 1, 20, 1], devPer: [4, 1, 15, 1] },
     build(p, k) {
       const n = p.rooms, rw = p.roomW, rd = p.roomD, cw = p.corridor, W = n * rw, H = 2 * rd + cw;
@@ -234,7 +234,7 @@ const TEMPLATES = {
     },
   },
   salon: {
-    icon: "💇", env: 1,
+    env: 1,
     params: { width: [8, 4, 20, 0.1], depth: [15, 8, 30, 0.1], rooms: [4, 0, 12, 1], devices: [20, 2, 100, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, back = D * 0.45, ry = D - back;
@@ -252,7 +252,7 @@ const TEMPLATES = {
     },
   },
   factory: {
-    icon: "🏗️", env: 0, req: -72,
+    env: 0, req: -72,
     params: { width: [50, 20, 200, 1], depth: [30, 15, 150, 1], lines: [4, 0, 20, 1], devices: [40, 1, 1000, 1] },
     build(p, k) {
       const W = p.width, D = p.depth;
@@ -268,7 +268,7 @@ const TEMPLATES = {
     },
   },
   gym: {
-    icon: "🏋️", env: 0,
+    env: 0,
     params: { width: [20, 10, 60, 0.5], depth: [25, 10, 60, 0.5], members: [80, 10, 600, 5] },
     build(p, k) {
       const W = p.width, D = p.depth, sx = W * 0.6;
@@ -281,7 +281,7 @@ const TEMPLATES = {
     },
   },
   parking: {
-    icon: "🅿️", env: 0, req: -72,
+    env: 0, req: -72,
     params: { width: [40, 15, 150, 1], depth: [30, 15, 150, 1], floors: [3, 1, 12, 1], devices: [10, 1, 200, 1] },
     build(p, k) {
       const W = p.width, D = p.depth, span = 8;
@@ -309,10 +309,9 @@ function openTemplates() {
   openModal(`<h2>${t("tplTitle")}</h2>
     <p class="unit">${t("tplHelp")}</p>
     <div class="tpl-wrap">
-      <div class="tpl-list">${TEMPLATE_KEYS.map(k => `<button class="tpl-card ${k === key ? "active" : ""}" data-tpl="${k}"><span class="tpl-ic">${TEMPLATES[k].icon}</span>
-        <span><b>${t("tpl_" + k)}</b><small>${t("tplD_" + k)}</small></span></button>`).join("")}</div>
+      <div class="tpl-list">${TEMPLATE_KEYS.map(k => `<button class="tpl-card ${k === key ? "active" : ""}" data-tpl="${k}">        <span><b>${t("tpl_" + k)}</b><small>${t("tplD_" + k)}</small></span></button>`).join("")}</div>
       <div class="tpl-form">
-        <h3 class="modal-sub">${TEMPLATES[key].icon} ${t("tpl_" + key)}</h3>
+        <h3 class="modal-sub">${t("tpl_" + key)}</h3>
         <div class="model-form">${Object.entries(T.params).map(([p, [, lo, hi, st]]) =>
           `<label class="field"><span>${t("tp_" + p)}</span><input type="number" data-p="${p}" min="${lo}" max="${hi}" step="${st}" value="${v[p]}"></label>`).join("")}</div>
         <canvas id="tplPrev" width="560" height="300" class="tpl-prev"></canvas>
@@ -351,7 +350,7 @@ function openTemplates() {
     const vals = read(), auto = $("#tplAuto").checked, model = $("#tplModel").value, layout = $("#tplLayout").value;
     // replacing unsaved work asks first (Save first / Don't save / Cancel), then builds with a progress bar
     const go = () => {
-      openModal(`<h2>${TEMPLATES[key].icon} ${t("tpl_" + key)}</h2><p>${t(auto ? "tplBuildingAps" : "tplBuilding")}</p><div class="progress" id="tplProg"><div></div></div>`);
+      openModal(`<h2>${t("tpl_" + key)}</h2><p>${t(auto ? "tplBuildingAps" : "tplBuilding")}</p><div class="progress" id="tplProg"><div></div></div>`);
       applyTemplate(key, vals, { auto, model, layout }, p => { const b = $("#tplProg"); if (b) b.firstElementChild.style.width = Math.round(p * 100) + "%"; })
         .catch(e => { console.error(e); flash(t("pdfFailed")); }).finally(() => closeModal());
     };

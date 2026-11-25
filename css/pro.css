@@ -139,7 +139,6 @@
 .tpl-card.active { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
 .tpl-card b { display: block; font-weight: 600; }
 .tpl-card small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; margin-top: 1px; }
-.tpl-ic { font-size: 24px; width: 34px; text-align: center; flex-shrink: 0; }
 .tpl-form .modal-sub { margin-top: 0; }
 .tpl-form .model-form { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 520px) { .tpl-form .model-form { grid-template-columns: 1fr 1fr; } }
