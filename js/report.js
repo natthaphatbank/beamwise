@@ -61,6 +61,9 @@ function cellsInDesign(h, mask) {
   return out;
 }
 
+// Bands with at least one radio (2.4 and 5 GHz always, as before)
+const csvBands = () => BAND_LIST.filter(b => b !== "6" || project.aps.some(a => apTx(a, "6") > 0));
+
 const eirpCell = (ap, band) => { const e = apEirp(ap, band, project.settings.capNbtc); return Number.isFinite(e) ? e : "—"; };
 
 function buildDesignCsv() {
@@ -78,6 +81,7 @@ function buildDesignCsv() {
   section(L.project);
   rows.push([L.item, L.value]);
   rows.push([L.date, new Date().toLocaleString(langLocale())]);
+  if (floorCount() > 1) rows.push([t("floorLbl"), floorName(project.floorIdx)]);
   rows.push([L.planSize, `${m(project.plan.width)} x ${m(project.plan.height)}`]);
   rows.push([L.area, +(areaPx * mpp * mpp).toFixed(1)]);
   rows.push([L.boundary, projectAreas(project).length ? L.yes : L.no]);
@@ -96,7 +100,7 @@ function buildDesignCsv() {
   section(L.coverage);
   rows.push([L.band, L.meets, L.below, L.avg, L.min]);
   const heats = {};
-  for (const b of ["2.4", "5"]) {
+  for (const b of csvBands()) {
     const { h, mask } = heats[b] = bandHeat(b);
     const vals = cellsInDesign(h, mask);
     const n = vals.length || 1;
@@ -108,13 +112,15 @@ function buildDesignCsv() {
   }
 
   section(L.aps);
-  rows.push([L.name, L.model, L.x, L.y, L.mount, L.height, L.az, L.tx24, L.gain24, L.eirp24, L.ch24, L.tx5, L.gain5, L.eirp5, L.ch5]);
+  rows.push([L.name, L.model, L.x, L.y, L.mount, L.height, L.az, L.tx24, L.gain24, L.eirp24, L.ch24, L.tx5, L.gain5, L.eirp5, L.ch5,
+    "Tx 6G (dBm)", "Gain 6G (dBi)", "EIRP 6G (dBm)", "Ch 6G", "MHz 2.4/5/6"]);
   for (const ap of project.aps) {
     const spec = AP_BY_ID[ap.model];
     rows.push([ap.name, spec ? `${spec.brand} ${spec.model}` : t("custom"), m(ap.x), m(ap.y),
       t("mount_" + ap.mount), ap.h, ap.mount === "directional" ? ap.az : "",
       ap.tx24, ap.gain24, eirpCell(ap, "2.4"), ap.ch24 ?? "",
-      ap.tx5, ap.gain5, eirpCell(ap, "5"), ap.ch5 ?? ""]);
+      ap.tx5, ap.gain5, eirpCell(ap, "5"), ap.ch5 ?? "",
+      apTx(ap, "6"), apGain(ap, "6"), eirpCell(ap, "6"), ap.ch6 ?? "", BAND_LIST.map(b => apWidth(ap, b)).join("/")]);
   }
 
   section(L.walls);
@@ -129,7 +135,7 @@ function buildDesignCsv() {
     rows.push([t("mat_" + k), e.n, +e.len.toFixed(2), mt.db24, mt.db5]);
   }
 
-  for (const b of ["2.4", "5"]) {
+  for (const b of csvBands()) {
     section(`${L.weak} ${b} GHz`);
     rows.push(["#", L.x, L.y, L.areaM2, L.worst]);
     weakRegions(project, heats[b].h, req, 20).forEach((w, i) => rows.push([i + 1, w.x_m, w.y_m, w.area_m2, w.worst_dbm ?? L.noSignal]));
@@ -144,7 +150,7 @@ function buildDesignCsv() {
     if (project.calib) { rows.push([L.off24, project.calib.off24]); rows.push([L.off5, project.calib.off5]); }
     blank();
     rows.push([L.band, L.points, L.bias, L.rms, L.maxErr]);
-    for (const b of ["2.4", "5"]) {
+    for (const b of csvBands()) {
       const st = E[b];
       if (st) rows.push([`${b} GHz`, st.n, +st.bias.toFixed(1), +st.rms.toFixed(1), +st.max.toFixed(1)]);
     }
@@ -158,18 +164,18 @@ function buildDesignCsv() {
   }
 
   section(L.hist);
-  rows.push([L.range, `2.4 GHz ${L.share}`, `5 GHz ${L.share}`]);
+  rows.push([L.range, ...csvBands().map(b => `${b} GHz ${L.share}`)]);
   const bins = [];
   for (let hi = -30; hi > -95; hi -= 5) bins.push([hi - 5, hi]);
   const dist = {};
-  for (const b of ["2.4", "5"]) {
+  for (const b of csvBands()) {
     const vals = cellsInDesign(heats[b].h, heats[b].mask), n = vals.length || 1;
     dist[b] = bins.map(([lo, hi]) => +(vals.filter(v => v >= lo && v < hi).length / n * 100).toFixed(1));
     dist[b].unshift(+(vals.filter(v => v >= -30).length / n * 100).toFixed(1));
     dist[b].push(+(vals.filter(v => v < -95).length / n * 100).toFixed(1));
   }
   const labels = ["≥ -30", ...bins.map(([lo, hi]) => `${lo} … ${hi}`), `< -95 / ${L.noSignal}`];
-  labels.forEach((lb, i) => rows.push([lb, dist["2.4"][i], dist["5"][i]]));
+  labels.forEach((lb, i) => rows.push([lb, ...csvBands().map(b => dist[b][i])]));
 
   const cell = v => {
     const s = String(v ?? "");

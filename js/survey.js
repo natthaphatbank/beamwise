@@ -91,3 +91,29 @@ function fitCalibration(project) {
     count: best.count, date: new Date().toISOString(),
   };
 }
+
+// ---------- import measurements from a CSV file ----------
+// Columns (header names in any order, case-insensitive): x, y (metres from the plan's top-left
+// corner, as on the rulers), dbm / rssi / signal, and optionally band (2.4 / 5 / 6). Comma,
+// semicolon or tab separated. Rows without a usable x, y and dBm are skipped.
+function parseSurveyCsv(text, defBand) {
+  const lines = text.replace(/^\ufeff/, "").split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const sep = [",", ";", "\t"].sort((a, b) => lines[0].split(b).length - lines[0].split(a).length)[0];
+  const cells = l => l.split(sep).map(c => c.trim().replace(/^"|"$/g, ""));
+  const head = cells(lines[0]).map(h => h.toLowerCase());
+  const find = re => head.findIndex(h => re.test(h));
+  let ix = find(/^x\b|^x[ _(]|pos.?x/), iy = find(/^y\b|^y[ _(]|pos.?y/), id = find(/dbm|rssi|signal|level/), ib = find(/band|freq|ghz/);
+  let start = 1;
+  if (ix < 0 || iy < 0 || id < 0) { ix = 0; iy = 1; id = 2; ib = 3; start = /[a-z]/i.test(lines[0]) ? 1 : 0; }
+  const out = [];
+  for (const l of lines.slice(start, start + 5000)) {
+    const c = cells(l), num = i => parseFloat(String(c[i] ?? "").replace(",", "."));
+    const x = num(ix), y = num(iy), dbm = num(id);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(dbm) || dbm > -10 || dbm < -120) continue;
+    let band = defBand;
+    if (ib >= 0 && c[ib]) { const f = parseFloat(String(c[ib]).replace(",", ".")); band = f >= 5900 || (f >= 5.9 && f < 7.2) ? "6" : f >= 4900 || (f >= 4.9 && f < 5.9) ? "5" : f > 0 ? "2.4" : defBand; }
+    out.push({ x, y, dbm: Math.round(dbm * 10) / 10, band });
+  }
+  return out;
+}

@@ -73,6 +73,9 @@ const I18N_PRO = {
     detectNeedScale: "ยังไม่ได้ตั้งสเกล: ความหนา/ความยาวขั้นต่ำจะคลาดเคลื่อน ตั้งสเกลก่อนจะแม่นกว่า",
     detectThick: "ความหนาผนังขั้นต่ำ", detectLen: "ความยาวขั้นต่ำ", detectDark: "ความเข้มของเส้น (ซ้าย = เฉพาะเส้นดำมาก)", detectReplace: "ลบผนังเดิมก่อน",
     detectNone: "ไม่พบผนัง ลองลดความหนาขั้นต่ำหรือเลื่อนความเข้มไปทางขวา", detectDone: "สร้างผนัง {n} เส้นจากแบบแปลน ตรวจและเปลี่ยนวัสดุได้",
+    surveyImport: "นำเข้าค่าที่วัด (CSV)", surveyTemplate: "ดาวน์โหลดไฟล์ตัวอย่าง",
+    surveyImportHelp: "คอลัมน์ x, y (เมตร จากมุมซ้ายบนของแบบ ตามไม้บรรทัด), dBm และ band (2.4/5/6 ไม่ใส่ = ย่านที่แสดงอยู่)",
+    surveyImportNone: "ไม่พบแถวที่ใช้ได้ (ต้องมี x, y, dBm)", surveyImported: "นำเข้าจุดวัด {n} จุด (ข้าม {s} จุดที่อยู่นอกแบบ)",
     noBandRadio: "ไม่มี AP ตัวไหนมีวิทยุย่าน {b} GHz (Tx = 0) • เลือกรุ่นที่รองรับ หรือใส่กำลังส่งในตารางย่านความถี่ของ AP",
   },
   en: {
@@ -146,6 +149,9 @@ const I18N_PRO = {
     detectNeedScale: "Scale not set: minimum thickness and length will be off. Set the scale first for better results",
     detectThick: "Minimum wall thickness", detectLen: "Minimum length", detectDark: "Line darkness (left = only very dark lines)", detectReplace: "Remove existing walls first",
     detectNone: "No walls found. Lower the minimum thickness or move darkness to the right", detectDone: "{n} walls created from the plan; check and set materials",
+    surveyImport: "Import measurements (CSV)", surveyTemplate: "Download a template",
+    surveyImportHelp: "Columns x, y (metres from the plan's top-left corner, as on the rulers), dBm and band (2.4 / 5 / 6; empty = the band shown)",
+    surveyImportNone: "No usable rows found (x, y and dBm are needed)", surveyImported: "{n} measurement points imported ({s} outside the plan skipped)",
     noBandRadio: "No AP has a {b} GHz radio (Tx = 0) • Pick a model that supports it, or enter its power in the AP's band table",
   },
 };

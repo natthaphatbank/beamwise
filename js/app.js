@@ -2049,7 +2049,11 @@ function renderCalib() {
     </div>${bigOff ? `<p class="unit warn-text">${t("calibWarnOffset")}</p>` : ""}` : ""}
     <button class="btn primary" id="calibFit" ${E.all && project.aps.length ? "" : "disabled"}>${t("calibFit")}</button>
     ${cal ? `<button class="btn" id="calibReset">${t("calibReset")}</button>` : ""}
-    ${!pts.length ? `<button class="btn" id="calibStart">${t("toolSurvey")}</button>` : ""}`;
+    ${!pts.length ? `<button class="btn" id="calibStart">${t("toolSurvey")}</button>` : ""}
+    <button class="btn" id="surveyImport">${t("surveyImport")}</button>
+    <p class="unit">${t("surveyImportHelp")} <button class="link-btn" id="surveyTpl">${t("surveyTemplate")}</button></p>`;
+  $("#surveyImport").addEventListener("click", () => $("#fileSurvey").click());
+  $("#surveyTpl").addEventListener("click", () => downloadCsv([["x_m", "y_m", "dBm", "band"], [5.0, 3.2, -58, 5], [12.5, 8.0, -71, 5], [5.0, 3.2, -49, 2.4]], "beamwise-survey-template"));
   $("#calibFit")?.addEventListener("click", () => {
     const res = fitCalibration(project);
     if (!res) { flash(t("calibNeed")); return; }
@@ -2411,6 +2415,20 @@ $("#fileOpen").addEventListener("change", e => {
   f.text().then(txt => loadProjectData(JSON.parse(txt))).then(() => flash(t("loaded"))).catch(() => flash(t("badFile")));
 });
 $("#btnSave").addEventListener("click", saveProject);
+$("#fileSurvey").addEventListener("change", e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  f.text().then(txt => {
+    const rows = parseSurveyCsv(txt, project.settings.band);
+    if (!rows.length) { flash(t("surveyImportNone")); return; }
+    pushHistory();
+    const W = project.plan.width * project.mPerPx, H = project.plan.height * project.mPerPx;
+    const inside = rows.filter(r => r.x >= 0 && r.y >= 0 && r.x <= W && r.y <= H);
+    project.survey = [...(project.survey || []), ...inside.map(r => ({ id: uid(), x: r.x / project.mPerPx, y: r.y / project.mPerPx, dbm: r.dbm, band: r.band }))];
+    changed();
+    flash(tf("surveyImported", { n: inside.length, s: rows.length - inside.length }));
+  }).catch(() => flash(t("badFile")));
+});
 $("#btnExport").addEventListener("click", exportPng);
 $("#btnPdf").addEventListener("click", () => { View3D.close(); openReportDialog(); });
 $("#btnExportData").addEventListener("click", exportDesignCsv);

@@ -226,6 +226,32 @@ const View3D = (() => {
       root.add(edges);
     }
 
+    // other floors: wall outlines at their real level (this floor is at 0), APs as small dots
+    const F = project.floors || [];
+    if (F.length > 1) {
+      const el = floorElevations(F), me = project.floorIdx, mpp = project.mPerPx;
+      const ox = +F[me].ox || 0, oy = +F[me].oy || 0;
+      const ghost = new THREE.LineBasicMaterial({ color: new THREE.Color(th.text), transparent: true, opacity: 0.22 });
+      F.forEach((f, j) => {
+        if (j === me) return;
+        const dz = el[j] - el[me], fm = +f.mPerPx || mpp;
+        const conv = (x, y) => toScene((x * fm + (+f.ox || 0) - ox) / mpp, (y * fm + (+f.oy || 0) - oy) / mpp);
+        const pts = [];
+        for (const wl of f.walls || []) {
+          const [x1, z1] = conv(wl.x1, wl.y1), [x2, z2] = conv(wl.x2, wl.y2);
+          for (const y of [dz, dz + Math.min(wallH, Math.max(2, +f.height || 3))]) pts.push(new THREE.Vector3(x1, y, z1), new THREE.Vector3(x2, y, z2));
+        }
+        if (pts.length) root.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), ghost));
+        for (const ap of f.aps || []) {
+          const [x, z] = conv(ap.x, ap.y);
+          const s = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.15, Math.max(w, d) / 120), 12, 8),
+            new THREE.MeshBasicMaterial({ color: new THREE.Color(th.apTop), transparent: true, opacity: 0.5 }));
+          s.position.set(x, dz + (Number.isFinite(+ap.h) ? +ap.h : 2.7), z);
+          root.add(s);
+        }
+      });
+    }
+
     // access points: a puck at mounting height, a drop line to the floor and a name tag
     const band = project.settings.band;
     const apColor = new THREE.Color(th.apTop);

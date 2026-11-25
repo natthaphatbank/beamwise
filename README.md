@@ -36,11 +36,18 @@ On iPhone, iPad and Android the top-bar actions move into a **Menu** button (als
 6. Pick a language from the language menu: ไทย, English, 中文, 日本語, 한국어, Tiếng Việt, ລາວ, မြန်မာ. First-time visitors get their browser language automatically.
 7. **Check signal (P)** (เช็คสัญญาณ): click any spot to drop a pin showing the estimated signal there in dBm, coloured like the heatmap. The panel shows both bands, whether it meets the requirement, and each AP's signal and distance at that spot. Click several spots to compare. To remove a pin, click × on the selected pin's tag, right-click the pin, or press Delete; **Clear all** removes every pin. Pins are saved in the project file and can be undone (Ctrl+Z). With any tool, the status bar also shows the estimated dBm under the mouse.
 8. **3D view** (มุมมอง 3D, key **3**): the walls you drew stand up at their real height, coloured by material, with the floor plan and heatmap on the floor and each AP at its mounting height. Drag to rotate, right-drag or Shift+drag to pan, wheel or pinch to zoom. Change the wall height, make walls see-through, or **Save 3D image** (.png) for a proposal. Changing the band or settings in the side panel updates it live. Uses [three.js](https://threejs.org/) (MIT, bundled in `js/vendor/three`, loaded only when opened); it needs the website or a local web server, not a double-clicked `index.html`.
-9. Switch between **2.4 / 5 GHz**, choose the environment, then **Save** the project (.json) or **Export image** (.png) for your customer.
+9. Switch between **2.4 / 5 / 6 GHz**, choose the environment, then **Save** the project (.json), **Export image** (.png) or create a **PDF report** for your customer.
+10. **Heatmap view**: signal strength, secondary signal (2nd AP, for roaming), SNR, SINR (with interference from APs on overlapping channels), channel interference (co-channel APs above −82 dBm), data rate, serving AP, number of APs heard, and AP load (capacity). The summary shows the share of the area that meets each view's target; a signal check pin shows all of them at that spot.
+11. **Attenuation zone (Z)**: draw an area with shelving, warehouse racks, desks, a crowd or trees. Signal loses the zone's dB per metre (per band, presets editable) for the distance it travels inside, up to 40 dB per zone.
+12. **Areas with their own requirement and capacity**: select a boundary to give it a name, its own minimum signal and a busy-hour demand (devices and use per device: web, HD video, video calls, 4K, VoIP, IoT or custom Mbps). Coverage %, weak areas and AI placement use each area's requirement. The **AP load** view and the capacity summary show each AP's airtime: demand ÷ (PHY rate × 0.6 MAC efficiency); over 100% or over 50 devices per radio counts as overloaded.
+13. **Floors**: the floor panel at the top left of the plan switches floors, adds an empty floor or duplicates this one (plan, walls, zones, boundaries), and opens floor settings (name, floor-to-floor height, slab type, plan offset for alignment, order, delete). Signal from APs on other floors reaches this floor through the slabs, the floor below shows as faint walls, APs above / below as dashed ▲▼ markers, and the 3D view shows the other floors as outlines.
+14. **AP table** and **Quote / BOM** (in the Summary card): every AP on every floor with editable name, power, channel and width per band, and a quote with AP models counted on all floors, PoE ports, cable, installation, custom lines, unit prices and VAT. Both export as CSV; prices are saved in the project file.
+15. **PDF report**: choose bands, heatmap views and sections; the report (cover, coverage per floor and band, assumptions, areas, capacity, heatmaps with legends, AP table, walls, calibration, quote) is built in the browser and printed with **Save as PDF**. Nothing is uploaded.
+16. **CAD plans (DXF)**: Import floor plan also takes .dxf. Lines, polylines, arcs, circles and blocks are drawn as the plan, the file's units set the scale, and the layers you pick (wall layers are pre-selected by name) become walls, with double-line walls merged into one centre line. DWG: save as DXF first. For image plans, the Wall tool has **Detect walls from the plan**, which turns thick dark horizontal / vertical strokes into walls (thin lines and text are ignored).
 
 | Shortcut | Action |
 |---|---|
-| V / H / S / W / B / A / M / P | Select, Pan, Scale, Wall, Boundary, AP, Survey point, Check signal |
+| V / H / S / W / B / Z / A / M / P | Select, Pan, Scale, Wall, Boundary, Attenuation zone, AP, Survey point, Check signal |
 | 3 | 3D view on/off (Esc goes back to 2D) |
 | O | Straight lines on/off (walls and boundaries go only horizontal / vertical; on by default) |
 | Hold Shift while drawing | Flip straight lines for that point (any angle while on, straight while off) |
@@ -63,7 +70,9 @@ Values are typical maximum conducted Tx power and antenna gain per band, approxi
 
 **Add your own model**: a model that isn't listed can be added from the model picker (**+ Add your own model**) with values from its datasheet. These models are kept in the browser, saved inside project files, and added to the list when someone opens such a file. A catalogue model can also be added with one line in `js/catalog.js`.
 
-The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36–64 and 30 dBm on ch 100+.
+Each AP has a row per band with Tx power, antenna gain, channel and channel width (2.4 GHz: 20/40, 5 and 6 GHz: 20/40/80/160 MHz). Wi-Fi 6E and 7 models get a 6 GHz radio about 1 dB below their 5 GHz one, except the dual-band Wi-Fi 7 models (U7 Lite, U7 In-Wall, EAP723, RT-BE88U, Xiaomi BE7000, AirEngine 5773-21).
+
+The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36–64, 30 dBm on ch 100+ and 24 dBm (250 mW, indoor) on 6 GHz (5925–6425 MHz, channels 1–93).
 
 ## Required signal
 
@@ -72,14 +81,14 @@ The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36�
 ## AI assistant
 
 - **Auto-place APs** (runs in the browser, free and offline): a greedy coverage search over candidate positions inside the building, then a local refinement pass. It stops at the target coverage or the AP limit, then assigns non-overlapping channels (2.4 GHz: 1/6/11; 5 GHz: 36/44/149/157).
-- **Auto-assign channels**: re-plans channels for the current APs to reduce co-channel interference.
+- **Auto-assign channels**: re-plans channels on every band and every floor to reduce interference, using each radio's width and weighting neighbours by spectral overlap. 5 GHz prefers channels 149+ (higher NBTC limit); DFS channels (52–144) are used only when enabled under Advanced.
 
 ## Calibration with site measurements
 
 Predictions use typical values, so check them against real measurements:
 
 1. On site, measure RSSI with a phone app (WiFiman, NetSpot, …) at several points spread over the area, near and far from the APs (5+ points recommended).
-2. Pick **Survey point (M)**, click each place you measured and enter the value in dBm and its band.
+2. Pick **Survey point (M)**, click each place you measured and enter the value in dBm and its band, or **Import measurements (CSV)** with columns x, y (metres from the plan's top-left corner), dBm and band (a template can be downloaded from the Calibration card).
 3. The **Calibration** card shows the error per band (predicted − measured): mean, RMS and max. An RMS under about 4–6 dB is a good match.
 4. **Fit model to measurements** searches the path-loss exponent n (1.5–4.5, with 3+ points) and a per-band offset that minimise the squared error, with a penalty that keeps n near the environment preset unless the measurements clearly disagree (so a few noisy readings can't produce an implausible model).
 
@@ -116,6 +125,11 @@ RSSI = EIRP + pattern(direction) + client offset − FSPL(1 m) − 10·n·log10(
 - **Wall losses** per crossing at normal incidence (2.4 / 5 GHz, dB): drywall 3/4, glass 3/5, low-E glass 25/32, wood 4/6, AAC block 6/9, plastered brick 7/9, concrete 12/18, heavy concrete 20/28, metal 20/26. Drywall, glass, plastered brick and concrete were checked against ITU-R P.2040-3 material properties for typical Thai wall build-ups (brick: 6.0/7.1 dB computed for a 7 cm brick wall with 1.5 cm plaster on both sides, 7.4/8.7 dB for a double wall). A wall crossed at an angle costs more: × 1/√cos(incidence), at most × 2
 - **Diffraction** at each turn: 0.12 dB/° at 2.4 GHz, 0.15 dB/° at 5 GHz (about 11–14 dB for a right-angle turn), at most 25 dB per turn. Paths may turn several times (Dijkstra over corner nodes). Turn this off under *Signal bends along corridors / corners* to get the plain multi-wall model
 - **Client device**: laptop 0, tablet −3, phone −5 (default), IoT −8 dB
+- **6 GHz** wall losses are a little above 5 GHz (e.g. brick 10, concrete 20 dB)
+- **Attenuation zones**: dB per metre inside the zone, at most 40 dB per zone
+- **Other floors**: an AP on another floor is placed by the floors' heights and plan offsets; the first slab costs its full loss (concrete 15/18/20 dB at 2.4/5/6 GHz, heavy 20/26/28, concrete on metal deck 25/32/34, timber 6/9/10) and each further slab 40% of its loss (ITU-R P.1238 style); ceiling APs lose 5 dB more towards the floor above
+- **Noise floor**: −174 dBm/Hz + 10·log10(width) + 7 dB noise figure (−94 dBm at 20 MHz). **SINR** counts every other radio whose channel overlaps the serving one, with the share of its power inside that channel, as if all were transmitting
+- **Data rate**: MCS chosen from SINR (5 dB for MCS 0 … 37 dB for MCS 11, 43 dB for MCS 13), 802.11n/ac/ax/be rate tables, the channel width and the lower of the AP's and the device's standard and spatial streams
 - **Fade margin** (default 3 dB): real readings swing a few dB with multipath, people and device orientation, so an area counts as covered only when it beats the requirement by this margin
 
 These are typical published values. Predictions are estimates, so check real installations with a site survey: **Fit model to measurements** tunes `n` and a per-band offset on top of everything above.
@@ -129,8 +143,15 @@ index.html      layout
 css/style.css   UI (dark / light theme)
 js/i18n.js      UI text in 8 languages (add a language: one entry in LANGS + one block in I18N)
 js/sample.js    sample 14-room dorm project
-js/catalog.js   AP models, NBTC caps, requirement profiles, channel plans
-js/model.js     materials, propagation model, heatmap colours
+js/catalog.js   AP models, NBTC caps, requirement profiles
+js/radio.js     bands, channels and widths, spectrum overlap, noise floor, PHY rates
+js/model.js     materials, attenuation zones, floors / slabs, propagation model, heatmap colours
+js/views.js     heatmap views (SNR, SINR, data rate …), area requirements, capacity
+js/floors.js    multiple floors: switching, settings, alignment, channels across floors
+js/tables.js    AP table, quote / BOM
+js/report-pdf.js PDF report (print to PDF)
+js/cad.js       DXF import, wall detection from plan images
+js/i18n-pro.js  UI text for the features above (Thai, English)
 js/optimizer.js AP auto-placement, channel assignment, weak-area detection
 js/survey.js    site-survey points, error stats, model calibration
 js/report.js    design data export (CSV)
@@ -139,10 +160,9 @@ js/view3d.js    3D view (three.js, vendored in js/vendor/three)
 js/app.js       canvas, tools, editing, save / export
 ```
 
-## Roadmap
+## Not included
 
-- Co-channel interference heatmap view
-- AP cost / BOM estimate for quotes
-- PDF report
-- Multiple floors
-- PDF floor-plan import
+- Live walk-through surveys: browsers cannot read Wi-Fi signal levels, so measurements come from a phone app and are entered or imported as CSV.
+- Spectrum analysis, packet capture and cloud collaboration (Beamwise keeps everything on the device).
+- DWG files (save as DXF first).
+- The new texts are in Thai and English; the other languages show English for them.
