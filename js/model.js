@@ -107,6 +107,14 @@ function patternAdj(mount, az, bw, dx, dy, elevDeg) {
   return -2 * (e - 60) / 30;
 }
 
+// Pattern of a prepared source: the measured one for its model and band, else the generic one.
+// elevDeg is unsigned; src.down tells whether the client is below the antenna.
+function srcPattern(src, dx, dy, elevDeg) {
+  if (!src.pat) return patternAdj(src.mount, src.az, src.bw, dx, dy, elevDeg);
+  const azRel = (dx || dy ? Math.atan2(dy, dx) * 180 / Math.PI : 0) - src.az;
+  return patternLookup(src.pat, azRel, src.down ? elevDeg : -elevDeg);
+}
+
 // A wall crossed at an angle is thicker along the path: loss × 1/√cos(incidence), at most ×2.
 function incidenceFactor(cosInc) { return Math.min(2, 1 / Math.sqrt(Math.max(cosInc, 0.25))); }
 // Where does segment p1-p2 cross wall p3-p4? Returns 0 (no crossing), 1 (crosses the wall's
@@ -362,6 +370,7 @@ function rfContext(project, band, override = null) {
     nodes: paths ? geo.nodes : NO_NODES,
     area: project.plan.width * project.plan.height * project.mPerPx ** 2,
     zones: zoneList(project, band),
+    patterns: project.patterns || null,          // measured antenna patterns (antenna.js)
     srcCache: new Map(),
   };
 }
@@ -456,7 +465,8 @@ function buildSource(rf, ap, { extraLoss = 0, noPaths = false } = {}) {
   const src = {
     x: ap.x, y: ap.y, dead: !Number.isFinite(e),
     eff: e + (rf.offset || 0) + rf.clientOff - extraLoss,   // everything that does not depend on the path
-    dh: Math.abs(h - rf.clientH), mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
+    dh: Math.abs(h - rf.clientH), down: h >= rf.clientH, mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
+    pat: (() => { const p = rf.patterns?.[ap.model]?.[rf.band]; return p && p.h?.length === 360 && p.v?.length === 360 ? p : null; })(),
     order: [],
   };
   const N = noPaths ? 0 : rf.nodes.n;               // APs on other floors: direct path only
@@ -467,7 +477,7 @@ function buildSource(rf, ap, { extraLoss = 0, noPaths = false } = {}) {
   const pl = Lh => n10 * Math.log10(Math.max(0.5, Math.hypot(Lh, src.dh)));
   for (let k = 0; k < N; k++) {
     const dx = nx[k] - ap.x, dy = ny[k] - ap.y, dp = Math.hypot(dx, dy) || 1e-9, dm = dp * mpp;
-    const pat = patternAdj(mount, src.az, src.bw, dx, dy, Math.atan2(src.dh, dm) * 180 / Math.PI);
+    const pat = srcPattern(src, dx, dy, Math.atan2(src.dh, dm) * 180 / Math.PI);
     const v0 = base - pl(dm) + pat;
     if (v0 <= NODE_FLOOR_DBM) continue;
     const wl = wallLoss(rf, ap.x, ap.y, nx[k], ny[k], v0 - NODE_FLOOR_DBM);
@@ -531,7 +541,7 @@ function sourceRssi(rf, src, cx, cy, floor = -Infinity) {
   if (src.dead) return -Infinity;
   const mpp = rf.mpp, n10 = 10 * rf.n;
   const dx = cx - src.x, dy = cy - src.y, dm = Math.hypot(dx, dy) * mpp;
-  const pat = patternAdj(src.mount, src.az, src.bw, dx, dy, Math.atan2(src.dh, dm) * 180 / Math.PI);
+  const pat = srcPattern(src, dx, dy, Math.atan2(src.dh, dm) * 180 / Math.PI);
   let best = src.eff - rf.pl1 - n10 * Math.log10(Math.max(0.5, Math.hypot(dm, src.dh))) + pat;
   if (best > floor) best -= wallLoss(rf, src.x, src.y, cx, cy, best - floor);
   sourceRssi.win = sourceRssi.win2 = -1;
@@ -612,7 +622,7 @@ const _modelCache = new Map();
 function modelFor(project, band, override = null) {
   const st = project.settings || {};
   const key = JSON.stringify([band, override, project.mPerPx, project.calib, project.walls, project.attens,
-    st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height]);
+    st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height, patternsRev(project)]);
   let rf = _modelCache.get(key);
   if (rf) { _modelCache.delete(key); _modelCache.set(key, rf); }
   else {
@@ -622,7 +632,7 @@ function modelFor(project, band, override = null) {
   }
   const used = new Map();
   const make = (ap, opt) => {
-    const k = JSON.stringify([ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, opt && opt.extraLoss]);
+    const k = JSON.stringify([ap.model, ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, opt && opt.extraLoss]);
     const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap, opt);
     used.set(k, s);
     return s;

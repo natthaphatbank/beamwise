@@ -219,6 +219,7 @@ async function buildReport(opts, onProgress) {
     [t("clientDevice"), `${t("client_" + st.client)} · ${st.clientStd} · ${clientStreams(st)} SS · ${st.clientH} m`],
     [t("capNbtc"), st.capNbtc ? "✓" : "—"],
     [t("pathsOpt"), st.paths !== false ? "✓" : "—"],
+    [t("patRow"), project.patterns ? Object.keys(project.patterns).map(id => AP_BY_ID[id] ? `${AP_BY_ID[id].brand} ${AP_BY_ID[id].model}` : id).join(", ") + ` (${t("patMeasured")})` : t("patGeneric")],
   ];
 
   return `

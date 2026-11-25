@@ -74,6 +74,12 @@ Each AP has a row per band with Tx power, antenna gain, channel and channel widt
 
 The **Thai NBTC** option caps EIRP at 20 dBm on 2.4 GHz, 23 dBm on 5 GHz ch 36–64, 30 dBm on ch 100+ and 24 dBm (250 mW, indoor) on 6 GHz (5925–6425 MHz, channels 1–93).
 
+## Measured antenna patterns
+
+By default each AP uses a generic pattern for its mounting (ceiling, wall / desk, directional). With a pattern file from the vendor, an AP model can use its measured pattern instead: select an AP, click **Antenna patterns** and load a file per band. Supported: Planet **.msi / .pln** (HORIZONTAL 360 / VERTICAL 360 blocks), **.ant** (360 azimuth then 360 elevation gains) and **CSV** (angle, horizontal dB, vertical dB). The vertical-angle convention can be set when loading (0° = horizon or straight down; angles increasing downwards or upwards). The 3D gain is the sum of the two cuts; the peak gain stays the AP's antenna gain, and the AP's **Pointing** field rotates the pattern. Patterns are saved in the project file and apply to every AP of that model.
+
+Ubiquiti UniFi and TP-Link Omada publish patterns only as images in datasheets, so ask the vendor or distributor for files (Cisco, Aruba, Ruckus and others often provide .msi).
+
 ## Required signal
 
 **Auto** picks the minimum acceptable RSSI from the building type: −67 dBm for offices and open halls (voice and video calls), −70 dBm for homes and dorms, −72 dBm for warehouses. You can also pick a profile yourself. Coverage % and the AI use this value, and the heatmap floor follows it (requirement − 15 dB).
@@ -145,6 +151,7 @@ js/i18n.js      UI text in 8 languages (add a language: one entry in LANGS + one
 js/sample.js    sample 14-room dorm project
 js/catalog.js   AP models, NBTC caps, requirement profiles
 js/radio.js     bands, channels and widths, spectrum overlap, noise floor, PHY rates
+js/antenna.js   measured antenna patterns (.msi / .ant / .csv import, lookup, preview)
 js/model.js     materials, attenuation zones, floors / slabs, propagation model, heatmap colours
 js/views.js     heatmap views (SNR, SINR, data rate …), area requirements, capacity
 js/floors.js    multiple floors: switching, settings, alignment, channels across floors

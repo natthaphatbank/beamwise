@@ -40,6 +40,7 @@ function newProject() {
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
     bom: null,                     // bill of materials / quote settings (tables.js), created on first use
+    patterns: null,                // measured antenna patterns per model and band (antenna.js)
     report: null,                  // PDF report cover fields {title, customer, author, notes} (report-pdf.js)
   };
   for (const k of FLOOR_FIELDS) p.floors[0][k] = p[k];
@@ -1509,6 +1510,8 @@ function openModelManager(prefillId) {
   render();
 }
 document.addEventListener("click", e => {
+  const pb = e.target.closest("[data-patterns]");
+  if (pb) { openPatternManager(pb.dataset.patterns); return; }
   const b = e.target.closest("[data-manage-models]");
   if (!b) return;
   const one = selectedAps();
@@ -1549,6 +1552,16 @@ function apLoadHtml(ap) {
   return `<p class="unit ap-load ${over ? "warn-text" : ""}">${tf("apLoad", { b: project.settings.band, d: Math.round(L.devices), m: Math.round(L.demand), p: L.airtime > 9.99 ? "> 999" : Math.round(L.airtime * 100) })}</p>`;
 }
 
+const apHasPattern = a => !!project.patterns?.[a.model];
+function patternRowHtml(aps) {
+  const o = aps[0], same = aps.every(a => a.model === o.model);
+  if (!same) return "";
+  const e = project.patterns?.[o.model];
+  const bands = e ? BAND_LIST.filter(b => e[b]).map(b => b + "G").join(", ") : "";
+  return `<div class="row"><span>${t("patRow")}</span><b class="pat-state">${e ? `${t("patMeasured")} (${bands})` : t("patGeneric")}</b></div>
+    <button class="btn" data-patterns="${esc(o.model)}">${t("patTitle")}</button>`;
+}
+
 function renderApPanel(el, aps) {
   const one = aps.length === 1, o = aps[0];
   const same = f => aps.every(a => a[f] === o[f]);
@@ -1574,7 +1587,8 @@ function renderApPanel(el, aps) {
     <p class="unit">${t("bandGridNote")}</p>
     <label class="row"><span>${t("mount")}</span><select data-f="mount">${same("mount") ? "" : `<option value="__mixed" selected>${mixed}</option>`}${Object.keys(MOUNTS).map(k => `<option value="${k}" ${same("mount") && o.mount === k ? "selected" : ""}>${t("mount_" + k)}</option>`).join("")}</select></label>
     <label class="row"><span>${t("apHeight")} <span class="u">(m)</span></span>${num("h", 30, 0.1)}</label>
-    ${aps.some(a => a.mount === "directional") ? `
+    ${patternRowHtml(aps)}
+    ${aps.some(a => a.mount === "directional" || apHasPattern(a)) ? `
     <label class="row"><span>${t("azimuth")} <span class="u">(°)</span></span><input type="number" data-f="az" min="-360" max="360" step="5" value="${val("az") ?? ""}" ${same("az") ? "" : `placeholder="${mixed}"`}></label>
     <label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}
     <p class="unit eirp">${eirpLine()}</p>
@@ -2262,6 +2276,7 @@ function sanitizeOneFloor(data) {
     newApModel: strOr(data.newApModel, base.newApModel),
     newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,
     bom: cleanBom(data.bom),
+    patterns: cleanPatterns(data.patterns),
     report: data.report && typeof data.report === "object" ? { title: strOr(data.report.title, "", 120), customer: strOr(data.report.customer, "", 120),
               author: strOr(data.report.author, "", 120), notes: strOr(data.report.notes, "", 400) } : null,
     customModels: arr(data.customModels).map(cleanModel).filter(Boolean),
@@ -2365,7 +2380,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   syncActive();
-  return JSON.stringify([project.bom]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
+  return JSON.stringify([project.bom, patternsRev(project)]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };

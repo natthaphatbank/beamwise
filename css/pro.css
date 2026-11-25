@@ -110,3 +110,9 @@
 .dxf-layers { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; columns: 2; column-gap: 20px; }
 .dxf-layers .check { margin: 3px 0 !important; break-inside: avoid; color: var(--text) !important; }
 @media (max-width: 520px) { .dxf-layers { columns: 1; } }
+
+/* antenna patterns */
+.pat-canvas { display: block; width: 100%; max-width: 520px; height: auto; margin: 6px auto 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
+.pat-tbl td, .pat-tbl th { text-align: left !important; }
+.pat-tbl td:last-child { white-space: nowrap; }
+.pat-state { font-weight: 600; font-size: 12px; }
