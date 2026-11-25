@@ -212,6 +212,87 @@ const TEMPLATES = {
       return { W, H: D };
     },
   },
+  clinic: {
+    icon: "🏥", env: 2, req: -67,
+    params: { rooms: [8, 2, 30, 1], roomW: [4, 3, 8, 0.1], roomD: [6, 4, 10, 0.1], corridor: [2.4, 1.8, 4, 0.1], floors: [3, 1, 20, 1], devPer: [4, 1, 15, 1] },
+    build(p, k) {
+      const n = p.rooms, rw = p.roomW, rd = p.roomD, cw = p.corridor, W = n * rw, H = 2 * rd + cw;
+      k.rect(0, 0, W, H, "concrete");
+      for (let i = 0; i < n; i++) {
+        const x0 = i * rw, x1 = x0 + rw;
+        // one room per side is an X-ray / imaging room with lead-lined (metal) walls
+        const xray = i === n - 1;
+        if (i) { k.w(x0, 0, x0, rd, xray ? "metal" : "brick"); k.w(x0, rd + cw, x0, H, "brick"); }
+        k.wd(x0, rd, x1, rd, xray ? "metal" : "brick", [[rw / 2 - 0.6, 1.2, xray ? "metal" : "wood"]]);   // wide doors for beds
+        k.wd(x0, rd + cw, x1, rd + cw, "brick", [[rw / 2 - 0.6, 1.2, "wood"]]);
+        if (!xray) { k.w(x1 - 1.8, 0, x1 - 1.8, 2.2, "aac"); k.w(x1 - 1.8, 2.2, x1, 2.2, "aac"); }
+        k.w(x1 - 1.8, H, x1 - 1.8, H - 2.2, "aac"); k.w(x1 - 1.8, H - 2.2, x1, H - 2.2, "aac");
+      }
+      k.zone(W / 2 - 2, rd + 0.3, 4, cw - 0.6, "furniture");                   // nurse station
+      k.area(0, 0, W, H, { name: t("tplAreaWard"), devices: 2 * n * p.devPer, app: "web" });
+      return { W, H };
+    },
+  },
+  salon: {
+    icon: "💇", env: 1,
+    params: { width: [8, 4, 20, 0.1], depth: [15, 8, 30, 0.1], rooms: [4, 0, 12, 1], devices: [20, 2, 100, 1] },
+    build(p, k) {
+      const W = p.width, D = p.depth, back = D * 0.45, ry = D - back;
+      k.w(0, 0, W, 0, "glass"); k.w(W, 0, W, D, "brick"); k.w(W, D, 0, D, "brick"); k.w(0, D, 0, 0, "brick");
+      k.zone(0.6, 1.5, 1, ry - 3, "furniture");                                 // styling stations
+      k.wd(0, ry, W, ry, "drywall", [[W / 2 - 0.5, 1, null]]);
+      const n = Math.max(0, p.rooms), side = Math.ceil(n / 2), rh = back / Math.max(1, side);
+      for (let i = 0; i < n; i++) {                                            // spa / treatment rooms on both sides of a passage
+        const left = i % 2 === 0, j = Math.floor(i / 2), y0 = ry + j * rh, x0 = left ? 0 : W / 2 + 0.6, x1 = left ? W / 2 - 0.6 : W;
+        k.w(x0, y0 + rh, x1, y0 + rh, "drywall");
+        k.wd(left ? x1 : x0, y0, left ? x1 : x0, y0 + rh, "drywall", [[0.3, 0.8, "wood"]]);
+      }
+      k.area(0, 0, W, D, { name: t("tplAreaShop"), devices: p.devices, app: "video" });
+      return { W, H: D };
+    },
+  },
+  factory: {
+    icon: "🏗️", env: 0, req: -72,
+    params: { width: [50, 20, 200, 1], depth: [30, 15, 150, 1], lines: [4, 0, 20, 1], devices: [40, 1, 1000, 1] },
+    build(p, k) {
+      const W = p.width, D = p.depth;
+      k.wd(0, 0, W, 0, "metal", [[W - 8, 5, null]]);                            // truck door
+      k.w(W, 0, W, D, "metal"); k.w(W, D, 0, D, "metal"); k.w(0, D, 0, 0, "metal");
+      k.rect(0, 0, 12, 6, "brick"); k.wd(12, 0, 12, 6, "brick", [[2, 0.9, "wood"]]);   // office
+      k.rect(0, D - 6, 8, 6, "brick"); k.wd(8, D - 6, 8, D, "brick", [[2, 0.9, "wood"]]); // QC room
+      const x0 = 15, gapY = (D - 8) / Math.max(1, p.lines);
+      for (let i = 0; i < p.lines; i++) k.zone(x0, 4 + i * gapY + gapY / 2 - 1, W - x0 - 4, 2, "machinery");   // production lines
+      k.area(0, 0, W, D, { name: t("tplAreaFactory"), devices: p.devices, app: "iot" });
+      k.area(0, 0, 12, 6, { name: t("tplAreaOffice"), req: -67, devices: 10, app: "call" });
+      return { W, H: D };
+    },
+  },
+  gym: {
+    icon: "🏋️", env: 0,
+    params: { width: [20, 10, 60, 0.5], depth: [25, 10, 60, 0.5], members: [80, 10, 600, 5] },
+    build(p, k) {
+      const W = p.width, D = p.depth, sx = W * 0.6;
+      k.w(0, 0, W, 0, "glass"); k.w(W, 0, W, D, "concrete"); k.w(W, D, 0, D, "concrete"); k.w(0, D, 0, 0, "concrete");
+      k.wd(sx, D * 0.5, W, D * 0.5, "glass", [[1, 1, "glass"]]); k.w(sx, D * 0.5, sx, D, "glass");     // studio
+      k.wd(0, D - 6, sx, D - 6, "brick", [[2, 1, "wood"], [sx - 3, 1, "wood"]]); k.w(sx / 2, D - 6, sx / 2, D, "brick");   // locker rooms
+      k.zone(1.5, 2, sx - 3, D - 10, "shelving");                               // machines and racks
+      k.area(0, 0, W, D, { name: t("tplAreaGym"), devices: p.members, app: "video" });
+      return { W, H: D };
+    },
+  },
+  parking: {
+    icon: "🅿️", env: 0, req: -72,
+    params: { width: [40, 15, 150, 1], depth: [30, 15, 150, 1], floors: [3, 1, 12, 1], devices: [10, 1, 200, 1] },
+    build(p, k) {
+      const W = p.width, D = p.depth, span = 8;
+      k.w(0, 0, W, 0, "concrete"); k.w(0, D, W, D, "concrete");                 // open sides (no walls) left and right
+      for (let x = span; x < W - 1; x += span) for (let y = span; y < D - 1; y += span) k.rect(x - 0.3, y - 0.3, 0.6, 0.6, "concreteHeavy");   // columns
+      for (let y = 2.5; y < D - 2; y += 13) { k.zone(1, y, W - 2, 5, "vehicles"); }   // parking rows
+      k.rect(W - 6, D - 7, 6, 7, "concrete"); k.wd(W - 6, D - 7, W - 6, D, "concrete", [[1, 1, "metal"]]);   // stair / lift core
+      k.area(0, 0, W, D, { name: t("tplAreaParking"), devices: p.devices, app: "iot" });
+      return { W, H: D };
+    },
+  },
 };
 const TEMPLATE_KEYS = Object.keys(TEMPLATES);
 

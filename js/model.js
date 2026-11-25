@@ -308,6 +308,8 @@ const ATTEN_PRESETS = {
   racks:     { db24: 1.5, db5: 2.5, db6: 2.8,  color: "#c75146" },
   crowd:     { db24: 0.5, db5: 0.8, db6: 0.9,  color: "#9d4edd" },
   foliage:   { db24: 0.3, db5: 0.5, db6: 0.55, color: "#52b788" },
+  machinery: { db24: 1.5, db5: 2.5, db6: 2.8,  color: "#7f5539" },   // factory machines, metal equipment
+  vehicles:  { db24: 1.0, db5: 1.5, db6: 1.7,  color: "#5c677d" },   // rows of parked cars
   custom:    { db24: 1,   db5: 1.5, db6: 1.7,  color: "#6c757d" },
 };
 const ATTEN_MAX_DB = 40;              // per zone crossing: beyond this the zone is effectively opaque
