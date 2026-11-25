@@ -1,8 +1,8 @@
 // Site-survey calibration: compare predicted RSSI with values measured on site, and fit the
 // model (path-loss exponent n + a per-band offset) so the heatmap matches the measurements.
 //
-// project.survey = [{id, x, y, dbm (measured, null until entered), band: "2.4" | "5"}]
-// project.calib  = null | {n, off24, off5, rmsBefore, rmsAfter, count, date}
+// project.survey = [{id, x, y, dbm (measured, null until entered), band: "2.4" | "5" | "6"}]
+// project.calib  = null | {n, off24, off5, off6, rmsBefore, rmsAfter, count, date}
 // Error convention: error = predicted - measured (positive = the model is too optimistic).
 
 const CALIB_N_RANGE = [1.5, 4.5, 0.05];
@@ -40,7 +40,9 @@ function surveyErrors(project) {
     return { pt, pred, err: Number.isFinite(pred) ? pred - pt.dbm : null };
   });
   const by = b => errStats(rows.filter(r => r.pt.band === b && r.err != null).map(r => r.err));
-  return { rows, all: errStats(rows.filter(r => r.err != null).map(r => r.err)), "2.4": by("2.4"), "5": by("5") };
+  const out = { rows, all: errStats(rows.filter(r => r.err != null).map(r => r.err)) };
+  for (const b of BAND_LIST) out[b] = by(b);
+  return out;
 }
 
 /**
@@ -57,11 +59,12 @@ function fitCalibration(project) {
 
   const evalN = n => {
     const off = {}, resid = [];
-    for (const b of ["2.4", "5"]) {
+    for (const b of BAND_LIST) {
       const bp = pts.filter(p => p.band === b);
       const base = bp.map(p => predictBest(project, b, p.x, p.y, { n, offset: 0 }));
       const ok = bp.map((p, i) => [p.dbm, base[i]]).filter(([, v]) => Number.isFinite(v));
-      let o = ok.length ? ok.reduce((a, [m, v]) => a + (m - v), 0) / ok.length : 0;
+      // no 6 GHz readings: 6 GHz follows the 5 GHz correction (closest band)
+      let o = ok.length ? ok.reduce((a, [m, v]) => a + (m - v), 0) / ok.length : b === "6" ? off["5"] : 0;
       o = Math.max(-CALIB_MAX_OFFSET, Math.min(CALIB_MAX_OFFSET, o));
       off[b] = o;
       for (const [m, v] of ok) resid.push(v + o - m);
@@ -82,7 +85,7 @@ function fitCalibration(project) {
   }
   if (!best.count) return null;
   return {
-    n: best.n, off24: +best.off["2.4"].toFixed(2), off5: +best.off["5"].toFixed(2),
+    n: best.n, off24: +best.off["2.4"].toFixed(2), off5: +best.off["5"].toFixed(2), off6: +best.off["6"].toFixed(2),
     rmsBefore: before ? +before.rms.toFixed(2) : null,
     rmsAfter: +Math.sqrt(best.sse / best.count).toFixed(2),
     count: best.count, date: new Date().toISOString(),

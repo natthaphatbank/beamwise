@@ -22,6 +22,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/pro.css">
 </head>
 <body>
   <header class="topbar">
@@ -113,6 +114,7 @@
           <div class="seg" id="bandSeg">
             <button data-band="2.4">2.4 GHz</button>
             <button data-band="5">5 GHz</button>
+            <button data-band="6">6 GHz</button>
           </div>
         </label>
         <label class="row"><span data-i18n="environment"></span>
@@ -135,6 +137,7 @@
           <label class="row"><span data-i18n="margin"></span><select id="marginSel"></select></label>
           <label class="row check"><span data-i18n="pathsOpt"></span><input type="checkbox" id="pathsChk"></label>
           <label class="row check"><span data-i18n="capNbtc"></span><input type="checkbox" id="capNbtc"></label>
+          <label class="row check"><span data-i18n="dfsOpt"></span><input type="checkbox" id="dfsChk"></label>
           <label class="row check"><span data-i18n="rulers"></span><input type="checkbox" id="rulersChk"></label>
         </details>
       </section>
@@ -159,7 +162,9 @@
   </div>
 
   <script src="js/i18n.js"></script>
+  <script src="js/i18n-pro.js"></script>
   <script src="js/catalog.js"></script>
+  <script src="js/radio.js"></script>
   <script src="js/model.js"></script>
   <script src="js/optimizer.js"></script>
   <script src="js/survey.js"></script>

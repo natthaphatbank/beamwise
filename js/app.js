@@ -12,11 +12,11 @@ function newProject() {
     mPerPx: 30 / 1200,            // blank plan = 30 x 20 m
     scaleSet: false,
     walls: [],                     // {id, x1, y1, x2, y2, mat}
-    aps: [],                       // {id, name, x, y, model, tx24, tx5, gain24, gain5, ch24, ch5, mount, h, az, bw}
+    aps: [],                       // {id, name, x, y, model, tx24/5/6, gain24/5/6, ch24/5/6, w24/5/6 (MHz), mount, h, az, bw}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
     survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
     probes: [],                    // signal check pins {id, x, y}
-    calib: null,                   // fitted model correction {n, off24, off5, ...} or null
+    calib: null,                   // fitted model correction {n, off24, off5, off6, ...} or null
     settings: {
       band: "5", env: 1, opacity: 0.55,
       minDbm: "auto",              // display floor: "auto" = requirement - 15 dB
@@ -28,6 +28,7 @@ function newProject() {
       paths: true,                 // dominant paths around corners / along corridors
       waves: !matchMedia("(prefers-reduced-motion: reduce)").matches,
       rulers: true,
+      dfs: false,                  // let auto channels use 5 GHz DFS channels (52–144)
     },
     newWallMat: "brick",
     newApModel: "generic-ax",
@@ -57,6 +58,10 @@ function normalizeAp(ap) {
   if (ap.gain5 == null) ap.gain5 = ap.gain ?? 3;
   delete ap.gain;
   if (!ap.model) ap.model = "custom";
+  if (ap.tx6 == null) { const m = AP_BY_ID[ap.model]; ap.tx6 = m ? m.tx6 : 0; ap.gain6 = m ? m.gain6 : 0; }
+  if (ap.gain6 == null) ap.gain6 = 0;
+  if (ap.ch6 === undefined) ap.ch6 = null;
+  for (const b of BAND_LIST) ap["w" + BK[b]] = apWidth(ap, b);
   if (!MOUNTS[ap.mount]) Object.assign(ap, mountForModel(AP_BY_ID[ap.model]));
   if (!(ap.h >= 0)) ap.h = MOUNTS[ap.mount].h;
   if (!Number.isFinite(ap.az)) ap.az = 0;
@@ -66,7 +71,8 @@ function normalizeAp(ap) {
 function makeAp(p, spec) {
   spec = spec || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
   return { id: uid(), name: "AP-" + (project.aps.length + 1), x: p.x, y: p.y,
-           model: spec.id, tx24: spec.tx24, tx5: spec.tx5, gain24: spec.gain24, gain5: spec.gain5, ch24: null, ch5: null,
+           model: spec.id, tx24: spec.tx24, tx5: spec.tx5, tx6: spec.tx6 || 0, gain24: spec.gain24, gain5: spec.gain5, gain6: spec.gain6 || 0,
+           ch24: null, ch5: null, ch6: null, w24: DEFAULT_WIDTH["2.4"], w5: DEFAULT_WIDTH["5"], w6: DEFAULT_WIDTH["6"],
            ...mountForModel(spec), az: 0, bw: DEFAULT_BW };
 }
 
@@ -489,7 +495,8 @@ function drawAp(c, px, ap, isSel) {
   c.beginPath(); c.arc(x, cy, 1.9 * px, 0, 7); c.fill();
   // tag: name (bold) and channels 2.4/5 GHz
   const name = ap.name || "AP";
-  const ch = ap.ch24 || ap.ch5 ? `${ap.ch24 ?? "–"} / ${ap.ch5 ?? "–"}` : "";
+  const bnd = project.settings.band, chv = apCh(ap, bnd), wv = apWidth(ap, bnd);
+  const ch = apTx(ap, bnd) > 0 ? (chv != null ? `ch ${chv}` + (wv !== 20 ? ` · ${wv}` : "") : "") : t("noRadio");
   const fontB = `600 ${12 * px}px "Segoe UI", "Leelawadee UI", sans-serif`;
   const fontN = `${11 * px}px "Segoe UI", "Leelawadee UI", sans-serif`;
   c.font = fontB; const wName = c.measureText(name).width;
@@ -548,14 +555,14 @@ function probeAt(x, y) {
   const key = x.toFixed(2) + "," + y.toFixed(2);
   let r = probeMemo.map.get(key);
   if (r) return r;
-  const perAp = project.aps.map(ap => ({ ap, "2.4": -Infinity, "5": -Infinity }));
-  for (const band of ["2.4", "5"]) {
+  const perAp = project.aps.map(ap => ({ ap, "2.4": -Infinity, "5": -Infinity, "6": -Infinity }));
+  for (const band of BAND_LIST) {
     if (!project.aps.length) break;
     const { rf, sources } = modelFor(project, band);
     sources.forEach((src, i) => { perAp[i][band] = sourceRssi(rf, src, x, y); });
   }
   const best = b => perAp.reduce((m, a) => Math.max(m, a[b]), -Infinity);
-  r = { "2.4": best("2.4"), "5": best("5"), perAp };
+  r = { "2.4": best("2.4"), "5": best("5"), "6": best("6"), perAp };
   if (probeMemo.map.size > 400) probeMemo.map.clear();
   probeMemo.map.set(key, r);
   return r;
@@ -1286,7 +1293,7 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 
 function matButtons(active) {
   return `<div class="mat-list">${Object.entries(MATERIALS).map(([k, m]) =>
-    `<button data-mat="${k}" class="${k === active ? "active" : ""}" title="${m.db24} / ${m.db5} dB">
+    `<button data-mat="${k}" class="${k === active ? "active" : ""}" title="${m.db24} / ${m.db5} / ${m.db6} dB">
        <span class="dot" style="background:${m.color}"></span>${esc(t("mat_" + k))}</button>`).join("")}</div>`;
 }
 
@@ -1327,7 +1334,7 @@ function cleanModel(m) {
   if (!id || !model) return null;
   const n = v => { const x = +v; return Number.isFinite(x) ? x : 0; };
   return { id, brand: strOr(m.brand, "", 60), model, std: WIFI_STDS.includes(m.std) ? m.std : "Wi-Fi 6",
-           tx24: n(m.tx24), tx5: n(m.tx5), gain24: n(m.gain24), gain5: n(m.gain5) };
+           tx24: n(m.tx24), tx5: n(m.tx5), tx6: n(m.tx6), gain24: n(m.gain24), gain5: n(m.gain5), gain6: n(m.gain6) };
 }
 function customLibrary() {
   try { const l = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]"); return Array.isArray(l) ? l.map(cleanModel).filter(Boolean) : []; } catch (e) { return []; }
@@ -1348,7 +1355,7 @@ function mergeIntoLibrary(list) {
   for (const m of list || []) if (m && m.id && !lib.some(x => x.id === m.id)) lib.push(m);
   saveCustomLibrary(lib);
 }
-const plainModel = m => ({ id: m.id, brand: m.brand, model: m.model, std: m.std, tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 });
+const plainModel = m => ({ id: m.id, brand: m.brand, model: m.model, std: m.std, tx24: m.tx24, tx5: m.tx5, tx6: m.tx6, gain24: m.gain24, gain5: m.gain5, gain6: m.gain6 });
 
 function openModelManager(prefillId) {
   const base = AP_BY_ID[prefillId] || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
@@ -1358,8 +1365,8 @@ function openModelManager(prefillId) {
     openModal(`<h2>${t("manageModels").replace(/^\+\s*/, "")}</h2>
       <p>${t("customModelsHelp")}</p>
       ${lib.length ? `<table class="calib-tbl model-tbl"><thead><tr><th>${t("brandLbl")}</th><th>${t("apModel")}</th><th>Std</th>
-        <th>Tx 2.4/5<br><span class="u">dBm</span></th><th>Gain 2.4/5<br><span class="u">dBi</span></th><th></th></tr></thead><tbody>
-        ${lib.map(m => `<tr><td>${esc(m.brand)}</td><td>${esc(m.model)}</td><td>${esc(m.std)}</td><td>${esc(m.tx24)} / ${esc(m.tx5)}</td><td>${esc(m.gain24)} / ${esc(m.gain5)}</td>
+        <th>Tx 2.4/5/6<br><span class="u">dBm</span></th><th>Gain 2.4/5/6<br><span class="u">dBi</span></th><th></th></tr></thead><tbody>
+        ${lib.map(m => `<tr><td>${esc(m.brand)}</td><td>${esc(m.model)}</td><td>${esc(m.std)}</td><td>${esc(m.tx24)} / ${esc(m.tx5)} / ${esc(m.tx6 || 0)}</td><td>${esc(m.gain24)} / ${esc(m.gain5)} / ${esc(m.gain6 || 0)}</td>
           <td><button class="link-btn danger" data-del="${esc(m.id)}">${t("deleteShort")}</button></td></tr>`).join("")}</tbody></table>`
         : `<p class="unit">${t("noCustomModels")}</p>`}
       <h3 class="modal-sub">${t("addModel")}</h3>
@@ -1371,6 +1378,8 @@ function openModelManager(prefillId) {
         <label class="field"><span>${t("tx5")} (dBm)</span><input id="cmTx5" type="number" step="1" min="0" max="36" value="${base.tx5}"></label>
         <label class="field"><span>${t("gain24")} (dBi)</span><input id="cmG24" type="number" step="0.1" min="0" max="20" value="${base.gain24}"></label>
         <label class="field"><span>${t("gain5")} (dBi)</span><input id="cmG5" type="number" step="0.1" min="0" max="20" value="${base.gain5}"></label>
+        <label class="field"><span>${t("tx6")} (dBm)</span><input id="cmTx6" type="number" step="1" min="0" max="36" value="${base.tx6 || 0}"></label>
+        <label class="field"><span>${t("gain6")} (dBi)</span><input id="cmG6" type="number" step="0.1" min="0" max="20" value="${base.gain6 || 0}"></label>
       </div>
       <p class="unit">${t("customModelsNote")}</p>
       <div class="btns inline"><button data-act="close">${t("close")}</button><button class="primary" data-act="add">${t("addModel")}</button></div>`, null, "wide");
@@ -1391,7 +1400,7 @@ function openModelManager(prefillId) {
       if (!model) { $("#cmModel").focus(); return; }
       const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
       const m = { id: "user-" + uid(), brand: $("#cmBrand").value.trim() || t("myModels"), model, std: $("#cmStd").value,
-                  tx24: num("#cmTx24"), tx5: num("#cmTx5"), gain24: num("#cmG24"), gain5: num("#cmG5") };
+                  tx24: num("#cmTx24"), tx5: num("#cmTx5"), tx6: num("#cmTx6"), gain24: num("#cmG24"), gain5: num("#cmG5"), gain6: num("#cmG6") };
       saveCustomLibrary([...customLibrary(), m]);
       registerCustomModels([m]);
       project.customModels = customLibrary();
@@ -1411,8 +1420,8 @@ document.addEventListener("click", e => {
 });
 function eirpText(o) {
   const cap = project.settings.capNbtc;
-  const part = (b, raw) => { const e = apEirp(o, b, cap); return !Number.isFinite(e) ? "—" : e < raw ? `${raw}→<b>${e}</b>` : `<b>${raw}</b>`; };
-  return `EIRP 2.4G ${part("2.4", o.tx24 + o.gain24)} · 5G ${part("5", o.tx5 + o.gain5)} dBm` + (cap ? " (NBTC)" : "");
+  const part = b => { const raw = apTx(o, b) + apGain(o, b), e = apEirp(o, b, cap); return !Number.isFinite(e) ? "—" : e < raw ? `${raw}→<b>${e}</b>` : `<b>${raw}</b>`; };
+  return `EIRP ${BAND_LIST.map(b => `${b}G ${part(b)}`).join(" · ")} dBm` + (cap ? " (NBTC)" : "");
 }
 
 // Card title follows what the panel is showing (no generic "Properties" heading).
@@ -1435,16 +1444,17 @@ function panelTitle(o) {
 
 // AP settings for one AP or several at once. With several, a field shows its value when
 // every selected AP agrees, otherwise it is blank ("mixed"); editing it sets all of them.
-const CH24_LIST = [1,2,3,4,5,6,7,8,9,10,11,12,13];
-const CH5_LIST = [36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165];
 function renderApPanel(el, aps) {
   const one = aps.length === 1, o = aps[0];
   const same = f => aps.every(a => a[f] === o[f]);
   const val = f => same(f) ? o[f] : "";
   const mixed = esc(t("mixedValues"));
   const num = (f, max, step) => `<input type="number" data-f="${f}" min="0" max="${max}" step="${step}" value="${val(f) ?? ""}" ${same(f) ? "" : `placeholder="${mixed}"`}>`;
-  const chSel = (f, list) => `<select data-f="${f}">${same(f) ? "" : `<option value="__mixed" selected>${mixed}</option>`}<option value="" ${same(f) && o[f] == null ? "selected" : ""}>–</option>` +
-    list.map(c => `<option value="${c}" ${same(f) && c === o[f] ? "selected" : ""}>${c}</option>`).join("") + `</select>`;
+  const chSel = (f, list, dfsMark) => `<select data-f="${f}">${same(f) ? "" : `<option value="__mixed" selected>${mixed}</option>`}<option value="" ${same(f) && o[f] == null ? "selected" : ""}>–</option>` +
+    list.map(c => `<option value="${c}" ${same(f) && c === o[f] ? "selected" : ""}>${c}${dfsMark && isDfs(c) ? " DFS" : ""}</option>`).join("") + `</select>`;
+  const wSel = b => { const f = "w" + BK[b]; return `<select data-f="${f}">${same(f) ? "" : `<option value="__mixed" selected>${mixed}</option>`}` +
+    WIDTHS[b].map(w => `<option value="${w}" ${same(f) && o[f] === w ? "selected" : ""}>${w}</option>`).join("") + `</select>`; };
+  const bandRow = b => { const k = BK[b]; return `<tr${b === project.settings.band ? ' class="cur"' : ""}><th>${b}</th><td>${num("tx" + k, 30, 1)}</td><td>${num("gain" + k, 15, 0.1)}</td><td>${chSel("ch" + k, CH_ALL[b], b === "5")}</td><td>${wSel(b)}</td></tr>`; };
   const modelSame = same("model");
   const spec = modelSame ? AP_BY_ID[o.model] : null;
   const eirpLine = () => one ? eirpText(o) : "";
@@ -1454,17 +1464,14 @@ function renderApPanel(el, aps) {
     <label class="row"><span>${t("apModel")}</span><select id="apModelSel">${modelSame ? "" : `<option value="__mixed" selected>${mixed}</option>`}${modelOptions(modelSame ? o.model : "", true)}</select></label>
     ${modelSearchHtml("apModelSearch")}
     <p class="unit model-info">${spec ? `${esc(spec.brand)} · ${esc(spec.std)} · ${t("modelNote")}` : ""}</p>
-    <label class="row"><span>${t("tx24")} <span class="u">(dBm)</span></span>${num("tx24", 30, 1)}</label>
-    <label class="row"><span>${t("tx5")} <span class="u">(dBm)</span></span>${num("tx5", 30, 1)}</label>
-    <label class="row"><span>${t("gain24")} <span class="u">(dBi)</span></span>${num("gain24", 15, 0.1)}</label>
-    <label class="row"><span>${t("gain5")} <span class="u">(dBi)</span></span>${num("gain5", 15, 0.1)}</label>
+    <table class="band-grid"><thead><tr><th>GHz</th><th>Tx <span class="u">dBm</span></th><th>${t("gainShort")} <span class="u">dBi</span></th><th>${t("chShort")}</th><th>${t("widthShort")} <span class="u">MHz</span></th></tr></thead>
+      <tbody>${BAND_LIST.map(bandRow).join("")}</tbody></table>
+    <p class="unit">${t("bandGridNote")}</p>
     <label class="row"><span>${t("mount")}</span><select data-f="mount">${same("mount") ? "" : `<option value="__mixed" selected>${mixed}</option>`}${Object.keys(MOUNTS).map(k => `<option value="${k}" ${same("mount") && o.mount === k ? "selected" : ""}>${t("mount_" + k)}</option>`).join("")}</select></label>
     <label class="row"><span>${t("apHeight")} <span class="u">(m)</span></span>${num("h", 30, 0.1)}</label>
     ${aps.some(a => a.mount === "directional") ? `
     <label class="row"><span>${t("azimuth")} <span class="u">(°)</span></span><input type="number" data-f="az" min="-360" max="360" step="5" value="${val("az") ?? ""}" ${same("az") ? "" : `placeholder="${mixed}"`}></label>
     <label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}
-    <label class="row"><span>${t("ch24")}</span>${chSel("ch24", CH24_LIST)}</label>
-    <label class="row"><span>${t("ch5")}</span>${chSel("ch5", CH5_LIST)}</label>
     <p class="unit eirp">${eirpLine()}</p>
     ${one && project.aps.length > 1 ? `<button class="btn" id="applyAllBtn">${t("applyToAll")}</button>` : ""}
     ${project.aps.length > aps.length ? `<button class="btn" id="selAllBtn">${t("selectAllAps")}</button>` : ""}
@@ -1479,7 +1486,7 @@ function renderApPanel(el, aps) {
     pushHistory();
     for (const a of aps) {
       a.model = e.target.value;
-      if (m) Object.assign(a, { tx24: m.tx24, tx5: m.tx5, gain24: m.gain24, gain5: m.gain5 }, mountForModel(m));
+      if (m) Object.assign(a, { tx24: m.tx24, tx5: m.tx5, tx6: m.tx6 || 0, gain24: m.gain24, gain5: m.gain5, gain6: m.gain6 || 0 }, mountForModel(m));
     }
     if (m) { project.newApModel = m.id; renderAiModel(); }
     changed();
@@ -1490,7 +1497,8 @@ function renderApPanel(el, aps) {
       const f = inp.dataset.f;
       if (inp.value === "__mixed") return;
       if (f === "name") { o.name = inp.value; $("#propsTitle").textContent = panelTitle(o); }
-      else if (f === "ch24" || f === "ch5") for (const a of aps) a[f] = inp.value ? +inp.value : null;
+      else if (/^ch(24|5|6)$/.test(f)) for (const a of aps) a[f] = inp.value ? +inp.value : null;
+      else if (/^w(24|5|6)$/.test(f)) for (const a of aps) a[f] = +inp.value;
       else if (f === "mount") {
         for (const a of aps) { a.mount = inp.value; a.h = MOUNTS[inp.value].h; }
         changed();                                   // re-render: height default, azimuth fields
@@ -1505,7 +1513,7 @@ function renderApPanel(el, aps) {
   });
   $("#applyAllBtn")?.addEventListener("click", () => {
     pushHistory();
-    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, gain24: o.gain24, gain5: o.gain5, mount: o.mount, h: o.h, bw: o.bw });
+    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, tx6: o.tx6, gain24: o.gain24, gain5: o.gain5, gain6: o.gain6, w24: o.w24, w5: o.w5, w6: o.w6, mount: o.mount, h: o.h, bw: o.bw });
     changed();
     flash(tf("appliedAll", { n: project.aps.length }));
   });
@@ -1599,7 +1607,7 @@ function renderPanel() {
       <label class="row"><span>${t("measured")} <span class="u">(dBm)</span></span>
         <input type="number" id="surveyDbm" min="-110" max="-10" step="1" value="${has ? o.dbm : ""}" placeholder="-65"></label>
       <div class="row"><span>${t("band")}</span>
-        <div class="seg" id="surveyBand"><button data-b="2.4" class="${o.band === "2.4" ? "active" : ""}">2.4 GHz</button><button data-b="5" class="${o.band === "5" ? "active" : ""}">5 GHz</button></div></div>
+        <div class="seg" id="surveyBand">${BAND_LIST.map(b => `<button data-b="${b}" class="${o.band === b ? "active" : ""}">${b} GHz</button>`).join("")}</div></div>
       <div class="row"><span>${t("predicted")}</span><b>${Number.isFinite(pred) ? pred.toFixed(1) + " dBm" : "—"}</b></div>
       <div class="row"><span>${t("errorLbl")}</span><b id="surveyErr">${errTxt()}</b></div>
       <p class="unit">${t("surveyHowTo")}</p>
@@ -1646,7 +1654,7 @@ function renderPanel() {
 function renderProbePanel(el) {
   const pt = project.probes[probeActive];
   if (!pt) { el.innerHTML = `<p class="empty">${t("probeHelp")}</p>`; return; }
-  const band = project.settings.band, other = band === "5" ? "2.4" : "5";
+  const band = project.settings.band, others = BAND_LIST.filter(b => b !== band);
   const r = probeAt(pt.x, pt.y), v = r[band];
   const [cls, key] = project.aps.length ? probeGrade(v) : ["bad", "probeNoAp"];
   const swatch = x => Number.isFinite(x) ? `<i class="sw" style="background:rgb(${signalColor(x)})"></i>` : "";
@@ -1658,12 +1666,12 @@ function renderProbePanel(el) {
       <div class="probe-grade ${cls}">${t(key)}</div>
       <div class="probe-sub">${t("requirement")} ${reqText()}</div>
     </div>
-    <div class="row"><span>${other} GHz</span><b>${swatch(r[other])}${fmtDbm(r[other])}</b></div>
+    ${others.map(ob => `<div class="row"><span>${ob} GHz</span><b>${swatch(r[ob])}${fmtDbm(r[ob])}</b></div>`).join("")}
     <div class="row"><span>${t("probePos")}</span><span>x ${(pt.x * project.mPerPx).toFixed(1)} m, y ${(pt.y * project.mPerPx).toFixed(1)} m</span></div>
     ${rows.length ? `<table class="probe-aps">
-      <tr><th>AP</th><th>${t("probeDist")}</th><th>2.4</th><th>5</th></tr>
+      <tr><th>AP</th><th>${t("probeDist")}</th>${BAND_LIST.map(b => `<th>${b}</th>`).join("")}</tr>
       ${rows.map((a, i) => `<tr class="${i === 0 && Number.isFinite(a[band]) ? "best" : ""}"><td>${esc(a.ap.name || "AP")}</td><td>${a.d.toFixed(1)} m</td>
-        <td>${Number.isFinite(a["2.4"]) ? Math.round(a["2.4"]) : "—"}</td><td>${Number.isFinite(a["5"]) ? Math.round(a["5"]) : "—"}</td></tr>`).join("")}
+        ${BAND_LIST.map(b => `<td>${Number.isFinite(a[b]) ? Math.round(a[b]) : "—"}</td>`).join("")}</tr>`).join("")}
     </table>` : ""}
     <p class="unit">${t("probeNote")}</p>
     <p class="unit">${t("probeDelHelp")}</p>
@@ -1697,6 +1705,7 @@ function renderSettings() {
   $("#pathsChk").checked = st.paths !== false;
   $("#wavesChk").checked = !!st.waves;
   $("#rulersChk").checked = st.rulers !== false;
+  $("#dfsChk").checked = !!st.dfs;
   $("#legend").innerHTML = SIGNAL_STOPS.map(s =>
     `<div class="item"><span class="sw" style="background:rgb(${s.rgb})"></span><span class="lbl"><b>${s.label}</b> dBm · ${t(s.key)}</span></div>`).join("") +
     `<div class="req-line">${t("requirement")}: <b>${reqText()}</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
@@ -1781,17 +1790,17 @@ function renderCalib() {
   const row = (label, st) => st ? `<tr><td>${label}</td><td>${st.n}</td><td>${f(st.bias)}</td><td>${st.rms.toFixed(1)}</td><td>${st.max.toFixed(1)}</td></tr>` : "";
   const cal = project.calib;
   const envN = (ENVIRONMENTS[project.settings.env] || ENVIRONMENTS[1]).n;
-  const bigOff = cal && Math.max(Math.abs(cal.off24), Math.abs(cal.off5)) > CALIB_WARN_OFFSET;
+  const bigOff = cal && Math.max(Math.abs(cal.off24), Math.abs(cal.off5), Math.abs(cal.off6 || 0)) > CALIB_WARN_OFFSET;
   $("#calib").innerHTML = (E.all ? `
     <table class="calib-tbl">
       <thead><tr><th>${t("band")}</th><th>${t("calibPoints")}</th><th>${t("calibBias")}</th><th>RMS</th><th>${t("calibMax")}</th></tr></thead>
-      <tbody>${row("2.4 GHz", E["2.4"])}${row("5 GHz", E["5"])}${E["2.4"] && E["5"] ? row(t("calibAll"), E.all) : ""}</tbody>
+      <tbody>${BAND_LIST.map(b => row(b + " GHz", E[b])).join("")}${BAND_LIST.filter(b => E[b]).length > 1 ? row(t("calibAll"), E.all) : ""}</tbody>
     </table>
     <p class="unit">${t("calibNote")}</p>` : `<p class="empty">${t("calibNeed")}</p>`) + `
     ${cal ? `<div class="calib-on">
       <b>${t("calibActive")}</b><br>
       n = ${cal.n} <span class="unit">(${t("calibEnvWas")} ${envN})</span><br>
-      ${t("calibOffset")}: 2.4G ${f(cal.off24)} dB · 5G ${f(cal.off5)} dB
+      ${t("calibOffset")}: 2.4G ${f(cal.off24)} dB · 5G ${f(cal.off5)} dB · 6G ${f(cal.off6 ?? cal.off5)} dB
       ${cal.rmsBefore != null ? `<br>RMS ${cal.rmsBefore} → ${cal.rmsAfter} dB` : ""}
     </div>${bigOff ? `<p class="unit warn-text">${t("calibWarnOffset")}</p>` : ""}` : ""}
     <button class="btn primary" id="calibFit" ${E.all && project.aps.length ? "" : "disabled"}>${t("calibFit")}</button>
@@ -1824,6 +1833,7 @@ $("#clientH").addEventListener("change", e => {
 $("#marginSel").addEventListener("change", e => { project.settings.margin = +e.target.value; renderSettings(); changed({ panel: false }); });
 $("#pathsChk").addEventListener("change", e => { project.settings.paths = e.target.checked; changed({ panel: false }); });
 $("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
+$("#dfsChk").addEventListener("change", e => { project.settings.dfs = e.target.checked; });
 $("#wavesChk").addEventListener("change", e => { project.settings.waves = e.target.checked; requestRender(); scheduleAutosave(); });
 
 // ---------- AI assistant ----------
@@ -1923,23 +1933,24 @@ function sanitizeProject(data) {
     walls: arr(data.walls).map(w => ({ id: strOr(w.id, uid()), x1: numOr(w.x1, 0), y1: numOr(w.y1, 0), x2: numOr(w.x2, 0), y2: numOr(w.y2, 0),
                                       mat: MATERIALS[w.mat] ? w.mat : "brick" })),
     aps: arr(data.aps).map(a => ({ id: strOr(a.id, uid()), name: strOr(a.name, "AP"), x: numOr(a.x, 0), y: numOr(a.y, 0), model: strOr(a.model, "custom"),
-                                   tx24: numOr(a.tx24, 0), tx5: numOr(a.tx5, 0),
-                                   gain24: numOr(a.gain24 ?? a.gain, 3), gain5: numOr(a.gain5 ?? a.gain, 3),
-                                   ch24: chOr(a.ch24), ch5: chOr(a.ch5),
+                                   tx24: numOr(a.tx24, 0), tx5: numOr(a.tx5, 0), tx6: a.tx6 == null ? null : numOr(a.tx6, 0),
+                                   gain24: numOr(a.gain24 ?? a.gain, 3), gain5: numOr(a.gain5 ?? a.gain, 3), gain6: numOr(a.gain6, 0),
+                                   ch24: chOr(a.ch24), ch5: chOr(a.ch5), ch6: chOr(a.ch6),
+                                   w24: numOr(a.w24, null), w5: numOr(a.w5, null), w6: numOr(a.w6, null),
                                    mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
                                    az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))) })),
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
     survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
-                                         band: p.band === "2.4" ? "2.4" : "5" })),
+                                         band: BAND_LIST.includes(p.band) ? p.band : "5" })),
     probes: arr(data.probes).slice(0, 500).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0) })),
     calib: cal && Number.isFinite(+cal.n) ? {
-      n: +cal.n, off24: numOr(cal.off24, 0), off5: numOr(cal.off5, 0),
+      n: +cal.n, off24: numOr(cal.off24, 0), off5: numOr(cal.off5, 0), off6: numOr(cal.off6, numOr(cal.off5, 0)),
       rmsBefore: numOr(cal.rmsBefore, null), rmsAfter: numOr(cal.rmsAfter, null),
       count: numOr(cal.count, 0), date: strOr(cal.date, "", 40),
     } : null,
     settings: {
       ...bs,
-      band: s.band === "2.4" ? "2.4" : s.band === "5" ? "5" : bs.band,
+      band: BAND_LIST.includes(s.band) ? s.band : bs.band,
       env: ENVIRONMENTS[s.env] ? +s.env : bs.env,
       opacity: Math.min(0.9, Math.max(0.1, numOr(s.opacity, bs.opacity))),
       minDbm: autoOrNum(s.minDbm, bs.minDbm),
@@ -1951,6 +1962,7 @@ function sanitizeProject(data) {
       paths: s.paths == null ? bs.paths : !!s.paths,
       waves: s.waves == null ? bs.waves : !!s.waves,
       rulers: s.rulers == null ? bs.rulers : !!s.rulers,
+      dfs: !!s.dfs,
     },
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),

@@ -17,17 +17,19 @@
 // 7.4/8.7 dB (an office study, arXiv 1812.00667, measured 5.25 dB per 17 cm plaster wall at 5 GHz).
 // AAC is not in P.2040 and wood doors are uncertain, so those stay at the typical values.
 // Display names live in i18n.js (mat_<key>).
+// db6 (6 GHz) follows the same P.2040 trend a little above 5 GHz.
 const MATERIALS = {
-  drywall:  { db24: 3,  db5: 4,  color: "#9fb4d9" },
-  glass:    { db24: 3,  db5: 5,  color: "#5fd0e8" },
-  lowe:     { db24: 25, db5: 32, color: "#2fa3b8" },   // low-E / metal-coated glazing
-  wood:     { db24: 4,  db5: 6,  color: "#c79a5b" },
-  aac:      { db24: 6,  db5: 9,  color: "#d9c27a" },
-  brick:    { db24: 7,  db5: 9,  color: "#e0835a" },
-  concrete: { db24: 12, db5: 18, color: "#b0b0b0" },
-  concreteHeavy: { db24: 20, db5: 28, color: "#8a8a8a" }, // ≥ 25 cm reinforced / shear wall
-  metal:    { db24: 20, db5: 26, color: "#ff5c8a" },
+  drywall:  { db24: 3,  db5: 4,  db6: 4.5, color: "#9fb4d9" },
+  glass:    { db24: 3,  db5: 5,  db6: 5.5, color: "#5fd0e8" },
+  lowe:     { db24: 25, db5: 32, db6: 34,  color: "#2fa3b8" },   // low-E / metal-coated glazing
+  wood:     { db24: 4,  db5: 6,  db6: 7,   color: "#c79a5b" },
+  aac:      { db24: 6,  db5: 9,  db6: 10,  color: "#d9c27a" },
+  brick:    { db24: 7,  db5: 9,  db6: 10,  color: "#e0835a" },
+  concrete: { db24: 12, db5: 18, db6: 20,  color: "#b0b0b0" },
+  concreteHeavy: { db24: 20, db5: 28, db6: 31, color: "#8a8a8a" }, // ≥ 25 cm reinforced / shear wall
+  metal:    { db24: 20, db5: 26, db6: 28,  color: "#ff5c8a" },
 };
+const matLoss = (m, band) => m["db" + BK[band]] ?? m.db5;
 
 // Path-loss exponent beyond the first metre (walls are modelled separately).
 const ENVIRONMENTS = [
@@ -40,6 +42,7 @@ const ENVIRONMENTS = [
 const BANDS = {
   "2.4": { mhz: 2437 },
   "5":   { mhz: 5250 },
+  "6":   { mhz: 6175 },               // middle of 5925–6425 MHz
 };
 
 // How the AP is mounted. Sets the default height (m) and the antenna pattern.
@@ -58,7 +61,7 @@ const CLIENTS = { laptop: 0, tablet: -3, phone: -5, iot: -8 };
 const DEFAULT_CLIENT_H = 1.0;          // m, a phone in hand / laptop on a desk
 
 // Diffraction loss per turn of a dominant path, by turn angle (dB per degree, capped).
-const DIFF_DB_PER_DEG = { "2.4": 0.12, "5": 0.15 };
+const DIFF_DB_PER_DEG = { "2.4": 0.12, "5": 0.15, "6": 0.16 };
 const DIFF_MAX_DB = 25;
 const NODE_FLOOR_DBM = -100;           // corner nodes weaker than this are not used
 const RELEVANT_DBM = -95;              // below every display floor: the heatmap does not refine it
@@ -76,11 +79,11 @@ function fspl1m(mhz) { return 20 * Math.log10(mhz) - 27.55; }
 
 // Effective radiated power of an AP on a band, optionally capped to Thai NBTC limits.
 function apEirp(ap, band, capNbtc) {
-  const tx = band === "2.4" ? ap.tx24 : ap.tx5;
+  const tx = apTx(ap, band);
   if (!(tx > 0)) return -Infinity;                    // Tx 0 = the AP has no radio on this band
-  const raw = band === "2.4" ? ap.tx24 + ap.gain24 : ap.tx5 + ap.gain5;
+  const raw = tx + apGain(ap, band);
   if (!capNbtc) return raw;
-  const cap = band === "2.4" ? NBTC_CAP["2.4"] : (ap.ch5 >= 100 ? NBTC_CAP["5high"] : NBTC_CAP["5"]);
+  const cap = band === "5" ? (ap.ch5 >= 100 ? NBTC_CAP["5high"] : NBTC_CAP["5"]) : NBTC_CAP[band];
   return Math.min(raw, cap);
 }
 
@@ -294,12 +297,11 @@ function rfContext(project, band, override = null) {
   const st = project.settings || {};
   const env = ENVIRONMENTS[st.env] || ENVIRONMENTS[1];
   const geo = wallGeometry(project);
-  const lossKey = band === "2.4" ? "db24" : "db5";
-  const loss = geo.loss[band] || (geo.loss[band] = Float64Array.from(geo.W.mat, m => MATERIALS[m][lossKey]));
+  const loss = geo.loss[band] || (geo.loss[band] = Float64Array.from(geo.W.mat, m => matLoss(MATERIALS[m], band)));
   // site-survey calibration (survey.js) overrides n and adds a per-band offset
   const cal = project.calib;
   let n = cal && Number.isFinite(cal.n) ? cal.n : env.n;
-  let offset = cal ? (band === "2.4" ? cal.off24 : cal.off5) || 0 : 0;
+  let offset = cal ? cal["off" + BK[band]] ?? (band === "6" ? cal.off5 : 0) ?? 0 : 0;
   if (override) { n = override.n; offset = override.offset; }
   const clientH = Number.isFinite(+st.clientH) ? +st.clientH : DEFAULT_CLIENT_H;
   const paths = st.paths !== false;
@@ -562,7 +564,7 @@ function modelFor(project, band, override = null) {
   }
   const used = new Map();
   const sources = project.aps.map(ap => {
-    const k = JSON.stringify([ap.x, ap.y, ap.tx24, ap.tx5, ap.gain24, ap.gain5, ap.ch5, ap.mount, ap.h, ap.az, ap.bw]);
+    const k = JSON.stringify([ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw]);
     const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap);
     used.set(k, s);
     return s;

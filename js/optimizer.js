@@ -11,7 +11,7 @@ async function autoPlace(project, opts, onProgress = () => {}) {
   const { rf, sources: existing } = modelFor(project, opts.band);
   const box = buildingBox(project);
   const spec = AP_BY_ID[opts.modelId] || AP_BY_ID["generic-ax"];
-  const probe = { ...spec, ch5: 36 };
+  const probe = { ...spec, ch5: 36, ch6: 1 };
   const mnt = mountForModel(spec);
   const srcAt = (x, y) => buildSource(rf, { ...probe, ...mnt, x, y });
   // best signal per cell from a set of prepared sources
@@ -95,28 +95,46 @@ async function autoPlace(project, opts, onProgress = () => {}) {
 }
 
 /**
- * Assign non-overlapping channels so APs that hear each other strongly differ.
- * Greedy colouring, strongest-interference APs first. Mutates ap.ch24 / ap.ch5.
+ * Assign channels so APs that hear each other strongly do not share spectrum.
+ * Greedy colouring, strongest-interference APs first, on every band, using each radio's
+ * channel width (channelPlan in radio.js; DFS channels only when settings.dfs is on).
+ * Mutates ap.ch24 / ap.ch5 / ap.ch6. `all` (optional) = [{ap, floor}] across floors, with
+ * `signalAt(band, i, j)` giving AP j's signal (dBm) at AP i.
  */
-function assignChannels(project) {
-  const aps = project.aps;
-  for (const band of ["2.4", "5"]) {
-    const { rf, sources } = modelFor(project, band);
-    const chans = CHANNELS[band];
-    const key = band === "2.4" ? "ch24" : "ch5";
+function assignChannels(project, all = null, signalAt = null) {
+  const list = all || project.aps.map(ap => ({ ap }));
+  const aps = list.map(e => e.ap);
+  const dfs = !!project.settings?.dfs;
+  for (const band of BAND_LIST) {
+    const key = "ch" + BK[band];
+    const live = aps.map((a, i) => i).filter(i => apTx(aps[i], band) > 0);
+    for (const i of aps.keys()) if (!live.includes(i)) aps[i][key] = null;
+    if (!live.length) continue;
+    let sig = signalAt;
+    if (!sig) {
+      const { rf, sources } = modelFor(project, band);
+      sig = (b, i, j) => sourceRssi(rf, sources[j], aps[i].x, aps[i].y);
+    }
     // interference matrix in mW (linear) so strong neighbours dominate
-    const I = aps.map((a, i) => aps.map((b, j) => i === j ? 0 : Math.pow(10, sourceRssi(rf, sources[j], a.x, a.y) / 10)));
-    const order = aps.map((_, i) => i).sort((i, j) => I[j].reduce((s, v) => s + v, 0) - I[i].reduce((s, v) => s + v, 0));
-    const done = new Set();
+    const I = aps.map((a, i) => aps.map((b, j) => i === j || !live.includes(i) || !live.includes(j) ? 0 : Math.pow(10, sig(band, i, j) / 10)));
+    const order = live.slice().sort((i, j) => I[j].reduce((s, v) => s + v, 0) - I[i].reduce((s, v) => s + v, 0));
+    const done = [];
     for (const i of order) {
-      let bestCh = chans[0], bestCost = Infinity;
-      for (const ch of chans) {
+      const w = apWidth(aps[i], band);
+      const plan = channelPlan(band, w, dfs);
+      let bestCh = plan[0], bestCost = Infinity;
+      plan.forEach((ch, k) => {
+        const span = chSpan(band, ch, w);
         let cost = 0;
-        for (const j of done) if (aps[j][key] === ch) cost += I[i][j] + I[j][i];
-        if (cost < bestCost - 1e-15) { bestCost = cost; bestCh = ch; }
-      }
+        for (const j of done) {
+          const o = overlapFrac(span, chSpan(band, aps[j][key], apWidth(aps[j], band)));
+          if (o) cost += (I[i][j] + I[j][i]) * o;
+        }
+        cost *= 1 + k * 1e-6;                      // ties: earlier channels in the plan
+        if (cost < bestCost - 1e-18) { bestCost = cost; bestCh = ch; }
+      });
       aps[i][key] = bestCh;
-      done.add(i);
+      done.push(i);
     }
   }
 }

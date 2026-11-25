@@ -3,8 +3,8 @@
 // VERSION only names the cache; bumping it is not needed to ship an update.
 const VERSION = "wpth-v20";
 const ASSETS = [
-  "./", "index.html", "css/style.css",
-  "js/i18n.js", "js/catalog.js", "js/model.js", "js/optimizer.js", "js/survey.js", "js/report.js", "js/pdfplan.js", "js/vendor/pdfjs/pdf.min.js", "js/vendor/pdfjs/pdf.worker.min.js", "js/sample.js", "js/view3d.js", "js/vendor/three/three.module.min.js", "js/app.js",
+  "./", "index.html", "css/style.css", "css/pro.css",
+  "js/i18n.js", "js/i18n-pro.js", "js/catalog.js", "js/radio.js", "js/model.js", "js/optimizer.js", "js/survey.js", "js/report.js", "js/pdfplan.js", "js/vendor/pdfjs/pdf.min.js", "js/vendor/pdfjs/pdf.worker.min.js", "js/sample.js", "js/view3d.js", "js/vendor/three/three.module.min.js", "js/app.js",
   "manifest.webmanifest", "icons/favicon.svg", "icons/icon-192.png", "icons/icon-512.png",
 ];
 const NETWORK_TIMEOUT_MS = 4000;       // then answer from the cache (the download still refreshes it)

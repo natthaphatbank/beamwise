@@ -253,7 +253,7 @@ const View3D = (() => {
       const dot = new THREE.Mesh(new THREE.CircleGeometry(r * 0.8, 32), new THREE.MeshBasicMaterial({ color: apColor }));
       dot.rotation.x = -Math.PI / 2; dot.position.set(x, 0.02, z);
       root.add(dot);
-      const ch = band === "2.4" ? ap.ch24 : ap.ch5;
+      const ch = apCh(ap, band);
       const tag = labelSprite(ap.name || "AP", `${h.toFixed(1)} m` + (ch ? ` · ch ${ch}` : ""));
       tag.userData.anchor = new THREE.Vector3(x, h + r * 1.2, z);
       tag.position.copy(tag.userData.anchor);

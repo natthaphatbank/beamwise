@@ -4,6 +4,9 @@
 // Add a model by appending one line. Users can also add their own models in the app
 // (stored in the browser and in the project file); see registerCustomModels() in app.js.
 // A band the model does not have is written as tx = 0 (e.g. 2.4 GHz-only APs).
+// Wi-Fi 7 models without a 6 GHz radio (dual-band 2.4 / 5 GHz)
+const NO_6GHZ = new Set(["ubnt-u7-lite", "ubnt-u7-iw", "tpl-eap723", "asus-rt-be88u", "xiaomi-be7000", "huawei-ae5773-21"]);
+
 const AP_MODELS = [
   // id,                  brand,              model,                      std,       tx24, tx5, g24, g5
   // ---- generic ----
@@ -325,14 +328,19 @@ const AP_MODELS = [
   ["linksys-e8450",       "Linksys",          "E8450",                    "Wi-Fi 6",  20, 23, 4,   5],
   ["google-nest-wifi-pro","Google",           "Nest Wifi Pro",            "Wi-Fi 6E", 20, 22, 3,   4],
   ["eero-6plus",          "eero",             "eero 6+",                  "Wi-Fi 6",  20, 22, 3,   4],
-].map(([id, brand, model, std, tx24, tx5, gain24, gain5]) => ({ id, brand, model, std, tx24, tx5, gain24, gain5 }));
+].map(([id, brand, model, std, tx24, tx5, gain24, gain5]) => {
+  // 6 GHz radio: Wi-Fi 6E / 7 models except the dual-band ones; about 1 dB below the 5 GHz radio
+  const has6 = (std === "Wi-Fi 6E" || std === "Wi-Fi 7") && !NO_6GHZ.has(id);
+  return { id, brand, model, std, tx24, tx5, gain24, gain5, tx6: has6 ? tx5 - 1 : 0, gain6: has6 ? gain5 : 0 };
+});
 
 const AP_BY_ID = Object.fromEntries(AP_MODELS.map(m => [m.id, m]));
 if (Object.keys(AP_BY_ID).length !== AP_MODELS.length) console.warn("catalog.js: duplicate AP model id");
 
 // Thai NBTC EIRP caps (dBm). 5 GHz: 5150–5350 MHz (ch 36–64) 200 mW; 5470–5850 MHz (ch 100+) 1 W.
 // Verify against the current NBTC notification before quoting a project.
-const NBTC_CAP = { "2.4": 20, "5": 23, "5high": 30 };
+// 6 GHz: 5925–6425 MHz, indoor low power, 250 mW (24 dBm) EIRP.
+const NBTC_CAP = { "2.4": 20, "5": 23, "5high": 30, "6": 24 };
 
 // Coverage requirement profiles (minimum acceptable RSSI).
 const REQ_PROFILES = [
@@ -345,5 +353,4 @@ const REQ_PROFILES = [
 // "Auto" picks a requirement from the building type (index = ENVIRONMENTS index).
 const REQ_AUTO_BY_ENV = [-67, -67, -70, -72];
 
-// Non-overlapping channel plans used by the optimizer.
-const CHANNELS = { "2.4": [1, 6, 11], "5": [36, 44, 149, 157] };
+// Non-overlapping channel plans used by the optimizer: channelPlan() in radio.js.

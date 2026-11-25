@@ -1,0 +1,14 @@
+/* Styles for the planning features added after v1 (bands, views, floors, tables, report). */
+
+.seg button { padding: 5px 8px; }
+
+/* per-band radio settings in the AP panel */
+.band-grid { width: 100%; border-collapse: collapse; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.band-grid th { font-weight: 500; color: var(--muted); font-size: 11px; text-align: left; padding: 2px 3px; }
+.band-grid thead th { border-bottom: 1px solid var(--line); }
+.band-grid tbody th { color: var(--text); font-weight: 600; white-space: nowrap; }
+.band-grid tr.cur th { color: var(--accent); }
+.band-grid td { padding: 3px 2px; }
+.band-grid input, .band-grid select { width: 100%; min-width: 0; background: var(--input); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 4px 4px; font-size: 12px; }
+.band-grid input:focus, .band-grid select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.band-grid .u { font-size: 10px; opacity: .8; }
