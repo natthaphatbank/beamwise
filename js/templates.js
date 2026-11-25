@@ -237,6 +237,7 @@ function openTemplates() {
         <canvas id="tplPrev" width="560" height="300" class="tpl-prev"></canvas>
         <p class="unit" id="tplInfo"></p>
         <label class="check"><input type="checkbox" id="tplAuto" checked> ${t("tplAuto")}</label>
+        <label class="row"><span>${t("tplLayout")}</span><select id="tplLayout"><option value="same">${t("tplLayoutSame")}</option><option value="each">${t("tplLayoutEach")}</option></select></label>
         <label class="row"><span>${t("aiModelUsed")}</span><select id="tplModel">${modelOptions(project.newApModel || "generic-ax", false)}</select></label>
         <p class="unit">${t("tplNote")}</p>
       </div>
@@ -266,11 +267,11 @@ function openTemplates() {
   preview();
   box.querySelector("[data-act=cancel]").onclick = closeModal;
   box.querySelector("[data-act=go]").onclick = () => {
-    const vals = read(), auto = $("#tplAuto").checked, model = $("#tplModel").value;
+    const vals = read(), auto = $("#tplAuto").checked, model = $("#tplModel").value, layout = $("#tplLayout").value;
     // replacing unsaved work asks first (Save first / Don't save / Cancel), then builds with a progress bar
     const go = () => {
       openModal(`<h2>${TEMPLATES[key].icon} ${t("tpl_" + key)}</h2><p>${t(auto ? "tplBuildingAps" : "tplBuilding")}</p><div class="progress" id="tplProg"><div></div></div>`);
-      applyTemplate(key, vals, { auto, model }, p => { const b = $("#tplProg"); if (b) b.firstElementChild.style.width = Math.round(p * 100) + "%"; })
+      applyTemplate(key, vals, { auto, model, layout }, p => { const b = $("#tplProg"); if (b) b.firstElementChild.style.width = Math.round(p * 100) + "%"; })
         .catch(e => { console.error(e); flash(t("pdfFailed")); }).finally(() => closeModal());
     };
     closeModal();
@@ -298,7 +299,9 @@ function drawTplPreview(cv, g, k) {
   }
 }
 
-async function applyTemplate(key, vals, { auto, model }, onProgress = () => {}) {
+// layout "same": APs designed on the lowest floor and copied to every floor (same spots, easy
+// cabling); "each": every floor placed on its own, counting signal from the floors around it.
+async function applyTemplate(key, vals, { auto, model, layout = "same" }, onProgress = () => {}) {
   const T = TEMPLATES[key], k = tplKit(), g = T.build(vals, k);
   const margin = 1, Wm = g.W + 2 * margin, Hm = g.H + 2 * margin;
   const ppm = Math.min(40, 3000 / Math.max(Wm, Hm));
@@ -322,16 +325,18 @@ async function applyTemplate(key, vals, { auto, model }, onProgress = () => {}) 
   if (nf > 1) switchFloor(0);
   renderFloorBar(); View3D.reset(); renderSettings(); setTool("select"); fit(); changed();
   if (auto) {
-    for (let i = 0; i < nf; i++) {
+    const each = layout === "each" && nf > 1, rounds = each ? nf : 1;
+    for (let i = 0; i < rounds; i++) {
       if (i !== project.floorIdx) switchFloor(i);
       const res = await autoPlace(project, { band: project.settings.band, req: reqDbm(), reqAt: areaReqAt, target: 0.95,
-        maxAps: 40, keep: false, modelId: project.newApModel }, p => onProgress((i + p) / nf));
+        maxAps: 40, keep: false, modelId: project.newApModel }, p => onProgress((i + p) / rounds));
       for (const q of res.aps) project.aps.push(makeAp(q));
       await addApsForCapacity(project, project.settings.band, 30, makeAp);      // then enough APs for the devices
       project.aps.forEach((a, j) => { a.name = nf > 1 ? `AP-${i + 1}${String(j + 1).padStart(2, "0")}` : `AP-${j + 1}`; });
       changed();
     }
-    assignChannelsAllFloors();
+    if (!each && nf > 1) { switchFloor(0); copyApsToFloors(0); }
+    else assignChannelsAllFloors();
     switchFloor(0);
     changed();
   }

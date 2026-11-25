@@ -134,6 +134,7 @@ function openFloorSettings() {
       <button data-act="down" ${i === 0 ? "disabled" : ""}>${t("floorMoveDown")}</button>
       <button data-act="up" ${i === F.length - 1 ? "disabled" : ""}>${t("floorMoveUp")}</button>
       <button data-act="dup">${t("floorDuplicate")}</button>
+      <button data-act="copyaps" ${F.length < 2 || !(f.aps || []).length ? "disabled" : ""}>${t("floorCopyAps")}</button>
       <button data-act="add">${t("floorAddEmpty")}</button>
       <button data-act="del" class="danger" ${F.length < 2 ? "disabled" : ""}>${t("floorDelete")}</button>
     </div>
@@ -152,6 +153,13 @@ function openFloorSettings() {
   box.querySelector('[data-act="up"]').onclick = () => { apply(); moveFloor(i, 1); openFloorSettings(); };
   box.querySelector('[data-act="down"]').onclick = () => { apply(); moveFloor(i, -1); openFloorSettings(); };
   box.querySelector('[data-act="dup"]').onclick = () => { apply(); closeModal(); addFloor(true); };
+  box.querySelector('[data-act="copyaps"]').onclick = () => {
+    apply(); closeModal();
+    confirmModal(t("floorCopyAps"), tf("floorCopyApsBody", { f: esc(f.name), n: (f.aps || []).length }), () => {
+      copyApsToFloors(i); undoStack = []; redoStack = []; changed();
+      flash(tf("floorCopiedAps", { n: (f.aps || []).length, c: F.length - 1 }));
+    });
+  };
   box.querySelector('[data-act="add"]').onclick = () => { apply(); closeModal(); addFloor(false); };
   box.querySelector('[data-act="del"]').onclick = () => {
     closeModal();
@@ -224,4 +232,23 @@ function assignChannelsAllFloors() {
     const s = sources[aps.indexOf(list[j].ap)];
     return s ? sourceRssi(rf, s, list[i].ap.x, list[i].ap.y) : -Infinity;
   });
+}
+
+// Copy floor `from`'s APs to the other floors at the same spot in the building (plan offsets and
+// scales respected), replacing their APs. Names become AP-<floor><nn>. Channels are re-planned.
+function copyApsToFloors(from, targets = null) {
+  syncActive();
+  const F = project.floors, src = F[from];
+  const list = targets || F.map((_, j) => j);
+  const sm = +src.mPerPx || project.mPerPx, sox = +src.ox || 0, soy = +src.oy || 0;
+  const name = (j, k) => `AP-${j + 1}${String(k + 1).padStart(2, "0")}`;
+  for (const j of list) {
+    const f = F[j], fm = +f.mPerPx || sm;
+    if (j === from) { (f.aps || []).forEach((a, k) => { a.name = name(j, k); }); continue; }
+    f.aps = (src.aps || []).map((ap, k) => ({ ...JSON.parse(JSON.stringify(ap)), id: uid(), name: name(j, k),
+      x: (ap.x * sm + sox - (+f.ox || 0)) / fm, y: (ap.y * sm + soy - (+f.oy || 0)) / fm }));
+  }
+  project.aps = F[project.floorIdx].aps;
+  project.aps.forEach(normalizeAp);
+  assignChannelsAllFloors();
 }
