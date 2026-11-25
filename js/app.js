@@ -29,6 +29,9 @@ function newProject() {
       waves: !matchMedia("(prefers-reduced-motion: reduce)").matches,
       rulers: true,
       dfs: false,                  // let auto channels use 5 GHz DFS channels (52–144)
+      view: "signal",              // heatmap view (VIEW_DEFS in views.js)
+      clientStd: "Wi-Fi 6",        // client device Wi-Fi standard (data rate view)
+      clientSS: 2,                 // client spatial streams
     },
     newWallMat: "brick",
     newApModel: "generic-ax",
@@ -110,6 +113,8 @@ let cursor = null;                 // world coords
 let spaceDown = false;
 let undoStack = [], redoStack = [];
 let heat = null, heatCanvas = null, heatDirty = true, heatCoarse = false;
+let viewGrids = null;              // {best, view, per} from computeViewGrids (views.js)
+const curView = () => VIEW_DEFS[project.settings.view] ? project.settings.view : "signal";
 let needsRender = true;
 let nextId = 1;
 
@@ -242,10 +247,12 @@ function resize() {
 // ---------- heatmap ----------
 function updateHeat() {
   const { width: W, height: H } = project.plan;
-  const target = heatCoarse ? 110 : 340;
+  const view = curView();
+  const target = heatCoarse ? 110 : view === "signal" ? 340 : 240;   // per-AP views cost more
   const cell = Math.max(2, Math.max(W, H) / target);
-  heat = computeHeatmap(project, project.settings.band, cell);
-  heatCanvas = heatmapToCanvas(heat, effMinDbm());
+  viewGrids = computeViewGrids(project, project.settings.band, cell, view);
+  heat = viewGrids.best;
+  heatCanvas = view === "signal" ? heatmapToCanvas(heat, effMinDbm()) : viewToCanvas(viewGrids, view, effMinDbm());
   heatMask = areaMask(project, heat);
   heatDirty = false;
   renderStats();
@@ -473,6 +480,11 @@ function drawAp(c, px, ap, isSel) {
     c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 1.2 * px;
     c.beginPath(); c.moveTo(x, y); c.arc(x, y, R, a - h, a + h); c.closePath(); c.fill(); c.stroke();
   }
+  // serving-AP view: ring in the AP's zone colour
+  if (curView() === "serving") {
+    const idx = project.aps.indexOf(ap);
+    if (idx >= 0) { c.strokeStyle = `rgb(${apColor(idx)})`; c.lineWidth = 4 * px; c.beginPath(); c.arc(x, y, r + 3 * px, 0, 7); c.stroke(); }
+  }
   // selection halo
   if (isSel) {
     c.fillStyle = P.selFill; c.strokeStyle = P.sel; c.lineWidth = 2 * px;
@@ -577,11 +589,31 @@ function probeGrade(v) {
 }
 const fmtDbm = v => Number.isFinite(v) ? `${Math.round(v)} dBm` : "—";
 // heatmap value under a world point (fast, for the live status-bar readout)
-function heatAt(p) {
-  if (!heat || heatDirty || !project.aps.length) return null;   // stale grid: skip until the next frame
-  const c = Math.floor(p.x / heat.cell), r = Math.floor(p.y / heat.cell);
-  if (c < 0 || r < 0 || c >= heat.cols || r >= heat.rows) return null;
-  return heat.data[r * heat.cols + c];
+function heatAt(p, grid = heat) {
+  if (!grid || heatDirty || !project.aps.length) return null;   // stale grid: skip until the next frame
+  const c = Math.floor(p.x / grid.cell), r = Math.floor(p.y / grid.cell);
+  if (c < 0 || r < 0 || c >= grid.cols || r >= grid.rows) return null;
+  return grid.data[r * grid.cols + c];
+}
+// "≈ 24 dB SINR" etc. for the status bar
+function viewReadout(p) {
+  const v = curView(), hv = heatAt(p);
+  if (hv == null) return "";
+  if (v === "signal" || !viewGrids) return ` · ≈ ${fmtDbm(hv)}`;
+  const x = heatAt(p, viewGrids.view);
+  if (x == null || hv < effMinDbm()) return ` · ≈ ${fmtDbm(hv)}`;
+  return ` · ${fmtViewVal(v, x)}`;
+}
+function fmtViewNum(v, x) {
+  if (!Number.isFinite(x)) return "—";
+  if (v === "signal" || v === "secondary") return fmtDbm(x);
+  if (v === "rate") return `${x >= 100 ? Math.round(x) : x.toFixed(1)} Mbps`;
+  if (v === "cci" || v === "apcount") return String(Math.round(x * 10) / 10);
+  return `${Math.round(x)} dB`;
+}
+function fmtViewVal(v, x) {
+  if (v === "serving") return `${t("view_serving")}: ${esc(project.aps[x]?.name || "AP")}`;
+  return `${t("view_" + v)}: ${fmtViewNum(v, x)}`;
 }
 function hitProbe(p) {
   const tol = 12 * touchK / view.s;
@@ -1055,7 +1087,7 @@ canvas.addEventListener("pointermove", e => {
   const inside = p.x >= 0 && p.y >= 0 && p.x <= project.plan.width && p.y <= project.plan.height;
   const hv = inside ? heatAt(p) : null;
   $("#stCursor").textContent = inside ? `x ${(p.x * project.mPerPx).toFixed(1)} m, y ${(p.y * project.mPerPx).toFixed(1)} m` +
-    (hv != null ? ` · ≈ ${fmtDbm(hv)} (${project.settings.band} GHz)` : "") : "—";
+    (hv != null ? `${viewReadout(p)} (${project.settings.band} GHz)` : "") : "—";
 
   if (pending && Math.hypot(e.clientX - pending.sx, e.clientY - pending.sy) > TAP_SLOP) {
     drag = { type: "pan", sx: pending.sx, sy: pending.sy, ox: pending.ox, oy: pending.oy };
@@ -1651,6 +1683,23 @@ function renderPanel() {
   $("#delBtn")?.addEventListener("click", deleteSelection);
 }
 
+// SNR, SINR, data rate and interference at a pin, on the band shown.
+function probeMetricsHtml(pt) {
+  const band = project.settings.band;
+  const m = pointMetrics(project, band, pt.x, pt.y);
+  if (!m || !Number.isFinite(m.best)) return "";
+  const db = x => Number.isFinite(x) ? `${Math.round(x)} dB` : "—";
+  const sw = (view, x) => Number.isFinite(x) ? `<i class="sw" style="background:rgb(${viewColor(view, x)})"></i>` : "";
+  return `<div class="probe-metrics">
+    <div class="row"><span>${t("view_serving")}</span><b>${esc(m.servingAp?.name || "AP")}${m.servingAp && apCh(m.servingAp, band) != null ? ` <span class="unit">ch ${apCh(m.servingAp, band)} · ${apWidth(m.servingAp, band)} MHz</span>` : ""}</b></div>
+    <div class="row"><span>${t("view_secondary")}</span><b>${sw("secondary", m.second)}${fmtDbm(m.second)}</b></div>
+    <div class="row"><span>SNR</span><b>${sw("snr", m.snr)}${db(m.snr)}</b></div>
+    <div class="row"><span>SINR</span><b>${sw("sinr", m.sinr)}${db(m.sinr)}</b></div>
+    <div class="row"><span>${t("view_cci")}</span><b>${sw("cci", m.cci)}${m.cci}</b></div>
+    <div class="row"><span>${t("view_rate")}</span><b>${sw("rate", m.rate)}${m.rate >= 100 ? Math.round(m.rate) : m.rate.toFixed(1)} Mbps</b></div>
+  </div>`;
+}
+
 function renderProbePanel(el) {
   const pt = project.probes[probeActive];
   if (!pt) { el.innerHTML = `<p class="empty">${t("probeHelp")}</p>`; return; }
@@ -1667,6 +1716,7 @@ function renderProbePanel(el) {
       <div class="probe-sub">${t("requirement")} ${reqText()}</div>
     </div>
     ${others.map(ob => `<div class="row"><span>${ob} GHz</span><b>${swatch(r[ob])}${fmtDbm(r[ob])}</b></div>`).join("")}
+    ${probeMetricsHtml(pt)}
     <div class="row"><span>${t("probePos")}</span><span>x ${(pt.x * project.mPerPx).toFixed(1)} m, y ${(pt.y * project.mPerPx).toFixed(1)} m</span></div>
     ${rows.length ? `<table class="probe-aps">
       <tr><th>AP</th><th>${t("probeDist")}</th>${BAND_LIST.map(b => `<th>${b}</th>`).join("")}</tr>
@@ -1681,6 +1731,20 @@ function renderProbePanel(el) {
     </div>`;
   $("#probeDel").onclick = () => deleteProbe(probeActive);
   $("#probeClear")?.addEventListener("click", () => { pushHistory(); clearProbes(); renderPanel(); requestRender(); });
+}
+
+// Legend for the heatmap view being shown.
+function renderLegend() {
+  const st = project.settings, v = curView(), def = VIEW_DEFS[v];
+  const item = (rgb, lbl) => `<div class="item"><span class="sw" style="background:rgb(${rgb})"></span><span class="lbl">${lbl}</span></div>`;
+  let html = "";
+  if (v === "signal" || v === "secondary") html = SIGNAL_STOPS.map(s => item(s.rgb, `<b>${s.label}</b> dBm · ${t(s.key)}`)).join("");
+  else if (v === "serving") html = project.aps.slice(0, 16).map((a, i) => item(apColor(i), `<b>${esc(a.name || "AP")}</b>`)).join("") +
+    (project.aps.length > 16 ? `<div class="unit">+${project.aps.length - 16}</div>` : "");
+  else html = def.stops.map(s => item(s.rgb, `<b>${s.label}</b>${def.unit ? " " + def.unit : ""}`)).join("");
+  $("#legend").innerHTML = `<div class="view-name">${t("view_" + v)} · ${st.band} GHz</div>` + html +
+    `<p class="unit view-help">${t("viewHelp_" + v)}</p>` +
+    `<div class="req-line">${t("requirement")}: <b>${reqText()}</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
 }
 
 function renderSettings() {
@@ -1706,9 +1770,13 @@ function renderSettings() {
   $("#wavesChk").checked = !!st.waves;
   $("#rulersChk").checked = st.rulers !== false;
   $("#dfsChk").checked = !!st.dfs;
-  $("#legend").innerHTML = SIGNAL_STOPS.map(s =>
-    `<div class="item"><span class="sw" style="background:rgb(${s.rgb})"></span><span class="lbl"><b>${s.label}</b> dBm · ${t(s.key)}</span></div>`).join("") +
-    `<div class="req-line">${t("requirement")}: <b>${reqText()}</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
+  renderLegend();
+  $("#viewSel").innerHTML = VIEW_KEYS.map(k => `<option value="${k}">${t("view_" + k)}</option>`).join("");
+  $("#viewSel").value = curView();
+  $("#clientStdSel").innerHTML = WIFI_STDS.map(x => `<option>${x}</option>`).join("");
+  $("#clientStdSel").value = st.clientStd || "Wi-Fi 6";
+  $("#clientSSSel").innerHTML = [1, 2, 3, 4].map(n => `<option value="${n}">${n}</option>`).join("");
+  $("#clientSSSel").value = String(clientStreams(st));
   renderAiModel();
   const ls = $("#langSel");
   if (!ls.options.length) ls.innerHTML = LANGS.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
@@ -1762,6 +1830,9 @@ function renderStats() {
   const area = (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2;
   const req = reqDbm();
   const cov = heat && project.aps.length ? coverageStats(heat, effMinDbm(), req, box, heatMask) : null;
+  const v = curView(), def = VIEW_DEFS[v];
+  const vst = cov && viewGrids?.per && (def.good != null || def.goodMax != null) ? viewStats(viewGrids, v, box, heatMask, effMinDbm()) : null;
+  const noRadio = project.aps.length && !project.aps.some(a => apTx(a, project.settings.band) > 0);
   const counts = {};
   for (const ap of project.aps) { const m = AP_BY_ID[ap.model]; const k = m ? `${m.brand} ${m.model}` : t("custom"); counts[k] = (counts[k] || 0) + 1; }
   const pct = v => (v * 100).toFixed(0) + "%";
@@ -1773,8 +1844,12 @@ function renderStats() {
     ${cov ? `
     <span class="k">${t("meetsReq")} (≥ ${req})</span><span class="v ${cls(cov.meet, 0.95, 0.8)}">${pct(cov.meet)}</span>
     <span class="k">${t("covNone")}</span><span class="v ${cov.none < 0.02 ? "good" : cov.none < 0.1 ? "warn" : "bad"}">${pct(cov.none)}</span>` : ""}
+    ${vst ? `<span class="k">${tf("viewGood_" + v, { n: def.good ?? def.goodMax })}</span><span class="v ${cls(vst.good, 0.9, 0.7)}">${pct(vst.good)}</span>
+    ${Number.isFinite(vst.avg) && v !== "cci" && v !== "apcount" ? `<span class="k">${t("viewAvg")}</span><span class="v">${fmtViewNum(v, vst.avg)}</span>` : ""}` : ""}
+    ${noRadio ? `<div class="models warn-text">${tf("noBandRadio", { b: project.settings.band })}</div>` : ""}
     ${project.aps.length ? `<div class="models"><b>${t("apModels")}:</b><br>${Object.entries(counts).map(([k, n]) => `${n} × ${esc(k)}`).join("<br>")}</div>` : ""}`;
   renderCalib();
+  if (!$("#legendCard").hidden) renderLegend();
   $("#stScale").textContent = project.scaleSet || !project.plan.image
     ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : t("noScale");
 }
@@ -1818,7 +1893,7 @@ function renderCalib() {
 
 $("#bandSeg").addEventListener("click", e => {
   const b = e.target.closest("[data-band]"); if (!b) return;
-  project.settings.band = b.dataset.band; renderSettings(); changed({ panel: false });
+  project.settings.band = b.dataset.band; renderSettings(); changed();
 });
 $("#envSel").addEventListener("change", e => { project.settings.env = +e.target.value; renderSettings(); changed({ panel: false }); });
 $("#reqSel").addEventListener("change", e => { project.settings.req = e.target.value === "auto" ? "auto" : +e.target.value; renderSettings(); changed({ panel: false }); });
@@ -1834,6 +1909,9 @@ $("#marginSel").addEventListener("change", e => { project.settings.margin = +e.t
 $("#pathsChk").addEventListener("change", e => { project.settings.paths = e.target.checked; changed({ panel: false }); });
 $("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
 $("#dfsChk").addEventListener("change", e => { project.settings.dfs = e.target.checked; });
+$("#viewSel").addEventListener("change", e => { project.settings.view = e.target.value; renderLegend(); changed({ panel: false }); });
+$("#clientStdSel").addEventListener("change", e => { project.settings.clientStd = e.target.value; changed({ panel: false }); });
+$("#clientSSSel").addEventListener("change", e => { project.settings.clientSS = +e.target.value; changed({ panel: false }); });
 $("#wavesChk").addEventListener("change", e => { project.settings.waves = e.target.checked; requestRender(); scheduleAutosave(); });
 
 // ---------- AI assistant ----------
@@ -1963,6 +2041,9 @@ function sanitizeProject(data) {
       waves: s.waves == null ? bs.waves : !!s.waves,
       rulers: s.rulers == null ? bs.rulers : !!s.rulers,
       dfs: !!s.dfs,
+      view: VIEW_DEFS[s.view] ? s.view : bs.view,
+      clientStd: WIFI_STDS.includes(s.clientStd) ? s.clientStd : bs.clientStd,
+      clientSS: Math.min(4, Math.max(1, Math.round(numOr(s.clientSS, bs.clientSS)))),
     },
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),

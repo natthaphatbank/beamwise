@@ -12,3 +12,10 @@
 .band-grid input, .band-grid select { width: 100%; min-width: 0; background: var(--input); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 4px 4px; font-size: 12px; }
 .band-grid input:focus, .band-grid select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .band-grid .u { font-size: 10px; opacity: .8; }
+
+/* heatmap views */
+.legend .view-name { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+.legend .view-help { margin: 6px 0 0; }
+.probe-metrics { margin: 6px 0; padding-top: 4px; border-top: 1px solid var(--line); }
+.probe-metrics .row { margin: 4px 0; }
+.probe-metrics .unit { font-weight: 400; }
