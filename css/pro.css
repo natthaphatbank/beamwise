@@ -105,3 +105,8 @@
   .r-legend .rl-i { display: inline-flex; align-items: center; gap: 1.2mm; color: #333; }
   .r-legend i { display: inline-block; width: 6mm; height: 3mm; border: 0.4pt solid rgba(0,0,0,.2); }
 }
+
+/* DXF import */
+.dxf-layers { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; columns: 2; column-gap: 20px; }
+.dxf-layers .check { margin: 3px 0 !important; break-inside: avoid; color: var(--text) !important; }
+@media (max-width: 520px) { .dxf-layers { columns: 1; } }

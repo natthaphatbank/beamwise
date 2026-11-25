@@ -1750,7 +1750,9 @@ function renderPanel() {
       pushHistory(); project.areas = []; if (selection?.type === "area") selection = null; changed();
     });
   } else if (tool === "wall") {
-    el.innerHTML = `<div class="row"><span>${t("wallMaterialForNew")}</span></div>${matButtons(project.newWallMat)}`;
+    el.innerHTML = `<div class="row"><span>${t("wallMaterialForNew")}</span></div>${matButtons(project.newWallMat)}
+      ${planImg ? `<button class="btn" id="detectBtn">${t("detectTitle")}</button>` : ""}`;
+    $("#detectBtn")?.addEventListener("click", openDetectWalls);
     el.querySelectorAll("[data-mat]").forEach(b => b.addEventListener("click", () => {
       project.newWallMat = b.dataset.mat; renderPanel(); scheduleAutosave();
     }));
@@ -2284,6 +2286,7 @@ function loadProjectData(data) {
 // Downscale big floor plans so the heatmap stays fast and the project file stays small.
 function loadPlanFile(file) {
   if (isPdfFile(file)) { loadPdfPlan(file); return; }
+  if (isDxfFile(file)) { loadDxfPlan(file); return; }
   const img = new Image();
   img.onload = () => {
     const MAX = 3000;
@@ -2428,7 +2431,7 @@ $("#stage").addEventListener("dragover", e => e.preventDefault());
 $("#stage").addEventListener("drop", e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0]; if (!f) return;
-  if (f.type.startsWith("image/") || isPdfFile(f)) guardUnsaved(() => loadPlanFile(f));
+  if (f.type.startsWith("image/") || isPdfFile(f) || isDxfFile(f)) guardUnsaved(() => loadPlanFile(f));
   else guardUnsaved(() => f.text().then(txt => loadProjectData(JSON.parse(txt))).then(() => flash(t("loaded"))).catch(() => flash(t("badFile"))));
 });
 
