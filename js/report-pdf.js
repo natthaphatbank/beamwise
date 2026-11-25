@@ -38,6 +38,7 @@ function openReportDialog(preset) {
     <div class="chk-row">
       <label class="check"><input type="checkbox" id="rpAps" ${short ? "" : "checked"}> ${t("apTableTitle")}</label>
       <label class="check"><input type="checkbox" id="rpDetails" ${short ? "" : "checked"}> ${t("pdfDetails")}</label>
+      <label class="check"><input type="checkbox" id="rp3d" checked> ${t("pdf3d")}</label>
       <label class="check"><input type="checkbox" id="rpQuote" ${hasQuote ? "checked" : ""}> ${t("bomTitle")}</label>
     </div>
     <div class="progress" id="rpProg" hidden><div></div></div>
@@ -49,7 +50,7 @@ function openReportDialog(preset) {
     const opts = {
       bands: [...box.querySelectorAll("[data-band]:checked")].map(x => x.dataset.band),
       views: [...box.querySelectorAll("[data-view]:checked")].map(x => x.dataset.view),
-      aps: $("#rpAps").checked, quote: $("#rpQuote").checked, details: $("#rpDetails").checked,
+      aps: $("#rpAps").checked, quote: $("#rpQuote").checked, details: $("#rpDetails").checked, with3d: $("#rp3d").checked,
     };
     if (!opts.bands.length || !opts.views.length) { flash(t("pdfPickOne")); return; }
     box.querySelectorAll("button").forEach(b => { b.disabled = true; });
@@ -75,7 +76,8 @@ function preloadFloorImages() {
 }
 
 // Draw floor i on a band and view into an image; returns { url, cov, vst, req, area, caps }.
-// opts.image: false = statistics only; opts.png: lossless image (for the images ZIP)
+// opts.image: false = statistics only; opts.png: lossless image (for the images ZIP);
+// opts.with3d: also an off-screen 3D picture (url3d)
 async function renderFloorShot(i, band, view, opts = {}) {
   const wantImg = opts.image !== false;
   const keep = { idx: project.floorIdx, band: project.settings.band, view: project.settings.view, planImg, waves: project.settings.waves };
@@ -104,6 +106,7 @@ async function renderFloorShot(i, band, view, opts = {}) {
     drawScaleBar(c, cv.width - 8 * u, cv.height - 8 * u, k / project.mPerPx, { u, theme: CANVAS_THEMES.light, maxW: Math.max(150 * u, cv.width * 0.18) });
     url = opts.png ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg", 0.9);
     }
+    const url3d = opts.with3d ? await View3D.snapshot(1600, 1000) : null;
     const box = buildingBox(project);
     const cov = heat && project.aps.length + crossFloorAps(project, band).length ? coverageStats(heat, effMinDbm(), heatReq || reqDbm(), box, heatMask) : null;
     const def = VIEW_DEFS[view];
@@ -124,7 +127,7 @@ async function renderFloorShot(i, band, view, opts = {}) {
       aN[ai]++;
       if (heat.data[k] >= (heatReq ? heatReq[k] : reqDbm())) aOk[ai]++;
     }
-    out = { url, cov, vst, caps: capLoads ? capLoads.slice(0, project.aps.length) : null,
+    out = { url, url3d, cov, vst, caps: capLoads ? capLoads.slice(0, project.aps.length) : null,
             area: (areasPx2(project) ?? (box.x1 - box.x0) * (box.y1 - box.y0)) * project.mPerPx ** 2, aps: project.aps.slice(),
             avg: n ? sum / n : NaN, min: n ? mn : NaN, areaMeet: A.map((a, k) => aN[k] ? aOk[k] / aN[k] : null),
             weak: cov ? weakRegions(project, heat, heatReq || reqDbm(), 10) : [], viewAvg: vst ? vst.avg : NaN };
@@ -163,7 +166,7 @@ async function buildReport(opts, onProgress) {
     for (const b of opts.bands) {
       shots[i][b] = {};
       for (const v of opts.views) {
-        shots[i][b][v] = await renderFloorShot(i, b, v);
+        shots[i][b][v] = await renderFloorShot(i, b, v, { with3d: opts.with3d && b === opts.bands[0] && v === opts.views[0] });
         onProgress(++done / total);
         await tickUi();
       }
@@ -178,9 +181,11 @@ async function buildReport(opts, onProgress) {
     ${opts.bands.map(b => { const c = shots[i][b][sigView].cov; return `<td class="${c && c.meet >= 0.95 ? "ok" : c && c.meet >= 0.8 ? "mid" : "bad"}">${c ? pct(c.meet) : "—"}</td>`; }).join("")}</tr>`).join("");
 
   // ---- floor sections ----
-  const floorSecs = F.map((f, i) => opts.bands.map(b => `
+  const floorSecs = F.map((f, i) => opts.bands.map((b, bi) => `
     <section class="r-page">
       <h2>${F.length > 1 ? `${esc(t("floorLbl"))} ${esc(f.name)} · ` : ""}${b} GHz</h2>
+      ${bi === 0 && shots[i][b][opts.views[0]].url3d ? `<figure class="r-fig"><img src="${shots[i][b][opts.views[0]].url3d}" alt="">
+        <figcaption>${esc(t("pdf3dCap"))} · ${esc(t("view_" + opts.views[0]))} · ${b} GHz</figcaption></figure>` : ""}
       ${opts.views.map(v => { const s = shots[i][b][v]; return `
         <figure class="r-fig">
           <img src="${s.url}" alt="">

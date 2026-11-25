@@ -54,7 +54,7 @@ async function buildSummaryXlsx(onProgress = () => {}) {
   for (let i = 0; i < F.length; i++) {
     S[i] = {};
     for (const b of bands) {
-      S[i][b] = await renderFloorShot(i, b, view, { image: false });
+      S[i][b] = await renderFloorShot(i, b, view, { image: false, with3d: b === bands[0] });
       onProgress(++done / (F.length * bands.length));
       await tickUi();
     }
@@ -137,6 +137,18 @@ async function buildSummaryXlsx(onProgress = () => {}) {
   if (weak.length > 1) sheets.push({ name: t("xlsWeak"), rows: weak, widths: [12, 10, 10, 10, 12, 12] });
   if (walls.length > 1) sheets.push({ name: t("pdfWalls"), rows: walls, widths: [12, 24, 10, 16, 9, 9, 9] });
   if (sur.length > 1) sheets.push({ name: t("calibTitle"), rows: sur, widths: [12, 6, 10, 10, 10, 16, 16, 14] });
+  // 3D pictures, one per floor
+  const pics = F.map((f, i) => ({ f, url: S[i][bands[0]].url3d })).filter(p => p.url);
+  if (pics.length) {
+    const rows = [], images = [];
+    let row = 0;
+    for (const p of pics) {
+      rows[row] = [{ v: `${t("pdf3dCap")}${F.length > 1 ? ` · ${t("floorLbl")} ${p.f.name}` : ""} · ${bands[0]} GHz`, b: true }];
+      images.push({ bytes: dataUrlBytes(p.url), w: 800, h: 500, row: row + 1, col: 0 });
+      row += 28;
+    }
+    sheets.splice(1, 0, { name: "3D", rows, widths: [20], images });
+  }
   if (project.bom) {
     const q = bomRows(), rows = bomCsv(q);
     sheets.push({ name: t("bomTitle"), rows: [rows[0].map(B), ...rows.slice(1)], widths: [36, 10, 10, 18, 18] });
@@ -155,8 +167,12 @@ async function buildImagesZip(onProgress = () => {}) {
   let done = 0;
   const total = F.length * bands.length * views.length;
   for (let i = 0; i < F.length; i++) for (const b of bands) for (const v of views) {
-    const s = await renderFloorShot(i, b, v, { png: true });
+    const s = await renderFloorShot(i, b, v, { png: true, with3d: v === "signal" });
     files.push({ name: `${F.length > 1 ? `floor-${safe(F[i].name)}_` : ""}${b}GHz_${v}.png`, data: dataUrlBytes(s.url) });
+    if (v === "signal") {
+      const u3 = s.url3d;
+      if (u3) files.push({ name: `${F.length > 1 ? `floor-${safe(F[i].name)}_` : ""}${b}GHz_3d.png`, data: dataUrlBytes(u3) });
+    }
     onProgress(++done / total);
     await tickUi();
   }

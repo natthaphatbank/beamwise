@@ -70,12 +70,7 @@ const View3D = (() => {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         host.appendChild(renderer.domElement);
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.6));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-        sun.position.set(-0.6, 1, 0.45);
-        scene.add(sun);
+        initScene();
       }
     } catch (e) {
       console.error(e);
@@ -89,6 +84,49 @@ const View3D = (() => {
     if (framed !== key) { frame(); framed = key; }
     render();
   }
+  function initScene() {
+    if (scene) return;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 2000);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x445066, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(-0.6, 1, 0.45);
+    scene.add(sun);
+  }
+
+  // Off-screen picture of the current floor (plan, heatmap, walls, APs, other floors) for
+  // reports and exports, from the default viewpoint and in the light theme. Returns a PNG
+  // data URL, or null when 3D (WebGL) is not available.
+  let snapR = null;
+  async function snapshot(w = 1600, h = 1000) {
+    try { await loadThree(); } catch (e) { return null; }
+    try {
+      if (!snapR) {
+        snapR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        snapR.outputColorSpace = THREE.SRGBColorSpace;
+        snapR.setPixelRatio(1);
+      }
+    } catch (e) { return null; }
+    initScene();
+    snapR.setSize(w, h, false);
+    const keep = { renderer, open, built, cam: { ...cam }, wallH, aspect: camera.aspect, theme: uiTheme, see: seeThrough };
+    const top = Math.max(0, ...project.aps.map(a => +a.h || 0));
+    try {
+      renderer = snapR; open = true; uiTheme = "light"; seeThrough = false;
+      wallH = Math.min(6, Math.max(3.0, Math.ceil((top + 0.3) * 10) / 10));
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      rebuild(); frame(); render();
+      return snapR.domElement.toDataURL("image/png");
+    } catch (e) {
+      console.error(e); return null;
+    } finally {
+      renderer = keep.renderer; open = keep.open; uiTheme = keep.theme; seeThrough = keep.see;
+      Object.assign(cam, keep.cam); wallH = keep.wallH;
+      if (camera) { camera.aspect = keep.aspect; camera.updateProjectionMatrix(); }
+      if (open && renderer) { rebuild(); } else { built = keep.built; }
+    }
+  }
+
   function close() {
     open = false;
     if (el) el.hidden = true;
@@ -305,7 +343,7 @@ const View3D = (() => {
     camera.near = Math.max(0.05, cam.dist / 500); camera.far = cam.dist * 20 + 500;
     camera.updateProjectionMatrix();
     // name tags: constant size on screen
-    const hpx = renderer.domElement.clientHeight || 600;
+    const hpx = renderer.domElement.clientHeight || renderer.domElement.height || 600;
     const v = new THREE.Vector3();
     root?.children.forEach(o => {
       if (!o.isSprite) return;
@@ -394,7 +432,7 @@ const View3D = (() => {
   }
 
   return {
-    toggle, close,
+    toggle, close, snapshot,
     isOpen: () => open,
     // the project, heatmap, theme or language changed: rebuild while visible
     refresh() { if (open && renderer) { applyText(); rebuild(); } },
