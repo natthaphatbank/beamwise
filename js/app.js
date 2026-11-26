@@ -2964,19 +2964,23 @@ window.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false)
     fold.title = t(fold.dataset.i18nTitle);
   };
   fold.addEventListener("click", () => { setFolded(!pref.folded); save(); });
-  // drag by the grip, or by the box's own background (not its buttons, select or legend)
+  // drag from anywhere on the box (grip, edges, colour strip) except its buttons and the view list
   dock.addEventListener("pointerdown", e => {
-    if (e.button !== 0 || (e.target !== dock && !e.target.closest(".vd-grip") && !e.target.classList.contains("vd-row"))) return;
+    if (e.button !== 0 || (!e.target.closest(".vd-grip") && e.target.closest("button, select, input"))) return;
     e.preventDefault();
     const s = stage.getBoundingClientRect(), d = dock.getBoundingClientRect();
-    const dx = e.clientX - d.left, dy = e.clientY - d.top;
-    dock.setPointerCapture(e.pointerId);
-    dock.classList.add("dragging");
-    const move = ev => { pref.x = ev.clientX - s.left - dx; pref.y = ev.clientY - s.top - dy; setMoved(true); };
+    const dx = e.clientX - d.left, dy = e.clientY - d.top, x0 = e.clientX, y0 = e.clientY;
+    try { dock.setPointerCapture(e.pointerId); } catch (err) {}
+    let moving = false;
+    const move = ev => {
+      if (!moving && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 3) return;
+      if (!moving) { moving = true; dock.classList.add("dragging"); }
+      pref.x = ev.clientX - s.left - dx; pref.y = ev.clientY - s.top - dy; setMoved(true);
+    };
     const up = () => {
       dock.classList.remove("dragging");
       dock.removeEventListener("pointermove", move); dock.removeEventListener("pointerup", up); dock.removeEventListener("pointercancel", up);
-      if (pref.x != null) save();
+      if (moving) save();
     };
     dock.addEventListener("pointermove", move); dock.addEventListener("pointerup", up); dock.addEventListener("pointercancel", up);
   });
