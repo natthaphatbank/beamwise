@@ -1686,9 +1686,13 @@ function renderApPanel(el, aps) {
     <label class="row"><span>${t("mount")}</span><select data-f="mount">${same("mount") ? "" : `<option value="__mixed" selected>${mixed}</option>`}${Object.keys(MOUNTS).map(k => `<option value="${k}" ${same("mount") && o.mount === k ? "selected" : ""}>${t("mount_" + k)}</option>`).join("")}</select></label>
     <label class="row"><span>${t("apHeight")} <span class="u">(m)</span></span>${num("h", 30, 0.1)}</label>
     ${patternRowHtml(aps)}
-    ${aps.some(a => a.mount === "directional" || apHasPattern(a)) ? `
+    <label class="row"><span>${t("antLbl")}</span><select data-f="antenna">${same("antenna") ? "" : `<option value="__mixed" selected>${mixed}</option>`}
+      <option value="" ${same("antenna") && !o.antenna ? "selected" : ""}>${t("antInternal")}</option>
+      ${Object.entries(ANTENNAS).map(([k, A]) => `<option value="${k}" ${same("antenna") && o.antenna === k ? "selected" : ""}>${t("ant_" + k)} · ${A.gain[24]}/${A.gain[5]}/${A.gain[6]} dBi</option>`).join("")}</select></label>
+    ${aps.some(a => a.mount === "directional" || apHasPattern(a) || a.antenna) ? `
     <label class="row"><span>${t("azimuth")} <span class="u">(°)</span></span><input type="number" data-f="az" min="-360" max="360" step="5" value="${val("az") ?? ""}" ${same("az") ? "" : `placeholder="${mixed}"`}></label>
-    <label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}
+    <label class="row"><span>${t("tiltLbl")} <span class="u">(°)</span></span><input type="number" data-f="tilt" min="-90" max="90" step="1" value="${val("tilt") ?? 0}" ${same("tilt") ? "" : `placeholder="${mixed}"`}></label>
+    ${aps.some(a => a.mount === "directional" && !a.antenna) ? `<label class="row"><span>${t("beamwidth")} <span class="u">(°)</span></span>${num("bw", 360, 5)}</label>` : ""}` : ""}
     <p class="unit eirp">${eirpLine()}</p>
     <div id="apLoadSlot">${one ? apLoadHtml(o) : ""}</div>
     ${one && project.aps.length > 1 ? `<button class="btn" id="applyAllBtn">${t("applyToAll")}</button>` : ""}
@@ -1717,6 +1721,7 @@ function renderApPanel(el, aps) {
       if (f === "name") { o.name = inp.value; $("#propsTitle").textContent = panelTitle(o); }
       else if (/^ch(24|5|6)$/.test(f)) for (const a of aps) a[f] = inp.value ? +inp.value : null;
       else if (/^w(24|5|6)$/.test(f)) for (const a of aps) a[f] = +inp.value;
+      else if (f === "antenna") { for (const a of aps) a.antenna = inp.value || null; changed(); return; }
       else if (f === "mount") {
         for (const a of aps) { a.mount = inp.value; a.h = MOUNTS[inp.value].h; }
         changed();                                   // re-render: height default, azimuth fields
@@ -1731,7 +1736,7 @@ function renderApPanel(el, aps) {
   });
   $("#applyAllBtn")?.addEventListener("click", () => {
     pushHistory();
-    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, tx6: o.tx6, gain24: o.gain24, gain5: o.gain5, gain6: o.gain6, w24: o.w24, w5: o.w5, w6: o.w6, mount: o.mount, h: o.h, bw: o.bw });
+    for (const a of project.aps) if (a !== o) Object.assign(a, { model: o.model, tx24: o.tx24, tx5: o.tx5, tx6: o.tx6, gain24: o.gain24, gain5: o.gain5, gain6: o.gain6, w24: o.w24, w5: o.w5, w6: o.w6, mount: o.mount, h: o.h, bw: o.bw, antenna: o.antenna, tilt: o.tilt });
     changed();
     flash(tf("appliedAll", { n: project.aps.length }));
   });
@@ -1900,6 +1905,17 @@ function renderPanel() {
   $("#delBtn")?.addEventListener("click", deleteSelection);
 }
 
+// Wi-Fi 7 MLO: a Wi-Fi 7 device on a Wi-Fi 7 AP sums its 5 GHz and 6 GHz (or 2.4 GHz) links.
+function mloRateHtml(pt, m) {
+  const st = project.settings, ap = m.servingAp;
+  if (!st.mlo || (STD_RANK[st.clientStd] ?? 6) < 7 || !ap || (STD_RANK[apStd(ap)] ?? 6) < 7) return "";
+  const bands = BAND_LIST.filter(b => b !== "2.4" && apTx(ap, b) > 0);
+  if (bands.length < 2) return "";
+  let sum = 0;
+  for (const b of bands) { const x = pointMetrics(project, b, pt.x, pt.y); if (x && x.servingAp === ap) sum += x.rate; }
+  return `<div class="row"><span>${t("mloRate")} (${bands.join("+")} GHz)</span><b>${fmtViewNum("rate", sum)}</b></div>`;
+}
+
 // SNR, SINR, data rate and interference at a pin, on the band shown.
 function probeMetricsHtml(pt) {
   const band = project.settings.band;
@@ -1914,6 +1930,7 @@ function probeMetricsHtml(pt) {
     <div class="row"><span>SINR</span><b>${sw("sinr", m.sinr)}${db(m.sinr)}</b></div>
     <div class="row"><span>${t("view_cci")}</span><b>${sw("cci", m.cci)}${m.cci}</b></div>
     <div class="row"><span>${t("view_rate")}</span><b>${sw("rate", m.rate)}${m.rate >= 100 ? Math.round(m.rate) : m.rate.toFixed(1)} Mbps</b></div>
+    ${mloRateHtml(pt, m)}
     <div class="row"><span>${t("view_tertiary")}</span><b>${sw("tertiary", m.tertiary)}${fmtDbm(m.tertiary)}</b></div>
     <div class="row"><span>${t("view_throughput")}</span><b>${sw("throughput", m.throughput)}${fmtViewNum("throughput", m.throughput)}</b></div>
     <div class="row"><span>${t("view_loss")}</span><b>${sw("loss", m.loss)}${fmtViewNum("loss", m.loss)}</b></div>
@@ -2499,7 +2516,8 @@ function sanitizeOneFloor(data) {
                                    ch24: chOr(a.ch24), ch5: chOr(a.ch5), ch6: chOr(a.ch6),
                                    w24: numOr(a.w24, null), w5: numOr(a.w5, null), w6: numOr(a.w6, null),
                                    mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
-                                   az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))) })),
+                                   az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))),
+                                   tilt: Math.min(90, Math.max(-90, numOr(a.tilt, 0))), antenna: ANTENNAS[a.antenna] ? a.antenna : null })),
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                        name: strOr(a.name, "", 60), req: a.req == null || a.req === "auto" ? "auto" : Math.min(-30, Math.max(-95, numOr(a.req, -67))),
                                        devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),

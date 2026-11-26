@@ -4,6 +4,8 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    antLbl: "เสาอากาศ", antInternal: "ในตัว (ตามรุ่น)", tiltLbl: "มุมก้ม (tilt)", mloRate: "ความเร็ว MLO รวม",
+    ant_omni3: "Omni 3 dBi (ไดโพล)", ant_omni6: "Omni 6 dBi", ant_patch8: "Patch 8 dBi 70°", ant_panel12: "Panel 12 dBi 60°", ant_sector14: "Sector 15 dBi 90°", ant_sector17: "Sector 17 dBi 60°", ant_narrow20: "ลำแคบ 20 dBi 30°",
     toolOpening: "ช่องโล่งทะลุชั้น / atrium (X)", tlOpening: "ช่องโล่ง", openingZone: "ช่องโล่งในพื้น", k_opening: "ช่องโล่งทะลุชั้น (atrium, โถงบันได)",
     hintOpening: "คลิกรอบช่องที่พื้นชั้นนี้เปิดโล่ง (atrium, โถงสูง, ช่องบันได) • คลิกจุดแรก ดับเบิลคลิก หรือ Enter เพื่อปิด",
     openingHelp: "วาดตรงที่พื้นของชั้นนี้ไม่มีแผ่นพื้น (ช่องโล่งระหว่างชั้นนี้กับชั้นล่าง) สัญญาณจาก AP ชั้นอื่นที่วิ่งผ่านช่องนี้จะไม่ถูกหักค่าพื้น",
@@ -36,6 +38,8 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    antLbl: "Antenna", antInternal: "Internal (model)", tiltLbl: "Downtilt", mloRate: "MLO combined rate",
+    ant_omni3: "Omni 3 dBi (dipole)", ant_omni6: "Omni 6 dBi", ant_patch8: "Patch 8 dBi 70°", ant_panel12: "Panel 12 dBi 60°", ant_sector14: "Sector 15 dBi 90°", ant_sector17: "Sector 17 dBi 60°", ant_narrow20: "Narrow beam 20 dBi 30°",
     toolOpening: "Floor opening / atrium (X)", tlOpening: "Opening", openingZone: "Floor opening", k_opening: "Floor opening (atrium, stair well)",
     hintOpening: "Click around where this floor's slab is open (atrium, double-height space, stair well) • Click the first point, double-click or press Enter to close it",
     openingHelp: "Draw where this floor has no slab (open to the floor below). Signal from APs on other floors that passes through it loses nothing to the slab",

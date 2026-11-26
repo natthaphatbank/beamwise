@@ -7,11 +7,15 @@
 const BAND_LIST = ["2.4", "5", "6"];
 const BK = { "2.4": "24", "5": "5", "6": "6" };
 const apTx = (ap, b) => +ap["tx" + BK[b]] || 0;
-const apGain = (ap, b) => +ap["gain" + BK[b]] || 0;
+// An external antenna (antenna.js ANTENNAS) replaces the AP's internal antenna gain.
+const apGain = (ap, b) => {
+  const ext = ap.antenna && typeof ANTENNAS !== "undefined" ? ANTENNAS[ap.antenna] : null;
+  return ext ? ext.gain[BK[b]] ?? ext.gain["5"] : +ap["gain" + BK[b]] || 0;
+};
 const apCh = (ap, b) => ap["ch" + BK[b]] ?? null;
 
 // Channel widths a radio can use per band, and the default for a new AP.
-const WIDTHS = { "2.4": [20, 40], "5": [20, 40, 80, 160], "6": [20, 40, 80, 160] };
+const WIDTHS = { "2.4": [20, 40], "5": [20, 40, 80, 160], "6": [20, 40, 80, 160, 320] };
 const DEFAULT_WIDTH = { "2.4": 20, "5": 40, "6": 80 };
 function apWidth(ap, b) {
   const w = +ap["w" + BK[b]];
@@ -62,6 +66,8 @@ function chSpan(b, ch, w) {
     const f = chFreq(b, ch);
     return [f - 10, f + 10];
   }
+  // 6 GHz 320 MHz (Wi-Fi 7): 320-1 from channel 1 (5945–6265 MHz) or 320-2 from channel 33 (6105–6425 MHz)
+  if (w >= 320) { const start = ch < 33 ? 1 : 33, lo = chFreq(b, start) - 10; if (lo + 320 <= 6425) return [lo, lo + 320]; }
   // 6 GHz: blocks are aligned from channel 1; keep inside 5925–6425 MHz
   for (const width of [160, 80, 40, 20]) {
     if (w < width) continue;
@@ -98,6 +104,7 @@ function channelPlan5(w, dfs) {
   return blocks.length ? blocks : BLOCKS5[80].filter(s => dfs || !isDfs(s));
 }
 function channelPlan6(w) {
+  if (w >= 320) return [1, 33];
   const step = w / 5;
   const out = [];
   for (let c = 1; c <= 93; c += step) if (chFreq("6", c) - 10 + w <= 6425) out.push(c);

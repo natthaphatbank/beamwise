@@ -128,10 +128,12 @@ function patternAdj(mount, az, bw, dx, dy, elevDeg) {
 
 // Pattern of a prepared source: the measured one for its model and band, else the generic one.
 // elevDeg is unsigned; src.down tells whether the client is below the antenna.
+// Downtilt (src.tilt, degrees, + = aimed below the horizon) shifts the vertical cut.
 function srcPattern(src, dx, dy, elevDeg) {
-  if (!src.pat) return patternAdj(src.mount, src.az, src.bw, dx, dy, elevDeg);
+  const elevRel = (src.down ? elevDeg : -elevDeg) - (src.tilt || 0);
+  if (!src.pat) return patternAdj(src.mount, src.az, src.bw, dx, dy, src.mount === "directional" ? elevRel : elevDeg);
   const azRel = (dx || dy ? Math.atan2(dy, dx) * 180 / Math.PI : 0) - src.az;
-  return patternLookup(src.pat, azRel, src.down ? elevDeg : -elevDeg);
+  return patternLookup(src.pat, azRel, elevRel);
 }
 
 // A wall crossed at an angle is thicker along the path: loss × 1/√cos(incidence), at most ×2.
@@ -487,7 +489,12 @@ function buildSource(rf, ap, { extraLoss = 0, noPaths = false, slabs = null } = 
     x: ap.x, y: ap.y, dead: !Number.isFinite(e),
     eff: e + (rf.offset || 0) + rf.clientOff - extraLoss,   // everything that does not depend on the path
     dh: Math.abs(h - rf.clientH), down: h >= rf.clientH, zA: h, slabs, mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
-    pat: (() => { const p = rf.patterns?.[ap.model]?.[rf.band]; return p && p.h?.length === 360 && p.v?.length === 360 ? p : null; })(),
+    // pattern: an external antenna's, else a measured one for the model, else the generic mount pattern
+    pat: (() => {
+      if (ap.antenna && ANTENNAS[ap.antenna]) return antennaPattern(ap.antenna);
+      const p = rf.patterns?.[ap.model]?.[rf.band]; return p && p.h?.length === 360 && p.v?.length === 360 ? p : null;
+    })(),
+    tilt: +ap.tilt || 0,
     order: [],
   };
   const N = noPaths ? 0 : rf.nodes.n;               // APs on other floors: direct path only

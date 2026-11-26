@@ -200,3 +200,28 @@ function cleanPatterns(P) {
   }
   return Object.keys(out).length ? out : null;
 }
+
+// ---------- external antennas ----------
+// Generic antenna types for APs with antenna connectors. Gain per band (dBi) and half-power
+// beamwidths; the pattern is a parabolic main lobe with a −25 dB floor (back / side lobes).
+const ANTENNAS = {
+  omni3:    { gain: { 24: 3,  5: 4,  6: 4 },  hbw: 360, vbw: 60 },
+  omni6:    { gain: { 24: 6,  5: 7,  6: 7 },  hbw: 360, vbw: 25 },
+  patch8:   { gain: { 24: 7,  5: 8,  6: 8 },  hbw: 70,  vbw: 70 },
+  panel12:  { gain: { 24: 10, 5: 12, 6: 12 }, hbw: 60,  vbw: 30 },
+  sector14: { gain: { 24: 13, 5: 15, 6: 15 }, hbw: 90,  vbw: 12 },
+  sector17: { gain: { 24: 15, 5: 17, 6: 17 }, hbw: 60,  vbw: 8 },
+  narrow20: { gain: { 24: 18, 5: 20, 6: 20 }, hbw: 30,  vbw: 30 },
+};
+const _antPat = {};
+function antennaPattern(key) {
+  const A = ANTENNAS[key];
+  if (!A) return null;
+  if (_antPat[key]) return _antPat[key];
+  const cut = bw => Array.from({ length: 360 }, (_, a) => {
+    if (bw >= 360) return 0;
+    const d = Math.min(a, 360 - a);
+    return Math.max(-25, -12 * (d / bw) ** 2);
+  });
+  return (_antPat[key] = { h: cut(A.hbw), v: cut(A.vbw), name: key });
+}
