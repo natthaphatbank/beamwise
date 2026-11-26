@@ -4,6 +4,8 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    ctyLbl: "ประเทศ (กฎความถี่)", capReg: "จำกัดกำลังส่งและช่องตามกฎของประเทศ", ctySet: "ใช้กฎความถี่ของ{c}", ctyCleared: "ล้างช่องที่ประเทศนี้ไม่อนุญาต {n} ช่อง • กดจัดช่องอัตโนมัติใหม่",
+    cty_TH: "ไทย (กสทช.)", cty_LA: "ลาว", cty_KH: "กัมพูชา", cty_MM: "เมียนมา", cty_VN: "เวียดนาม", cty_MY: "มาเลเซีย", cty_SG: "สิงคโปร์", cty_ID: "อินโดนีเซีย", cty_PH: "ฟิลิปปินส์", cty_CN: "จีน", cty_JP: "ญี่ปุ่น", cty_KR: "เกาหลีใต้", cty_IN: "อินเดีย", cty_AU: "ออสเตรเลีย", cty_EU: "สหภาพยุโรป (ETSI)", cty_UK: "สหราชอาณาจักร", cty_US: "สหรัฐฯ (FCC)",
     antLbl: "เสาอากาศ", antInternal: "ในตัว (ตามรุ่น)", tiltLbl: "มุมก้ม (tilt)", mloRate: "ความเร็ว MLO รวม",
     ant_omni3: "Omni 3 dBi (ไดโพล)", ant_omni6: "Omni 6 dBi", ant_patch8: "Patch 8 dBi 70°", ant_panel12: "Panel 12 dBi 60°", ant_sector14: "Sector 15 dBi 90°", ant_sector17: "Sector 17 dBi 60°", ant_narrow20: "ลำแคบ 20 dBi 30°",
     toolOpening: "ช่องโล่งทะลุชั้น / atrium (X)", tlOpening: "ช่องโล่ง", openingZone: "ช่องโล่งในพื้น", k_opening: "ช่องโล่งทะลุชั้น (atrium, โถงบันได)",
@@ -38,6 +40,8 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    ctyLbl: "Country (radio rules)", capReg: "Limit power and channels to the country's rules", ctySet: "Using the radio rules of {c}", ctyCleared: "{n} channel(s) not allowed in this country cleared • Run Auto channels again",
+    cty_TH: "Thailand (NBTC)", cty_LA: "Laos", cty_KH: "Cambodia", cty_MM: "Myanmar", cty_VN: "Vietnam", cty_MY: "Malaysia", cty_SG: "Singapore", cty_ID: "Indonesia", cty_PH: "Philippines", cty_CN: "China", cty_JP: "Japan", cty_KR: "South Korea", cty_IN: "India", cty_AU: "Australia", cty_EU: "European Union (ETSI)", cty_UK: "United Kingdom", cty_US: "United States (FCC)",
     antLbl: "Antenna", antInternal: "Internal (model)", tiltLbl: "Downtilt", mloRate: "MLO combined rate",
     ant_omni3: "Omni 3 dBi (dipole)", ant_omni6: "Omni 6 dBi", ant_patch8: "Patch 8 dBi 70°", ant_panel12: "Panel 12 dBi 60°", ant_sector14: "Sector 15 dBi 90°", ant_sector17: "Sector 17 dBi 60°", ant_narrow20: "Narrow beam 20 dBi 30°",
     toolOpening: "Floor opening / atrium (X)", tlOpening: "Opening", openingZone: "Floor opening", k_opening: "Floor opening (atrium, stair well)",

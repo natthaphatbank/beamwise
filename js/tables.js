@@ -15,7 +15,7 @@ function openApTable() {
   const cap = project.settings.capNbtc;
   const loadOf = (r) => r.fi === project.floorIdx && capLoads ? capLoads[project.aps.indexOf(r.ap)] : null;
   const chSel = (r, b) => { const k = "ch" + BK[b], v = r.ap[k];
-    return `<select data-k="${k}" ${apTx(r.ap, b) > 0 ? "" : "disabled"}><option value="">–</option>${CH_ALL[b].map(c => `<option ${c === v ? "selected" : ""}>${c}</option>`).join("")}</select>`; };
+    return `<select data-k="${k}" ${apTx(r.ap, b) > 0 ? "" : "disabled"}><option value="">–</option>${regChannels(b).map(c => `<option ${c === v ? "selected" : ""}>${c}</option>`).join("")}</select>`; };
   const wSel = (r, b) => { const k = "w" + BK[b], v = apWidth(r.ap, b);
     return `<select data-k="${k}" ${apTx(r.ap, b) > 0 ? "" : "disabled"}>${WIDTHS[b].map(w => `<option ${w === v ? "selected" : ""}>${w}</option>`).join("")}</select>`; };
   const txIn = (r, b) => `<input type="number" data-k="tx${BK[b]}" min="0" max="30" step="1" value="${apTx(r.ap, b)}">`;

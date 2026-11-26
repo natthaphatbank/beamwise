@@ -26,7 +26,8 @@ function newProject() {
       band: "5", env: 1, opacity: 0.55,
       minDbm: "auto",              // display floor: "auto" = requirement - 15 dB
       req: "auto",                 // required RSSI: "auto" = by building type
-      capNbtc: true,
+      capNbtc: true,               // apply the country's power limits (REG in radio.js)
+      country: "TH",
       client: "phone",             // receiving device (CLIENTS in model.js)
       clientH: DEFAULT_CLIENT_H,   // m above the floor
       margin: 3,                   // dB design margin for signal fluctuation (fading, people, devices)
@@ -1615,7 +1616,7 @@ document.addEventListener("click", e => {
 function eirpText(o) {
   const cap = project.settings.capNbtc;
   const part = b => { const raw = apTx(o, b) + apGain(o, b), e = apEirp(o, b, cap); return !Number.isFinite(e) ? "—" : e < raw ? `${raw}→<b>${e}</b>` : `<b>${raw}</b>`; };
-  return `EIRP ${BAND_LIST.map(b => `${b}G ${part(b)}`).join(" · ")} dBm` + (cap ? " (NBTC)" : "");
+  return `EIRP ${BAND_LIST.map(b => `${b}G ${part(b)}`).join(" · ")} dBm` + (cap ? ` (${project.settings.country || "TH"})` : "");
 }
 
 // Card title follows what the panel is showing (no generic "Properties" heading).
@@ -1670,7 +1671,7 @@ function renderApPanel(el, aps) {
     list.map(c => `<option value="${c}" ${same(f) && c === o[f] ? "selected" : ""}>${c}${dfsMark && isDfs(c) ? " DFS" : ""}</option>`).join("") + `</select>`;
   const wSel = b => { const f = "w" + BK[b]; return `<select data-f="${f}">${same(f) ? "" : `<option value="__mixed" selected>${mixed}</option>`}` +
     WIDTHS[b].map(w => `<option value="${w}" ${same(f) && o[f] === w ? "selected" : ""}>${w}</option>`).join("") + `</select>`; };
-  const bandRow = b => { const k = BK[b]; return `<tr${b === project.settings.band ? ' class="cur"' : ""}><th>${b}</th><td>${num("tx" + k, 30, 1)}</td><td>${num("gain" + k, 15, 0.1)}</td><td>${chSel("ch" + k, CH_ALL[b], b === "5")}</td><td>${wSel(b)}</td></tr>`; };
+  const bandRow = b => { const k = BK[b]; return `<tr${b === project.settings.band ? ' class="cur"' : ""}><th>${b}</th><td>${num("tx" + k, 30, 1)}</td><td>${num("gain" + k, 15, 0.1)}</td><td>${chSel("ch" + k, regChannels(b), b === "5")}</td><td>${wSel(b)}</td></tr>`; };
   const modelSame = same("model");
   const spec = modelSame ? AP_BY_ID[o.model] : null;
   const eirpLine = () => one ? eirpText(o) : "";
@@ -2096,6 +2097,8 @@ function renderSettings() {
     [-75, -80, -85, -90].map(v => `<option value="${v}">${v} dBm</option>`).join("");
   $("#minSel").value = String(st.minDbm);
   $("#capNbtc").checked = !!st.capNbtc;
+  $("#countrySel").innerHTML = REG_KEYS.map(k => `<option value="${k}">${t("cty_" + k)}</option>`).join("");
+  $("#countrySel").value = st.country || "TH";
   $("#clientSel").innerHTML = Object.entries(CLIENTS).map(([k, v]) => `<option value="${k}">${t("client_" + k)} (${v > 0 ? "+" : ""}${v} dB)</option>`).join("");
   $("#clientSel").value = st.client;
   $("#clientH").value = st.clientH;
@@ -2274,6 +2277,18 @@ $("#envSel").addEventListener("change", e => { project.settings.env = +e.target.
 $("#reqSel").addEventListener("change", e => { project.settings.req = e.target.value === "auto" ? "auto" : +e.target.value; renderSettings(); changed({ panel: false }); });
 $("#minSel").addEventListener("change", e => { project.settings.minDbm = e.target.value === "auto" ? "auto" : +e.target.value; changed({ panel: false }); });
 $("#capNbtc").addEventListener("change", e => { project.settings.capNbtc = e.target.checked; changed(); });
+$("#countrySel").addEventListener("change", e => {
+  project.settings.country = e.target.value;
+  // channels the new country does not allow are cleared (re-plan with Auto channels)
+  syncActive();
+  let cleared = 0;
+  for (const f of project.floors) for (const ap of f.aps || []) for (const b of BAND_LIST) {
+    const k = "ch" + BK[b];
+    if (ap[k] != null && !regChannels(b).includes(ap[k])) { ap[k] = null; cleared++; }
+  }
+  renderSettings(); changed();
+  flash(cleared ? tf("ctyCleared", { n: cleared }) : tf("ctySet", { c: t("cty_" + project.settings.country) }));
+}); 
 $("#clientSel").addEventListener("change", e => { project.settings.client = e.target.value; changed({ panel: false }); });
 $("#clientH").addEventListener("change", e => {
   const v = parseFloat(e.target.value);
@@ -2545,6 +2560,7 @@ function sanitizeOneFloor(data) {
       minDbm: autoOrNum(s.minDbm, bs.minDbm),
       req: autoOrNum(s.req, bs.req),
       capNbtc: s.capNbtc == null ? bs.capNbtc : !!s.capNbtc,
+      country: REG[s.country] ? s.country : bs.country,
       client: CLIENTS[s.client] != null ? s.client : bs.client,
       clientH: Math.min(10, Math.max(0, numOr(s.clientH, bs.clientH))),
       margin: Math.min(20, Math.max(0, numOr(s.margin, bs.margin))),

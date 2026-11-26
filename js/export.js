@@ -73,7 +73,7 @@ async function buildSummaryXlsx(onProgress = () => {}) {
     [t("environment"), `${t(env.key)} (n = ${project.calib?.n ?? env.n})`],
     [t("requirement"), reqText()],
     [t("clientDevice"), `${t("client_" + st.client)} · ${st.clientStd} · ${clientStreams(st)} SS`],
-    [t("capNbtc"), st.capNbtc ? "✓" : "—"],
+    [t("capReg"), st.capNbtc ? `✓ ${t("cty_" + (st.country || "TH"))}` : "—"],
     [t("patRow"), project.patterns ? Object.keys(project.patterns).join(", ") : t("patGeneric")],
     [],
     [B(t("summary"))],

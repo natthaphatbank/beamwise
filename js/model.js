@@ -102,8 +102,8 @@ function apEirp(ap, band, capNbtc) {
   if (!(tx > 0)) return -Infinity;                    // Tx 0 = the AP has no radio on this band
   const raw = tx + apGain(ap, band);
   if (!capNbtc) return raw;
-  const cap = band === "5" ? (ap.ch5 >= 100 ? NBTC_CAP["5high"] : NBTC_CAP["5"]) : NBTC_CAP[band];
-  return Math.min(raw, cap);
+  // the project's country rules (regCap in radio.js): sub-band EIRP limits, 6 GHz PSD
+  return Math.min(raw, regCap(band, apCh(ap, band), apWidth(ap, band)));
 }
 
 // Antenna pattern relative to the datasheet (peak) gain, in dB (≤ 0).
@@ -651,7 +651,7 @@ const _modelCache = new Map();
 function modelFor(project, band, override = null) {
   const st = project.settings || {};
   const key = JSON.stringify([band, override, project.mPerPx, project.calib, project.walls, project.attens,
-    st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height, patternsRev(project), materialsRev(project)]);
+    st.env, st.capNbtc, st.country, st.client, st.clientH, st.paths, project.plan.width, project.plan.height, patternsRev(project), materialsRev(project)]);
   let rf = _modelCache.get(key);
   if (rf) { _modelCache.delete(key); _modelCache.set(key, rf); }
   else {
@@ -661,7 +661,7 @@ function modelFor(project, band, override = null) {
   }
   const used = new Map();
   const make = (ap, opt) => {
-    const k = JSON.stringify([ap.model, ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, ap.tilt, ap.antenna, opt && opt.extraLoss, opt && opt.sig]);
+    const k = JSON.stringify([ap.model, ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.ch6, ap.w6, ap.mount, ap.h, ap.az, ap.bw, ap.tilt, ap.antenna, opt && opt.extraLoss, opt && opt.sig]);
     const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap, opt);
     used.set(k, s);
     return s;

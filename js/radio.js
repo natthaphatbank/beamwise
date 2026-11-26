@@ -26,7 +26,7 @@ function apWidth(ap, b) {
 const CH_ALL = {
   "2.4": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
   "5": [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165],
-  "6": Array.from({ length: 24 }, (_, i) => 1 + 4 * i),
+  "6": Array.from({ length: 59 }, (_, i) => 1 + 4 * i),          // up to ch 233 (7125 MHz); regChannels() limits it per country
 };
 const isDfs = ch => ch >= 52 && ch <= 144;          // 5 GHz channels that need radar detection (DFS)
 
@@ -67,13 +67,13 @@ function chSpan(b, ch, w) {
     return [f - 10, f + 10];
   }
   // 6 GHz 320 MHz (Wi-Fi 7): 320-1 from channel 1 (5945–6265 MHz) or 320-2 from channel 33 (6105–6425 MHz)
-  if (w >= 320) { const start = ch < 33 ? 1 : 33, lo = chFreq(b, start) - 10; if (lo + 320 <= 6425) return [lo, lo + 320]; }
+  if (w >= 320) { const start = Math.max(1, Math.floor((ch - 1) / 32) * 32 + 1), lo = chFreq(b, start) - 10; return [lo, lo + 320]; }
   // 6 GHz: blocks are aligned from channel 1; keep inside 5925–6425 MHz
   for (const width of [160, 80, 40, 20]) {
     if (w < width) continue;
     const n = width / 20, idx = Math.floor((ch - 1) / 4 / n) * n;
     const lo = chFreq(b, 1 + idx * 4) - 10;
-    if (lo + width <= 6425) return [lo, lo + width];
+    if (lo + width <= 7125) return [lo, lo + width];
   }
   const f = chFreq(b, ch);
   return [f - 10, f + 10];
@@ -96,18 +96,20 @@ function channelPlan(b, w, dfs) {
   return channelPlan6(w);
 }
 function channelPlan5(w, dfs) {
-  if (w <= 20) return CH_ALL["5"].filter(c => dfs || !isDfs(c));
+  const ok = regChannels("5");
+  if (w <= 20) return ok.filter(c => dfs || !isDfs(c));
   const width = BLOCKS5[w] ? w : 40;
   const blockDfs = s => isDfs(s) || isDfs(s + width / 5 - 4);   // any DFS channel inside the block
-  const blocks = BLOCKS5[width].filter(s => dfs || !blockDfs(s));
+  const blocks = BLOCKS5[width].filter(s => (dfs || !blockDfs(s)) && ok.includes(s) && ok.includes(s + width / 5 - 4));
   // 160 MHz always needs DFS channels; without DFS fall back to 80 MHz blocks
-  return blocks.length ? blocks : BLOCKS5[80].filter(s => dfs || !isDfs(s));
+  return blocks.length ? blocks : BLOCKS5[80].filter(s => (dfs || !isDfs(s)) && ok.includes(s));
 }
 function channelPlan6(w) {
-  if (w >= 320) return [1, 33];
+  const ok = regChannels("6"), maxCh = ok.length ? ok[ok.length - 1] : 93, top = chFreq("6", maxCh) + 10;
+  if (w >= 320) return maxCh >= 93 ? (maxCh >= 233 ? [1, 33, 65, 97, 129, 161] : [1, 33]) : [1];
   const step = w / 5;
   const out = [];
-  for (let c = 1; c <= 93; c += step) if (chFreq("6", c) - 10 + w <= 6425) out.push(c);
+  for (let c = 1; c <= maxCh; c += step) if (chFreq("6", c) - 10 + w <= top) out.push(c);
   return out;
 }
 
@@ -159,4 +161,51 @@ function phyRate(sinr, b, w, apStd, clientStd, ss) {
 function apStd(ap) {
   const m = typeof AP_BY_ID !== "undefined" ? AP_BY_ID[ap.model] : null;
   return m?.std || ap.std || "Wi-Fi 6";
+}
+
+// ---------- regulatory domains ----------
+// Channels allowed and maximum EIRP (dBm) per country, per band / sub-band. 6 GHz low-power
+// indoor rules may also cap the power spectral density (psd, dBm/MHz): EIRP ≤ psd + 10·log10(width).
+// Typical published limits, simplified: check the current national rules before quoting.
+const REG = {
+  TH: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [100, 144, 30], [149, 165, 30]], b6: { max: 93, eirp: 24 } },
+  LA: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: null },
+  KH: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: null },
+  MM: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: null },
+  VN: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: { max: 93, eirp: 24 } },
+  MY: { b24: { ch: [1, 13], eirp: 27 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: { max: 93, eirp: 24 } },
+  SG: { b24: { ch: [1, 13], eirp: 23 }, b5: [[36, 48, 23], [52, 64, 23], [100, 144, 30], [149, 165, 30]], b6: { max: 93, eirp: 24 } },
+  ID: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 161, 30]], b6: null },
+  PH: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 30]], b6: null },
+  CN: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [149, 165, 33]], b6: null },
+  JP: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [100, 144, 23]], b6: { max: 93, eirp: 23, psd: 10 } },
+  KR: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [100, 144, 24], [149, 165, 30]], b6: { max: 233, eirp: 24, psd: 2 } },
+  IN: { b24: { ch: [1, 13], eirp: 36 }, b5: [[36, 48, 23], [52, 64, 23], [100, 140, 24], [149, 165, 36]], b6: null },
+  AU: { b24: { ch: [1, 13], eirp: 36 }, b5: [[36, 48, 23], [52, 64, 23], [100, 116, 30], [132, 144, 30], [149, 165, 36]], b6: { max: 93, eirp: 24, psd: 11 } },
+  EU: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [100, 140, 30]], b6: { max: 93, eirp: 23, psd: 10 } },
+  UK: { b24: { ch: [1, 13], eirp: 20 }, b5: [[36, 48, 23], [52, 64, 23], [100, 140, 30], [149, 165, 23]], b6: { max: 93, eirp: 24, psd: 11 } },
+  US: { b24: { ch: [1, 11], eirp: 36 }, b5: [[36, 48, 36], [52, 64, 30], [100, 144, 30], [149, 165, 36]], b6: { max: 233, eirp: 30, psd: 5 } },
+};
+const REG_KEYS = Object.keys(REG);
+const regOf = () => REG[(typeof project !== "undefined" && project?.settings?.country) || "TH"] || REG.TH;
+
+// 20 MHz channels allowed on a band in the project's country.
+function regChannels(b) {
+  const R = regOf();
+  if (b === "2.4") { const [a, z] = R.b24.ch; return CH_ALL["2.4"].filter(c => c >= a && c <= z); }
+  if (b === "5") return CH_ALL["5"].filter(c => R.b5.some(([a, z]) => c >= a && c <= z));
+  if (!R.b6) return [];
+  return Array.from({ length: Math.floor((R.b6.max - 1) / 4) + 1 }, (_, i) => 1 + 4 * i);
+}
+// Maximum EIRP (dBm) for a radio on channel `ch` with width `w`; -Infinity when not allowed.
+function regCap(b, ch, w) {
+  const R = regOf();
+  if (b === "2.4") return R.b24.eirp;
+  if (b === "5") {
+    const c = ch ?? 36;
+    const sub = R.b5.find(([a, z]) => c >= a && c <= z);
+    return sub ? sub[2] : -Infinity;
+  }
+  if (!R.b6) return -Infinity;
+  return R.b6.psd != null ? Math.min(R.b6.eirp, R.b6.psd + 10 * Math.log10(w || 20)) : R.b6.eirp;
 }

@@ -249,7 +249,7 @@ async function buildReport(opts, onProgress) {
     [t("environment"), `${t(env.key)} (n = ${project.calib?.n ?? env.n})`],
     [t("requirement"), reqText()],
     [t("clientDevice"), `${t("client_" + st.client)} · ${st.clientStd} · ${clientStreams(st)} SS · ${st.clientH} m`],
-    [t("capNbtc"), st.capNbtc ? "✓" : "—"],
+    [t("capReg"), st.capNbtc ? `✓ ${t("cty_" + (st.country || "TH"))}` : "—"],
     [t("pathsOpt"), st.paths !== false ? "✓" : "—"],
     [t("patRow"), project.patterns ? Object.keys(project.patterns).map(id => AP_BY_ID[id] ? `${AP_BY_ID[id].brand} ${AP_BY_ID[id].model}` : id).join(", ") + ` (${t("patMeasured")})` : t("patGeneric")],
   ];
