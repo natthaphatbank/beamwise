@@ -150,25 +150,81 @@ function reqGrid(project, grid, globalReq, margin, aIdx = areaIndexGrid(project,
   return out;
 }
 
+// ---------- device mix, band steering, MLO ----------
+// Device types in an area (area.mix = percentages of area.devices). Phones, laptops and tablets
+// use the project's device Wi-Fi standard and the area's application; the others have their own.
+const DEVICE_TYPES = {
+  phone:   { std: null, ss: 2, bands: ["2.4", "5", "6"] },
+  laptop:  { std: null, ss: 2, bands: ["2.4", "5", "6"] },
+  tablet:  { std: null, ss: 2, bands: ["2.4", "5", "6"] },
+  tv:      { std: "Wi-Fi 5", ss: 2, bands: ["2.4", "5"], mbps: 15 },
+  voip:    { std: "Wi-Fi 5", ss: 1, bands: ["2.4", "5"], mbps: 0.3 },
+  scanner: { std: "Wi-Fi 5", ss: 1, bands: ["2.4", "5"], mbps: 0.5 },
+  iot:     { std: "Wi-Fi 4", ss: 1, bands: ["2.4"], mbps: 0.1 },
+};
+const DEVICE_KEYS = Object.keys(DEVICE_TYPES);
+const DEFAULT_MIX = { phone: 60, laptop: 30, tablet: 10 };
+const NO_STEER_24 = 0.35;               // without band steering about a third of dual-band devices stay on 2.4 GHz
+function areaMix(a) {
+  const m = a.mix && typeof a.mix === "object" ? a.mix : DEFAULT_MIX;
+  const tot = DEVICE_KEYS.reduce((s, k) => s + Math.max(0, +m[k] || 0), 0) || 1;
+  return DEVICE_KEYS.map(k => ({ k, share: Math.max(0, +m[k] || 0) / tot })).filter(e => e.share > 0);
+}
+// Bands that have at least one AP radio anywhere in the project.
+function projectBands(project) {
+  const F = project.floors?.length ? project.floors : [project];
+  const all = F.flatMap(f => (f === project.floors?.[project.floorIdx] ? project.aps : f.aps) || []);
+  return BAND_LIST.filter(b => all.some(ap => apTx(ap, b) > 0));
+}
+// Share of one device type's traffic carried on `band` (band steering, 6 GHz capability, MLO).
+function bandShare(project, type, band, avail) {
+  const st = project.settings || {}, T = DEVICE_TYPES[type];
+  const std = T.std || st.clientStd || "Wi-Fi 6", rank = STD_RANK[std] ?? 6;
+  const can = T.bands.filter(b => avail.includes(b) && (b !== "6" || rank >= 6.5));
+  if (!can.includes(band)) return 0;
+  if (can.length === 1) return 1;
+  const high = can.filter(b => b !== "2.4");
+  // Wi-Fi 7 with multi-link operation: traffic spread over the 5 / 6 GHz links (2.4 GHz only as a last resort)
+  if (st.mlo && rank >= 7) { const pool = high.length ? high : can; return pool.includes(band) ? 1 / pool.length : 0; }
+  const steer = st.steer !== false;
+  const on24 = high.length ? (steer ? 0 : NO_STEER_24) : 1;
+  if (band === "2.4") return on24;
+  const top = high.includes("6") ? "6" : high[0];     // steered to the highest band the device supports
+  return band === top ? 1 - on24 : 0;
+}
+
 /**
  * Airtime each AP needs on a band to serve the devices in its zone:
- * Σ (devices in its cells × Mbps per device) / (PHY rate there × MAC efficiency).
+ * Σ over device types (devices on this band × Mbps per device) / (that type's PHY rate × MAC efficiency).
  * Returns per source { devices, demand (Mbps), airtime (0..1+), unserved (devices without a usable link) }.
  */
-function capacityLoads(project, grid, serving, rate, aIdx, nSrc) {
+function capacityLoads(project, grid, serving, rate, aIdx, nSrc, sinr = null, ctx = null) {
   const A = projectAreas(project);
   const cellsPer = new Array(A.length).fill(0);
   for (let k = 0; k < aIdx.length; k++) if (aIdx[k] >= 0) cellsPer[aIdx[k]]++;
   const loads = Array.from({ length: nSrc }, () => ({ devices: 0, demand: 0, airtime: 0, unserved: 0 }));
+  const band = ctx?.band || project.settings?.band || "5", avail = projectBands(project);
+  const mixes = A.map(a => areaMix(a).map(e => ({ ...e, onBand: bandShare(project, e.k, band, avail), T: DEVICE_TYPES[e.k] })));
   for (let k = 0; k < aIdx.length; k++) {
     const ai = aIdx[k], s = serving[k];
     if (ai < 0 || s < 0 || !cellsPer[ai]) continue;
-    const a = A[ai], dev = (+a.devices || 0) / cellsPer[ai];
-    if (!dev) continue;
-    const mb = dev * areaMbps(a), L = loads[s];
-    if (!(rate[k] > 0)) { L.unserved += dev; continue; }      // no usable link there: those devices cannot connect
-    L.devices += dev; L.demand += mb;
-    L.airtime += mb / (rate[k] * AIRTIME_EFF);
+    const a = A[ai], devAll = (+a.devices || 0) / cellsPer[ai];
+    if (!devAll) continue;
+    const L = loads[s];
+    for (const e of mixes[ai]) {
+      const dev = devAll * e.share * e.onBand;
+      if (!dev) continue;
+      // the type's own link rate (standard, streams) from this spot's SINR
+      let r = rate[k];
+      if (sinr && ctx && (e.T.std || e.T.ss !== ctx.ss)) {
+        const me = ctx.info[s];
+        r = phyRate(sinr[k], band, me.w, me.std, e.T.std || ctx.clientStd, e.T.ss).mbps;
+      }
+      if (!(r > 0)) { L.unserved += dev; continue; }    // no usable link there: those devices cannot connect
+      const mb = dev * (e.T.mbps ?? areaMbps(a));
+      L.devices += dev; L.demand += mb;
+      L.airtime += mb / (r * AIRTIME_EFF);
+    }
   }
   return loads;
 }
@@ -256,7 +312,7 @@ function computeViewGrids(project, band, cellPx, view) {
   }
   const g = computeApGrids(project, band, cellPx);
   const n = g.cols * g.rows, data = new Float32Array(n), bestData = new Float32Array(n);
-  const serving = new Int16Array(n), rate = new Float32Array(n);
+  const serving = new Int16Array(n), rate = new Float32Array(n), sinrA = new Float32Array(n);
   const ctx = viewCtx(project, band, g.aps);
   const sig = new Float32Array(g.per.length);
   const shape = { cols: g.cols, rows: g.rows, cell: g.cell };
@@ -273,7 +329,7 @@ function computeViewGrids(project, band, cellPx, view) {
   for (let k = 0; k < n; k++) {
     for (let j = 0; j < g.per.length; j++) sig[j] = g.per[j][k];
     const m = cellMetrics(sig, ctx);
-    bestData[k] = m.best; serving[k] = m.serving; rate[k] = m.rate;
+    bestData[k] = m.best; serving[k] = m.serving; rate[k] = m.rate; sinrA[k] = m.sinr;
     if (view === "health") {
       const f = healthFails(m, hReq[k], hIdx[k] >= 0 ? hDefs[hIdx[k]] : hDefs.project);
       fails[k] = f; data[k] = popcount(f);
@@ -282,7 +338,7 @@ function computeViewGrids(project, band, cellPx, view) {
   let loads = null;
   if (hasDemand(project)) {
     const aIdx = areaIndexGrid(project, shape);
-    loads = capacityLoads(project, shape, serving, rate, aIdx, g.per.length);
+    loads = capacityLoads(project, shape, serving, rate, aIdx, g.per.length, sinrA, ctx);
     if (view === "capacity") for (let k = 0; k < n; k++) data[k] = serving[k] >= 0 ? loads[serving[k]].airtime * 100 : NaN;
   } else if (view === "capacity") data.fill(0);
   return { best: { ...shape, data: bestData }, view: { ...shape, data }, per: g, serving, rate, loads, fails };

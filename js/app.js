@@ -36,6 +36,8 @@ function newProject() {
       clientStd: "Wi-Fi 6",        // client device Wi-Fi standard (data rate view)
       clientSS: 2,                 // client spatial streams
       reqSet: "data",              // requirement set for network health (REQ_SETS in views.js)
+      steer: true,                 // band steering: dual-band devices pushed to 5 / 6 GHz
+      mlo: false,                  // Wi-Fi 7 multi-link: traffic of Wi-Fi 7 devices spread over bands
     },
     reqCustom: null,               // the "custom" requirement set {snr, rate, aps, cci, sec}
     newWallMat: "brick",
@@ -1816,6 +1818,8 @@ function renderAreaPanel(el, o) {
     <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
     <h4 class="sub-h">${t("capTitle")}</h4>
     <label class="row"><span>${t("capDevicesLbl")}</span><input type="number" id="arDev" min="0" max="5000" step="1" value="${+o.devices || 0}"></label>
+    <div class="row"><span>${t("devMixLbl")} <span class="u">(%)</span></span></div>
+    <div class="mix-grid">${DEVICE_KEYS.map(k => { const m = o.mix || DEFAULT_MIX; return `<label><span>${t("dev_" + k)}</span><input type="number" data-mix="${k}" min="0" max="100" step="5" value="${+m[k] || 0}"></label>`; }).join("")}</div>
     <label class="row"><span>${t("capApp")}</span><select id="arApp">${appOpts}</select></label>
     <label class="row" ${o.app === "custom" ? "" : "hidden"} id="arMbpsRow"><span>${t("capMbps")} <span class="u">(Mbps)</span></span><input type="number" id="arMbps" min="0" max="1000" step="0.1" value="${+o.mbps || 0}"></label>
     <p class="unit">${t("capAreaHelp")}</p>
@@ -1826,6 +1830,15 @@ function renderAreaPanel(el, o) {
   $("#arName").addEventListener("input", e => { o.name = e.target.value.slice(0, 60); renderStats(); });
   $("#arReq").addEventListener("change", e => { pushHistory(); set("req", e.target.value === "auto" ? "auto" : +e.target.value); });
   $("#arReqSet").addEventListener("change", e => { pushHistory(); set("reqSet", e.target.value); });
+  el.querySelectorAll("[data-mix]").forEach(inp => {
+    inp.addEventListener("focus", pushHistory);
+    inp.addEventListener("input", () => {
+      const v = parseFloat(inp.value);
+      if (!(v >= 0)) return;
+      o.mix = { ...(o.mix || DEFAULT_MIX), [inp.dataset.mix]: Math.min(100, v) };
+      changed({ panel: false });
+    });
+  });
   $("#arDev").addEventListener("focus", pushHistory);
   $("#arDev").addEventListener("input", e => { const v = parseInt(e.target.value, 10); if (v >= 0) set("devices", Math.min(5000, v)); });
   $("#arApp").addEventListener("change", e => { pushHistory(); set("app", e.target.value, true); });
@@ -1947,6 +1960,8 @@ function renderSettings() {
   $("#wavesChk").checked = !!st.waves;
   $("#rulersChk").checked = st.rulers !== false;
   $("#dfsChk").checked = !!st.dfs;
+  $("#steerChk").checked = st.steer !== false;
+  $("#mloChk").checked = !!st.mlo;
   renderLegend();
   $("#viewSel").innerHTML = VIEW_KEYS.map(k => `<option value="${k}">${t("view_" + k)}</option>`).join("");
   $("#viewSel").value = curView();
@@ -2045,7 +2060,7 @@ function capacitySummaryHtml() {
   const over = own.filter(L => L.airtime > 1 || L.devices > DEVICES_PER_RADIO).length;
   const pctA = v => v > 9.99 ? "> 999%" : Math.round(v * 100) + "%";
   return `<div class="models cap-sum"><b>${t("capTitle")} · ${project.settings.band} GHz</b><br>
-    ${tf("capDevices", { n: Math.round(dev) })}${unserved >= 1 ? ` · <span class="bad">${tf("capUnserved", { n: Math.round(unserved) })}</span>` : ""}<br>
+    ${tf("capDevicesBand", { n: Math.round(dev), b: project.settings.band })}${unserved >= 1 ? ` · <span class="bad">${tf("capUnserved", { n: Math.round(unserved) })}</span>` : ""}<br>
     ${worst.i >= 0 ? tf("capBusiest", { ap: esc(project.aps[worst.i].name || "AP"), p: pctA(worst.v) }) + "<br>" : ""}
     <span class="${over ? "bad" : "good"}">${over ? tf("capOver", { n: over }) : t("capOk")}</span></div>`;
 }
@@ -2124,6 +2139,8 @@ $("#marginSel").addEventListener("change", e => { project.settings.margin = +e.t
 $("#pathsChk").addEventListener("change", e => { project.settings.paths = e.target.checked; changed({ panel: false }); });
 $("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
 $("#dfsChk").addEventListener("change", e => { project.settings.dfs = e.target.checked; });
+$("#steerChk").addEventListener("change", e => { project.settings.steer = e.target.checked; changed({ panel: false }); });
+$("#mloChk").addEventListener("change", e => { project.settings.mlo = e.target.checked; changed({ panel: false }); });
 $("#reqSetSel").addEventListener("change", e => {
   const k = e.target.value, def = reqSetDef(project, k);
   project.settings.reqSet = k;
@@ -2310,7 +2327,8 @@ function sanitizeOneFloor(data) {
                                        name: strOr(a.name, "", 60), req: a.req == null || a.req === "auto" ? "auto" : Math.min(-30, Math.max(-95, numOr(a.req, -67))),
                                        devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),
                                        app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))),
-                                       reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project" })),
+                                       reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project",
+                                       mix: a.mix && typeof a.mix === "object" ? Object.fromEntries(DEVICE_KEYS.map(k => [k, Math.min(100, Math.max(0, numOr(a.mix[k], 0)))])) : null })),
     attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                          db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),
@@ -2341,6 +2359,7 @@ function sanitizeOneFloor(data) {
       clientStd: WIFI_STDS.includes(s.clientStd) ? s.clientStd : bs.clientStd,
       clientSS: Math.min(4, Math.max(1, Math.round(numOr(s.clientSS, bs.clientSS)))),
       reqSet: REQ_SETS[s.reqSet] !== undefined ? s.reqSet : bs.reqSet,
+      steer: s.steer == null ? bs.steer : !!s.steer, mlo: !!s.mlo,
     },
     reqCustom: data.reqCustom && typeof data.reqCustom === "object" ? Object.fromEntries(["signal", "snr", "rate", "aps", "cci", "sec"].map(k => [k, numOr(data.reqCustom[k], null)])) : null,
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,

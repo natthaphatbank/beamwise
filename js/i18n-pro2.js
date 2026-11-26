@@ -4,6 +4,8 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    devMixLbl: "สัดส่วนอุปกรณ์", dev_phone: "มือถือ", dev_laptop: "โน้ตบุ๊ก", dev_tablet: "แท็บเล็ต", dev_tv: "ทีวี / ป้ายดิจิทัล", dev_voip: "โทรศัพท์ VoIP", dev_scanner: "เครื่องสแกน / POS", dev_iot: "IoT 2.4 GHz",
+    steerOpt: "Band steering (ดันอุปกรณ์สองย่านไป 5/6 GHz)", mloOpt: "MLO ของ Wi-Fi 7 (กระจายโหลดหลายย่าน)", capDevicesBand: "อุปกรณ์บนย่าน {b} GHz: {n} เครื่อง",
     view_tertiary: "สัญญาณ AP ตัวที่ 3", view_throughput: "ความเร็วใช้งานจริง (คาดการณ์)", view_loss: "Packet loss (คาดการณ์)", view_rtt: "เวลาตอบสนอง RTT (คาดการณ์)", view_health: "Network health (ผ่านทุกเกณฑ์)",
     viewHelp_tertiary: "สัญญาณจาก AP ที่แรงเป็นอันดับ 3 • ใช้กับงานระบุตำแหน่ง (location/RTLS) ที่ต้องได้ยิน 3 AP ขึ้นไป",
     viewHelp_throughput: "ความเร็วที่ผู้ใช้หนึ่งคนน่าจะได้: ความเร็ว PHY × ประสิทธิภาพ MAC ÷ จำนวน AP ที่ต้องแบ่งเวลาส่งกัน • เป็นค่าประมาณ",
@@ -20,6 +22,8 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    devMixLbl: "Device mix", dev_phone: "Phones", dev_laptop: "Laptops", dev_tablet: "Tablets", dev_tv: "TVs / signage", dev_voip: "VoIP handsets", dev_scanner: "Scanners / POS", dev_iot: "IoT (2.4 GHz)",
+    steerOpt: "Band steering (dual-band devices to 5 / 6 GHz)", mloOpt: "Wi-Fi 7 MLO (spread load over bands)", capDevicesBand: "{n} devices on {b} GHz",
     view_tertiary: "Tertiary signal (3rd AP)", view_throughput: "Expected throughput", view_loss: "Packet loss (estimated)", view_rtt: "Round-trip time (estimated)", view_health: "Network health (all requirements)",
     viewHelp_tertiary: "Signal from the third-strongest AP • For location / RTLS, which needs 3 or more APs heard",
     viewHelp_throughput: "What one user can expect: PHY rate × MAC efficiency ÷ the APs sharing the channel's airtime • An estimate",

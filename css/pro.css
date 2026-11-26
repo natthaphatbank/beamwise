@@ -150,3 +150,8 @@
 .probe-health.good { background: color-mix(in srgb, var(--good) 12%, transparent); }
 .probe-health.bad { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 #reqSetEdit { margin: -2px 0 6px; }
+
+/* device mix */
+.mix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 2px 0 6px; }
+.mix-grid label { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
+.mix-grid input { width: 58px; background: var(--input); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 3px 5px; font-size: 12px; }
