@@ -12,9 +12,33 @@ function reportBands() {
   return b.length ? b : ["5"];
 }
 
-// preset "summary": a short report (signal heatmap per floor and band, summary, quote)
+// Report sections, in their default order. The template (project.report.tpl) keeps the order
+// and which are switched off, plus branding: company, contact, logo, accent colour, intro,
+// closing text and a footer. "Save as my default" keeps the branding in this browser.
+const REPORT_SECTIONS = ["cover", "summary", "assumptions", "areas", "capacity", "floors", "aps", "notes", "details", "quote", "conclusion"];
+const TPL_KEY = "bw-report-template";
+function defaultTpl() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(TPL_KEY) || "null"); } catch (e) {}
+  return cleanTpl(saved) || { company: "", contact: "", logo: null, accent: "#1f5fbf", intro: "", outro: "", footer: "", order: REPORT_SECTIONS.slice(), off: [] };
+}
+function cleanTpl(x) {
+  if (!x || typeof x !== "object") return null;
+  const order = (Array.isArray(x.order) ? x.order : []).filter(k => REPORT_SECTIONS.includes(k));
+  for (const k of REPORT_SECTIONS) if (!order.includes(k)) order.push(k);
+  return { company: strOr(x.company, "", 120), contact: strOr(x.contact, "", 200),
+           logo: typeof x.logo === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(x.logo) && x.logo.length < 600000 ? x.logo : null,
+           accent: /^#[0-9a-f]{6}$/i.test(x.accent) ? x.accent : "#1f5fbf", intro: strOr(x.intro, "", 3000), outro: strOr(x.outro, "", 3000),
+           footer: strOr(x.footer, "", 200), order, off: (Array.isArray(x.off) ? x.off : []).filter(k => REPORT_SECTIONS.includes(k)) };
+}
+function reportTpl() {
+  const r = project.report || (project.report = { title: "", customer: "", author: "", notes: "" });
+  return r.tpl || (r.tpl = defaultTpl());
+}
+
+// preset "summary": a short report (signal heatmap per floor and band, summary, quote); "docx": Word first
 function openReportDialog(preset) {
-  const short = preset === "summary";
+  const short = preset === "summary", wordFirst = preset === "docx";
   syncActive();
   const r = project.report || (project.report = { title: "", customer: "", author: "", notes: "" });
   const bands = reportBands();
@@ -34,23 +58,75 @@ function openReportDialog(preset) {
     <div class="chk-row">${BAND_LIST.map(b => `<label class="check"><input type="checkbox" data-band="${b}" ${bands.includes(b) ? "checked" : ""}> ${b} GHz</label>`).join("")}</div>
     <h3 class="modal-sub">${t("pdfViews")}</h3>
     <div class="chk-row">${views.map(v => `<label class="check"><input type="checkbox" data-view="${v}" ${defViews.has(v) ? "checked" : ""}> ${t("view_" + v)}</label>`).join("")}</div>
-    <h3 class="modal-sub">${t("pdfSections")}</h3>
-    <div class="chk-row">
-      <label class="check"><input type="checkbox" id="rpAps" ${short ? "" : "checked"}> ${t("apTableTitle")}</label>
-      <label class="check"><input type="checkbox" id="rpDetails" ${short ? "" : "checked"}> ${t("pdfDetails")}</label>
-      <label class="check"><input type="checkbox" id="rp3d" checked> ${t("pdf3d")}</label>
-      <label class="check"><input type="checkbox" id="rpQuote" ${hasQuote ? "checked" : ""}> ${t("bomTitle")}</label>
-    </div>
+    <label class="check"><input type="checkbox" id="rp3d" checked> ${t("pdf3d")}</label>
+    <h3 class="modal-sub">${t("pdfSections")} <span class="unit">${t("tplOrderHint")}</span></h3>
+    <div class="sec-list" id="rpSecs"></div>
+    <details class="adv tpl-box"><summary>${t("tplBrand")}</summary>
+      <div class="model-form">
+        <label class="field"><span>${t("tplCompany")}</span><input id="tpCompany" maxlength="120"></label>
+        <label class="field"><span>${t("tplContact")}</span><input id="tpContact" maxlength="200"></label>
+        <label class="field"><span>${t("tplAccent")}</span><input id="tpAccent" type="color"></label>
+        <label class="field"><span>${t("tplFooter")}</span><input id="tpFooter" maxlength="200"></label>
+      </div>
+      <div class="tpl-logo"><img id="tpLogoImg" alt="" hidden><button type="button" class="link-btn" id="tpLogoBtn">${t("tplLogo")}</button>
+        <button type="button" class="link-btn danger" id="tpLogoDel" hidden>${t("deleteShort")}</button><input type="file" id="tpLogoIn" accept="image/png,image/jpeg,image/webp" hidden></div>
+      <label class="field"><span>${t("tplIntro")}</span><textarea id="tpIntro" rows="3" class="note-text" maxlength="3000"></textarea></label>
+      <label class="field"><span>${t("tplOutro")}</span><textarea id="tpOutro" rows="3" class="note-text" maxlength="3000"></textarea></label>
+      <div class="btns inline"><button type="button" data-act="tplsave">${t("tplSaveDefault")}</button><button type="button" data-act="tplreset">${t("tplReset")}</button></div>
+    </details>
     <div class="progress" id="rpProg" hidden><div></div></div>
-    <div class="btns inline"><button data-act="cancel">${t("cancel")}</button><button class="primary" data-act="go">${t("pdfCreate")}</button></div>`, null, "wide");
+    <div class="btns inline"><button data-act="cancel">${t("cancel")}</button>
+      <button ${wordFirst ? "" : 'class="primary"'} data-act="go">${t("pdfCreate")}</button>
+      <button ${wordFirst ? 'class="primary"' : ""} data-act="docx">${t("docxCreate")}</button></div>`, null, "wide");
   const box = $("#modalBox");
+  const tpl = reportTpl();
+  // sections: order and on / off (the short summary starts with a reduced set; its choice does not change the template)
+  let order = tpl.order.slice(), off = new Set(short ? ["assumptions", "areas", "capacity", "aps", "notes", "details", "conclusion"] : tpl.off);
+  if (!hasQuote) off.add("quote");
+  const drawSecs = () => {
+    $("#rpSecs").innerHTML = order.map((k, i) => `<div class="sec-row"><label class="check"><input type="checkbox" data-sec="${k}" ${off.has(k) ? "" : "checked"}> ${t("sec_" + k)}</label>
+      <span><button type="button" class="link-btn" data-up="${i}" ${i ? "" : "disabled"}>↑</button> <button type="button" class="link-btn" data-down="${i}" ${i < order.length - 1 ? "" : "disabled"}>↓</button></span></div>`).join("");
+    $("#rpSecs").querySelectorAll("[data-sec]").forEach(c => c.onchange = () => { if (c.checked) off.delete(c.dataset.sec); else off.add(c.dataset.sec); });
+    $("#rpSecs").querySelectorAll("[data-up]").forEach(b => b.onclick = () => { const i = +b.dataset.up; [order[i - 1], order[i]] = [order[i], order[i - 1]]; drawSecs(); });
+    $("#rpSecs").querySelectorAll("[data-down]").forEach(b => b.onclick = () => { const i = +b.dataset.down; [order[i + 1], order[i]] = [order[i], order[i + 1]]; drawSecs(); });
+  };
+  drawSecs();
+  const fillTpl = () => {
+    $("#tpCompany").value = tpl.company; $("#tpContact").value = tpl.contact; $("#tpAccent").value = tpl.accent;
+    $("#tpFooter").value = tpl.footer; $("#tpIntro").value = tpl.intro; $("#tpOutro").value = tpl.outro;
+    $("#tpLogoImg").hidden = !tpl.logo; if (tpl.logo) $("#tpLogoImg").src = tpl.logo; $("#tpLogoDel").hidden = !tpl.logo;
+  };
+  fillTpl();
+  const readTpl = () => Object.assign(tpl, { company: $("#tpCompany").value.trim(), contact: $("#tpContact").value.trim(), accent: $("#tpAccent").value,
+    footer: $("#tpFooter").value.trim(), intro: $("#tpIntro").value.trim(), outro: $("#tpOutro").value.trim(), order: order.slice(), off: short ? tpl.off : [...off] });
+  $("#tpLogoBtn").onclick = () => $("#tpLogoIn").click();
+  $("#tpLogoIn").onchange = async e => {
+    const f = e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    try {
+      tpl.logo = await new Promise((res, rej) => {
+        const img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 360 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement("canvas");
+          cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+          cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); res(cv.toDataURL("image/png"));
+        };
+        img.onerror = rej; img.src = URL.createObjectURL(f);
+      });
+      fillTpl();
+    } catch (err) { flash(t("badFile")); }
+  };
+  $("#tpLogoDel").onclick = () => { tpl.logo = null; fillTpl(); };
+  box.querySelector('[data-act="tplsave"]').onclick = () => { readTpl(); try { localStorage.setItem(TPL_KEY, JSON.stringify(tpl)); flash(t("tplSaved")); } catch (e) { flash(t("pdfFailed")); } };
+  box.querySelector('[data-act="tplreset"]').onclick = () => { Object.assign(tpl, { company: "", contact: "", logo: null, accent: "#1f5fbf", intro: "", outro: "", footer: "" }); order = REPORT_SECTIONS.slice(); off = new Set(); fillTpl(); drawSecs(); };
   box.querySelector('[data-act="cancel"]').onclick = closeModal;
-  box.querySelector('[data-act="go"]').onclick = async () => {
+  const run = async word => {
     Object.assign(r, { title: $("#rpTitle").value.trim(), customer: $("#rpCust").value.trim(), author: $("#rpAuth").value.trim(), notes: $("#rpNotes").value.trim() });
+    readTpl();
     const opts = {
       bands: [...box.querySelectorAll("[data-band]:checked")].map(x => x.dataset.band),
       views: [...box.querySelectorAll("[data-view]:checked")].map(x => x.dataset.view),
-      aps: $("#rpAps").checked, quote: $("#rpQuote").checked, details: $("#rpDetails").checked, with3d: $("#rp3d").checked,
+      with3d: $("#rp3d").checked, order: order.filter(k => !off.has(k)),
     };
     if (!opts.bands.length || !opts.views.length) { flash(t("pdfPickOne")); return; }
     box.querySelectorAll("button").forEach(b => { b.disabled = true; });
@@ -58,11 +134,14 @@ function openReportDialog(preset) {
     try {
       const html = await buildReport(opts, p => { bar.firstElementChild.style.width = Math.round(p * 100) + "%"; });
       closeModal();
-      printReport(html);
+      if (word) { download(await htmlToDocx(html, tpl), `beamwise-report-${stamp()}.docx`); flash(t("expDone")); }
+      else printReport(html);
     } catch (e) {
       console.error(e); closeModal(); flash(t("pdfFailed"));
     }
   };
+  box.querySelector('[data-act="go"]').onclick = () => run(false);
+  box.querySelector('[data-act="docx"]').onclick = () => run(true);
 }
 
 // Load every floor's plan image before drawing.
@@ -196,7 +275,7 @@ async function buildReport(opts, onProgress) {
     </section>`).join("")).join("");
 
   // ---- AP table ----
-  const apRows = opts.aps ? apTableCsv(allApRows()) : null;
+  const apRows = apTableCsv(allApRows());
   const apTbl = apRows && apRows.length > 1 ? `<section class="r-page r-flow"><h2>${esc(t("apTableTitle"))} (${nAp})</h2>
     <table class="r-tbl r-small"><thead><tr>${apRows[0].map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead>
     <tbody>${apRows.slice(1).map(rw => `<tr>${rw.map(v => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></section>` : "";
@@ -244,7 +323,7 @@ async function buildReport(opts, onProgress) {
 
   // ---- quote ----
   let quote = "";
-  if (opts.quote) {
+  if (project.bom) {
     const q = bomRows();
     quote = `<section class="r-page r-flow"><h2>${esc(t("bomTitle"))}</h2><table class="r-tbl"><thead><tr><th>${esc(t("bomItem"))}</th><th>${esc(t("bomQty"))}</th><th>${esc(t("bomUnit"))}</th>
       <th class="n">${esc(t("bomPrice"))}</th><th class="n">${esc(t("bomTotal"))}</th></tr></thead><tbody>
@@ -263,27 +342,37 @@ async function buildReport(opts, onProgress) {
     [t("patRow"), project.patterns ? Object.keys(project.patterns).map(id => AP_BY_ID[id] ? `${AP_BY_ID[id].brand} ${AP_BY_ID[id].model}` : id).join(", ") + ` (${t("patMeasured")})` : t("patGeneric")],
   ];
 
-  return `
-  <section class="r-cover">
-    <div class="r-brand"><img src="icons/favicon.svg" alt="" width="34" height="34"> Beamwise</div>
-    <h1>${esc(r.title || t("pdfDefaultTitle"))}</h1>
-    ${r.customer ? `<p class="r-sub">${esc(r.customer)}</p>` : ""}
-    <p class="r-meta">${esc(date)}${r.author ? ` · ${esc(t("pdfAuthor"))}: ${esc(r.author)}` : ""}</p>
-    ${r.notes ? `<p class="r-notes">${esc(r.notes)}</p>` : ""}
-    <h3>${esc(t("summary"))}</h3>
-    <table class="r-tbl"><thead><tr><th>${esc(t("floorLbl"))}</th><th>AP</th><th>${esc(t("area"))}</th>${opts.bands.map(b => `<th>${esc(t("meetsShort"))} ${b} GHz</th>`).join("")}</tr></thead>
-      <tbody>${sumRows}</tbody></table>
-    <p class="r-note">${esc(tf("pdfSumNote", { n: nAp, f: F.length }))}</p>
-    <h3>${esc(t("pdfAssume"))}</h3>
-    <table class="r-tbl r-kv"><tbody>${assumptions.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
-    ${areaTbl}${capTbl}
-    <p class="r-note">${esc(t("disclaimer"))}</p>
-  </section>
-  ${floorSecs}
-  ${apTbl}
-  ${opts.notes !== false ? notesSec : ""}
-  ${opts.details !== false && (wallTbl || calTbl) ? `<section class="r-page r-flow"><h2>${esc(t("pdfDetails"))}</h2>${wallTbl}${calTbl}</section>` : ""}
-  ${quote}`;
+  const tpl = reportTpl();
+  const para = txt => esc(txt).split(/\n{2,}/).map(p => `<p class="r-text">${p.replace(/\n/g, "<br>")}</p>`).join("");
+  const brand = tpl.logo || tpl.company
+    ? `<div class="r-brand">${tpl.logo ? `<img src="${tpl.logo}" alt="" class="r-logo">` : ""}<div>${tpl.company ? `<b>${esc(tpl.company)}</b>` : ""}${tpl.contact ? `<br><span class="r-contact">${esc(tpl.contact)}</span>` : ""}</div></div>`
+    : `<div class="r-brand"><img src="icons/favicon.svg" alt="" width="34" height="34"> Beamwise</div>`;
+  const S = {
+    cover: `<section class="r-cover">${brand}
+      <h1>${esc(r.title || t("pdfDefaultTitle"))}</h1>
+      ${r.customer ? `<p class="r-sub">${esc(r.customer)}</p>` : ""}
+      <p class="r-meta">${esc(date)}${r.author ? ` · ${esc(t("pdfAuthor"))}: ${esc(r.author)}` : ""}</p>
+      ${r.notes ? `<p class="r-notes">${esc(r.notes)}</p>` : ""}
+      ${tpl.intro ? para(tpl.intro) : ""}</section>`,
+    summary: `<section class="r-flow-sec"><h3>${esc(t("summary"))}</h3>
+      <table class="r-tbl"><thead><tr><th>${esc(t("floorLbl"))}</th><th>AP</th><th>${esc(t("area"))}</th>${opts.bands.map(b => `<th>${esc(t("meetsShort"))} ${b} GHz</th>`).join("")}</tr></thead>
+        <tbody>${sumRows}</tbody></table>
+      <p class="r-note">${esc(tf("pdfSumNote", { n: nAp, f: F.length }))}</p></section>`,
+    assumptions: `<section class="r-flow-sec"><h3>${esc(t("pdfAssume"))}</h3>
+      <table class="r-tbl r-kv"><tbody>${assumptions.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</tbody></table>
+      <p class="r-note">${esc(t("disclaimer"))}</p></section>`,
+    areas: areaTbl ? `<section class="r-flow-sec">${areaTbl}</section>` : "",
+    capacity: capTbl ? `<section class="r-flow-sec">${capTbl}</section>` : "",
+    floors: floorSecs,
+    aps: apTbl,
+    notes: notesSec,
+    details: wallTbl || calTbl ? `<section class="r-page r-flow"><h2>${esc(t("pdfDetails"))}</h2>${wallTbl}${calTbl}</section>` : "",
+    quote,
+    conclusion: tpl.outro ? `<section class="r-flow-sec"><h2>${esc(t("tplOutroH"))}</h2>${para(tpl.outro)}</section>` : "",
+  };
+  const order = opts.order || REPORT_SECTIONS;
+  return `<div class="r-root" style="--r-accent:${tpl.accent || "#1f5fbf"}">${order.map(k => S[k] || "").join("")}
+    ${tpl.footer ? `<div class="r-footer">${esc(tpl.footer)}</div>` : ""}</div>`;
 }
 
 function printReport(html) {

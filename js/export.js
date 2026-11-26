@@ -11,6 +11,7 @@ function openExportMenu() {
     <div class="exp-grid">
       ${item("pdf", "PDF", t("expPdf"), t("expPdfD"))}
       ${item("pdfsum", "PDF", t("expPdfSum"), t("expPdfSumD"))}
+      ${item("docx", "DOC", t("expDocx"), t("expDocxD"))}
       ${item("xlsx", "XLS", t("expXlsx"), t("expXlsxD"))}
       ${item("zip", "ZIP", t("expZip"), t("expZipD"))}
       ${item("png", "PNG", t("exportPng"), t("expPngD"))}
@@ -31,6 +32,7 @@ function openExportMenu() {
     const a = b.dataset.exp;
     if (a === "pdf") openReportDialog();
     else if (a === "pdfsum") openReportDialog("summary");
+    else if (a === "docx") openReportDialog("docx");
     else if (a === "png") { closeModal(); exportPng(); }
     else if (a === "csv") { closeModal(); exportDesignCsv(); }
     else if (a === "json") { closeModal(); saveProject(); }

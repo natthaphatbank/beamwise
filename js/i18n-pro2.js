@@ -4,6 +4,12 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    docxCreate: "สร้าง Word (.docx)", expDocx: "รายงาน Word (.docx)", expDocxD: "รายงานเดียวกับ PDF แต่แก้ไขต่อใน Word / Google Docs ได้",
+    tplOrderHint: "(ติ๊กเลือก • ↑↓ เรียงลำดับ)", tplBrand: "เทมเพลตและแบรนด์ (โลโก้ บริษัท สี ข้อความ)", tplCompany: "ชื่อบริษัท", tplContact: "ติดต่อ (ที่อยู่ โทร อีเมล)",
+    tplAccent: "สีหลัก", tplFooter: "ข้อความท้ายหน้า", tplLogo: "ใส่โลโก้", tplIntro: "ข้อความเปิด (หน้าปก)", tplOutro: "ข้อความปิด / ข้อสรุป", tplOutroH: "ข้อสรุป",
+    tplSaveDefault: "บันทึกเป็นค่าเริ่มต้นของฉัน", tplReset: "ล้างเทมเพลต", tplSaved: "บันทึกเทมเพลตไว้ในเบราว์เซอร์นี้แล้ว (ใช้กับทุกโปรเจกต์ใหม่)",
+    sec_cover: "หน้าปก", sec_summary: "สรุปผล", sec_assumptions: "สมมติฐาน", sec_areas: "พื้นที่และเกณฑ์", sec_capacity: "ความจุ", sec_floors: "Heatmap แต่ละชั้น",
+    sec_aps: "ตาราง AP", sec_notes: "บันทึกบนแบบ", sec_details: "รายละเอียดแบบจำลอง", sec_quote: "ใบเสนอราคา", sec_conclusion: "ข้อสรุป",
     toolNote: "หมุดบันทึก (N)", tlNote: "บันทึก", k_note: "ปักหมุดบันทึกพร้อมรูปถ่าย", noteTitle: "บันทึก",
     hintNote: "คลิกเพื่อปักหมุดบันทึก (จุดติดตั้ง เส้นทางสาย ปัญหา รูปหน้างาน) • คลิกหมุดเดิมเพื่อแก้",
     noteHelp: "คลิกบนแบบเพื่อปักหมุด แล้วพิมพ์ข้อความ เลือกหมวด และแนบรูปถ่าย (บนมือถือถ่ายได้เลย) • หมุดและรูปเก็บในไฟล์โปรเจกต์และใส่ในรายงาน",
@@ -50,6 +56,12 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    docxCreate: "Create Word (.docx)", expDocx: "Word report (.docx)", expDocxD: "The same report as the PDF, editable in Word / Google Docs",
+    tplOrderHint: "(tick to include • ↑↓ to reorder)", tplBrand: "Template and branding (logo, company, colour, text)", tplCompany: "Company name", tplContact: "Contact (address, phone, e-mail)",
+    tplAccent: "Accent colour", tplFooter: "Footer text", tplLogo: "Add a logo", tplIntro: "Introduction (cover)", tplOutro: "Closing text / conclusion", tplOutroH: "Conclusion",
+    tplSaveDefault: "Save as my default", tplReset: "Clear template", tplSaved: "Template saved in this browser (used for new projects)",
+    sec_cover: "Cover", sec_summary: "Summary", sec_assumptions: "Assumptions", sec_areas: "Areas and requirements", sec_capacity: "Capacity", sec_floors: "Heatmaps per floor",
+    sec_aps: "AP table", sec_notes: "Notes on the plan", sec_details: "Model details", sec_quote: "Quote", sec_conclusion: "Conclusion",
     toolNote: "Note (N)", tlNote: "Note", k_note: "Pin a note with a photo", noteTitle: "Note",
     hintNote: "Click to pin a note (install point, cable route, issue, site photo) • Click an existing pin to edit it",
     noteHelp: "Click the plan to pin a note, then type, pick a category and attach a photo (take one on a phone) • Notes and photos are saved in the project and go into the report",

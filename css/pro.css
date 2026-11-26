@@ -176,3 +176,24 @@
   .tools .tl { max-width: 51px; font-size: 10px; }
   .tools .sep { grid-column: 1 / -1; width: 100px; justify-self: center; margin: 4px 0; }
 }
+
+/* report template */
+.sec-list { border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 10px; margin-bottom: 8px; columns: 2; column-gap: 24px; }
+.sec-row { display: flex; align-items: center; justify-content: space-between; break-inside: avoid; }
+.sec-row .check { margin: 3px 0 !important; color: var(--text) !important; }
+.sec-row .link-btn:disabled { opacity: .3; cursor: default; }
+@media (max-width: 560px) { .sec-list { columns: 1; } }
+.tpl-box { margin: 4px 0 10px; }
+.tpl-box .field textarea { width: 100%; }
+.tpl-logo { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
+.tpl-logo img { max-height: 48px; max-width: 140px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.exp-item[data-exp=docx] .exp-ic { background: #2b5797; }
+@media print {
+  .r-root h1, .r-root h2, .r-root h3 { color: var(--r-accent, #0f2a55) !important; }
+  .r-root h2 { border-bottom-color: var(--r-accent, #1f5fbf) !important; }
+  .r-logo { max-height: 18mm; max-width: 60mm; }
+  .r-brand .r-contact { font-weight: 400; font-size: 9pt; color: #555; }
+  .r-text { line-height: 1.55; margin: 0 0 2.5mm; }
+  .r-flow-sec { margin-top: 2mm; }
+  .r-footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 8pt; color: #666; border-top: 0.5pt solid #ccc; padding-top: 1mm; }
+}
