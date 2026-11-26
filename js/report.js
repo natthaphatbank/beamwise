@@ -132,7 +132,7 @@ function buildDesignCsv() {
   }
   for (const [k, e] of Object.entries(byMat)) {
     const mt = MATERIALS[k] || MATERIALS.brick;
-    rows.push([t("mat_" + k), e.n, +e.len.toFixed(2), mt.db24, mt.db5]);
+    rows.push([matName(k), e.n, +e.len.toFixed(2), mt.db24, mt.db5]);
   }
 
   for (const b of csvBands()) {

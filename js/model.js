@@ -28,7 +28,26 @@ const MATERIALS = {
   concrete: { db24: 12, db5: 18, db6: 20,  color: "#b0b0b0" },
   concreteHeavy: { db24: 20, db5: 28, db6: 31, color: "#8a8a8a" }, // ≥ 25 cm reinforced / shear wall
   metal:    { db24: 20, db5: 26, db6: 28,  color: "#ff5c8a" },
+  block:    { db24: 8,  db5: 11, db6: 12,  color: "#c9a27e" },   // hollow concrete block
+  brickDouble: { db24: 9, db5: 12, db6: 13, color: "#c4623b" },  // double brick wall
+  elevator: { db24: 25, db5: 32, db6: 35,  color: "#e0457b" },   // elevator shaft / lift car
+  // doors and windows (drawn as such; inserted into walls with the Door / window tool)
+  doorWood: { db24: 4,  db5: 6,  db6: 7,   color: "#a7743a", door: true },
+  doorGlass:{ db24: 3,  db5: 5,  db6: 5.5, color: "#4fb3d9", door: true },
+  fireDoor: { db24: 12, db5: 16, db6: 18,  color: "#d6336c", door: true },   // steel fire door
+  window:   { db24: 3,  db5: 5,  db6: 5.5, color: "#7fdbff", window: true },
 };
+const BUILTIN_MATERIALS = Object.keys(MATERIALS);
+// Name shown for a material: user materials carry their own, built-ins are translated.
+const matName = k => MATERIALS[k]?.name || (typeof t === "function" ? t("mat_" + k) : k);
+
+// User-defined materials of the open project (project.materials), added to MATERIALS under
+// their own keys ("u_…"). Earlier projects' materials are removed first.
+function registerMaterials(list) {
+  for (const k of Object.keys(MATERIALS)) if (!BUILTIN_MATERIALS.includes(k)) delete MATERIALS[k];
+  for (const m of list || []) MATERIALS[m.key] = { db24: m.db24, db5: m.db5, db6: m.db6, color: m.color, name: m.name, thick: m.thick, door: !!m.door, window: !!m.window };
+}
+const materialsRev = project => JSON.stringify(project.materials || []);
 const matLoss = (m, band) => m["db" + BK[band]] ?? m.db5;
 
 // Path-loss exponent beyond the first metre (walls are modelled separately).
@@ -274,7 +293,7 @@ function indexNodes(nd, areaM2, mpp) {
 const _geomCache = new Map();
 function wallGeometry(project) {
   // attenuation zones are part of the key: node-to-node links include their loss
-  const key = JSON.stringify([project.mPerPx, project.plan.width, project.plan.height, project.walls, project.attens || []]);
+  const key = JSON.stringify([project.mPerPx, project.plan.width, project.plan.height, project.walls, project.attens || [], materialsRev(project)]);
   let g = _geomCache.get(key);
   if (g) return g;
   const nw = project.walls.length;
@@ -624,7 +643,7 @@ const _modelCache = new Map();
 function modelFor(project, band, override = null) {
   const st = project.settings || {};
   const key = JSON.stringify([band, override, project.mPerPx, project.calib, project.walls, project.attens,
-    st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height, patternsRev(project)]);
+    st.env, st.capNbtc, st.client, st.clientH, st.paths, project.plan.width, project.plan.height, patternsRev(project), materialsRev(project)]);
   let rf = _modelCache.get(key);
   if (rf) { _modelCache.delete(key); _modelCache.set(key, rf); }
   else {

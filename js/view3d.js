@@ -256,21 +256,29 @@ const View3D = (() => {
       const len = Math.hypot(x2 - x1, z2 - z1);
       if (len < 1e-3) continue;
       const m = MATERIALS[wl.mat] || MATERIALS.brick;
-      const isGlass = wl.mat === "glass" || wl.mat === "lowe";
       const tk = wl.mat === "concreteHeavy" ? thick * 1.4 : thick;
-      const geo = new THREE.BoxGeometry(len + tk, wallH, tk);
-      const op = isGlass ? 0.35 : seeThrough ? 0.4 : 1;
-      const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(m.color), roughness: isGlass ? 0.1 : 0.85,
-        metalness: wl.mat === "metal" ? 0.4 : 0, transparent: op < 1, opacity: op, depthWrite: op === 1 });
-      const box = new THREE.Mesh(geo, mat);
-      box.position.set((x1 + x2) / 2, wallH / 2, (z1 + z2) / 2);
-      box.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
-      box.renderOrder = op < 1 ? 2 : 0;
-      root.add(box);
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo),
-        new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: op < 1 ? 0.35 : 0.5 }));
-      edges.position.copy(box.position); edges.rotation.copy(box.rotation);
-      root.add(edges);
+      // doors: leaf up to 2.1 m with wall above; windows: sill to 0.9 m, glass to 2.1 m, wall above
+      const LINTEL = "#b8b2a7", top = Math.max(wallH, 2.2);
+      const parts = m.door ? [[0, 2.1, m.color, false], [2.1, top, LINTEL, false]]
+        : m.window ? [[0, 0.9, LINTEL, false], [0.9, 2.1, m.color, true], [2.1, top, LINTEL, false]]
+        : [[0, wallH, m.color, wl.mat === "glass" || wl.mat === "lowe" || wl.mat === "doorGlass"]];
+      for (const [y0, y1, col, isGlass] of parts) {
+        if (y1 - y0 < 0.02 || y0 >= wallH + 0.01) continue;
+        const h = Math.min(y1, wallH) - y0;
+        const geo = new THREE.BoxGeometry(len + (m.door || m.window ? 0 : tk), h, tk * (m.door ? 0.6 : 1));
+        const op = isGlass ? 0.35 : seeThrough ? 0.4 : 1;
+        const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(col), roughness: isGlass ? 0.1 : 0.85,
+          metalness: wl.mat === "metal" || wl.mat === "fireDoor" || wl.mat === "elevator" ? 0.4 : 0, transparent: op < 1, opacity: op, depthWrite: op === 1 });
+        const box = new THREE.Mesh(geo, mat);
+        box.position.set((x1 + x2) / 2, y0 + h / 2, (z1 + z2) / 2);
+        box.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+        box.renderOrder = op < 1 ? 2 : 0;
+        root.add(box);
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+          new THREE.LineBasicMaterial({ color: edgeColor, transparent: true, opacity: op < 1 ? 0.35 : 0.5 }));
+        edges.position.copy(box.position); edges.rotation.copy(box.rotation);
+        root.add(edges);
+      }
     }
 
     // other floors: wall outlines at their real level (this floor is at 0), APs as small dots

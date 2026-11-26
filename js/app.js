@@ -43,8 +43,10 @@ function newProject() {
     newWallMat: "brick",
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
+    newDoor: { mat: "doorWood", width: 0.9 },   // Door / window tool
     bom: null,                     // bill of materials / quote settings (tables.js), created on first use
     patterns: null,                // measured antenna patterns per model and band (antenna.js)
+    materials: [],                 // user wall materials {key "u_…", name, db24, db5, db6, thick (cm), color, door, window}
     report: null,                  // PDF report cover fields {title, customer, author, notes} (report-pdf.js)
   };
   for (const k of FLOOR_FIELDS) p.floors[0][k] = p[k];
@@ -381,8 +383,11 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
       c.strokeStyle = P.wallSel; c.lineWidth = 10 * px;
       c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
     }
-    c.strokeStyle = m.color; c.lineWidth = 4 * px;
-    c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
+    if (m.door || m.window) drawOpening(c, px, w, m);
+    else {
+      c.strokeStyle = m.color; c.lineWidth = 4 * px;
+      c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
+    }
     if (isSel && selection.type === "wall") for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
   }
 
@@ -482,6 +487,29 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
       for (const p of [scaleLine.a, b]) { c.beginPath(); c.arc(p.x, p.y, 4 * px, 0, 7); c.fill(); }
     }
   }
+}
+
+// Door: leaf in the wall line plus a dashed quarter-circle swing; window: two thin parallel lines.
+function drawOpening(c, px, w, m) {
+  const L = Math.hypot(w.x2 - w.x1, w.y2 - w.y1) || 1, ux = (w.x2 - w.x1) / L, uy = (w.y2 - w.y1) / L;
+  c.save();
+  c.strokeStyle = m.color;
+  if (m.window) {
+    const o = 2.2 * px;
+    c.lineWidth = 1.6 * px;
+    c.beginPath();
+    for (const s of [-1, 1]) { c.moveTo(w.x1 - uy * o * s, w.y1 + ux * o * s); c.lineTo(w.x2 - uy * o * s, w.y2 + ux * o * s); }
+    c.stroke();
+    c.lineWidth = 1 * px; c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
+  } else {
+    c.lineWidth = 3 * px; c.lineCap = "butt";
+    const a0 = Math.atan2(uy, ux);
+    c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x1 + Math.cos(a0 - Math.PI / 2) * L, w.y1 + Math.sin(a0 - Math.PI / 2) * L); c.stroke();
+    c.lineWidth = 1.2 * px; c.setLineDash([4 * px, 3 * px]);
+    c.beginPath(); c.arc(w.x1, w.y1, L, a0 - Math.PI / 2, a0); c.stroke();
+    c.setLineDash([]);
+  }
+  c.restore();
 }
 
 // Canvas colours per UI theme. Exports and the AI snapshot always use "light".
@@ -961,7 +989,7 @@ function setTool(name) {
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe" };
+  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe", door: "hintDoor" };
   showHint(t(hintKey(hints[name])));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
@@ -1238,6 +1266,7 @@ canvas.addEventListener("pointercancel", endPointer);
 
 function tapAction({ p, shift }) {
   if (tool === "ap") { addAp(p); return; }
+  if (tool === "door") { insertDoor(p); return; }
   if (tool === "probe") {
     if (inProbeX(p)) { deleteProbe(probeActive); return; }
     const i = hitProbe(p);
@@ -1291,6 +1320,27 @@ function tapAction({ p, shift }) {
     else { scaleLine.b = p; renderPanel(); setTimeout(() => $("#scaleInput")?.focus(), 0); }
     requestRender();
   }
+}
+
+// Door / window tool: cut the wall under the click and put a door, window or opening there,
+// centred on the click (width in metres from the tool panel).
+function insertDoor(p) {
+  const w = hitWall(p);
+  if (!w || MATERIALS[w.mat]?.door || MATERIALS[w.mat]?.window) { flash(t("doorNeedWall")); return; }
+  const L = Math.hypot(w.x2 - w.x1, w.y2 - w.y1), ux = (w.x2 - w.x1) / L, uy = (w.y2 - w.y1) / L;
+  const width = Math.min(L * 0.95, (+project.newDoor.width || 0.9) / project.mPerPx);
+  let c = (p.x - w.x1) * ux + (p.y - w.y1) * uy;
+  c = Math.max(width / 2, Math.min(L - width / 2, c));
+  const a = c - width / 2, b = c + width / 2, P = s => [w.x1 + ux * s, w.y1 + uy * s];
+  pushHistory();
+  const i = project.walls.indexOf(w), out = [];
+  if (a > 1) out.push({ id: uid(), x1: w.x1, y1: w.y1, x2: P(a)[0], y2: P(a)[1], mat: w.mat });
+  if (project.newDoor.mat !== "opening") out.push({ id: uid(), x1: P(a)[0], y1: P(a)[1], x2: P(b)[0], y2: P(b)[1], mat: project.newDoor.mat });
+  if (L - b > 1) out.push({ id: uid(), x1: P(b)[0], y1: P(b)[1], x2: w.x2, y2: w.y2, mat: w.mat });
+  project.walls.splice(i, 1, ...out);
+  selection = null;
+  changed({ panel: false });
+  flash(tf("doorAdded", { m: project.newDoor.mat === "opening" ? t("doorOpening") : matName(project.newDoor.mat) }));
 }
 
 function finishWall() { wallChain = null; updateFinishBtn(); requestRender(); }
@@ -1356,13 +1406,13 @@ window.addEventListener("keydown", e => {
   if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
   if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
     if (e.key === "Escape") View3D.close();
-    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe" };
+    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door" };
     if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
     View3D.close();
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe" };
+  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
@@ -1397,7 +1447,8 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 function matButtons(active) {
   return `<div class="mat-list">${Object.entries(MATERIALS).map(([k, m]) =>
     `<button data-mat="${k}" class="${k === active ? "active" : ""}" title="${m.db24} / ${m.db5} / ${m.db6} dB">
-       <span class="dot" style="background:${m.color}"></span>${esc(t("mat_" + k))}</button>`).join("")}</div>`;
+       <span class="dot" style="background:${m.color}"></span>${esc(matName(k))}</button>`).join("")}</div>
+    <button type="button" class="link-btn" data-manage-mats>${t("matManage")}</button>`;
 }
 
 // <option>s for the model picker. `q` filters by brand / model / standard; the selected
@@ -1516,6 +1567,7 @@ function openModelManager(prefillId) {
   render();
 }
 document.addEventListener("click", e => {
+  if (e.target.closest("[data-manage-mats]")) { openMaterialManager(); return; }
   const pb = e.target.closest("[data-patterns]");
   if (pb) { openPatternManager(pb.dataset.patterns); return; }
   const b = e.target.closest("[data-manage-models]");
@@ -1542,6 +1594,7 @@ function panelTitle(o) {
   if (o && selection.type === "area") return t("areaBoundary");
   if (o && selection.type === "atten") return t("attenZone");
   if (tool === "atten") return noKey(t("toolAtten"));
+  if (tool === "door") return noKey(t("toolDoor"));
   if (o && selection.type === "survey") return `${t("surveyPoint")} #${project.survey.indexOf(o) + 1}`;
   if (tool === "survey") return noKey(t("toolSurvey"));
   if (tool === "area") return noKey(t("toolArea"));
@@ -1701,7 +1754,7 @@ function renderPanel() {
       ${ws.length > 1 ? `<p class="unit">${t(one ? "wallsSameMat" : "wallsMixedMat")}</p>` : ""}
       <div class="row"><span>${t(ws.length > 1 ? "materialAll" : "material")}</span></div>${matButtons(one)}
       <div class="row"><span>${t(ws.length > 1 ? "totalLength" : "length")}</span><b>${fmtLen(len)}</b></div>
-      ${one && sameMat.length > ws.length ? `<button class="btn" id="selMatBtn">${tf("selectSameMat", { m: esc(t("mat_" + one)), n: sameMat.length })}</button>` : ""}
+      ${one && sameMat.length > ws.length ? `<button class="btn" id="selMatBtn">${tf("selectSameMat", { m: esc(matName(one)), n: sameMat.length })}</button>` : ""}
       <p class="unit">${t("wallSelTip")}</p>
       <button class="btn danger" id="delBtn">${ws.length > 1 ? tf("deleteN", { n: ws.length }) : t("deleteItem")}</button>`;
     el.querySelectorAll("[data-mat]").forEach(b => b.addEventListener("click", () => {
@@ -1709,7 +1762,7 @@ function renderPanel() {
       for (const w of ws) w.mat = b.dataset.mat;
       project.newWallMat = b.dataset.mat;
       changed();
-      if (ws.length > 1) flash(tf("wallsChanged", { n: ws.length, m: t("mat_" + b.dataset.mat) }));
+      if (ws.length > 1) flash(tf("wallsChanged", { n: ws.length, m: matName(b.dataset.mat) }));
     }));
     $("#selMatBtn")?.addEventListener("click", () => { setSelection([], sameMat.map(w => w.id)); renderPanel(); requestRender(); });
   } else if (o && selection.type === "mixed") {
@@ -1754,6 +1807,15 @@ function renderPanel() {
     el.innerHTML = `<p class="empty">${t("surveyHelp")}</p>`;
   } else if (o && selection.type === "atten") {
     renderAttenPanel(el, o);
+  } else if (tool === "door") {
+    const d = project.newDoor, opts = [...Object.keys(MATERIALS).filter(k => MATERIALS[k].door || MATERIALS[k].window), "opening"];
+    el.innerHTML = `<p class="empty">${t("doorHelp")}</p>
+      <div class="row"><span>${t("doorType")}</span><select id="doorMat">${opts.map(k => `<option value="${k}" ${d.mat === k ? "selected" : ""}>${k === "opening" ? t("doorOpening") : esc(matName(k))}${k === "opening" ? "" : ` (${MATERIALS[k].db24}/${MATERIALS[k].db5}/${MATERIALS[k].db6} dB)`}</option>`).join("")}</select></div>
+      <label class="row"><span>${t("doorWidth")} <span class="u">(m)</span></span><input type="number" id="doorW" min="0.4" max="10" step="0.1" value="${d.width}"></label>
+      <div class="btn-row2"><button class="btn" data-dw="0.9">${t("doorPresetDoor")}</button><button class="btn" data-dw="1.6">${t("doorPresetDouble")}</button></div>`;
+    $("#doorMat").addEventListener("change", e => { d.mat = e.target.value; if (MATERIALS[d.mat]?.window && d.width < 1) { d.width = 1.2; $("#doorW").value = 1.2; } });
+    $("#doorW").addEventListener("input", e => { const v = parseFloat(e.target.value); if (v > 0) d.width = Math.min(10, v); });
+    el.querySelectorAll("[data-dw]").forEach(b => b.onclick = () => { d.width = +b.dataset.dw; $("#doorW").value = d.width; });
   } else if (tool === "atten") {
     el.innerHTML = `<p class="empty">${t("attenHelp")}</p>
       <div class="row"><span>${t("attenPresetNew")}</span><select id="attenNew">${attenOptions(project.newAttenPreset)}</select></div>
@@ -2010,7 +2072,7 @@ function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
-    [K("Z"), "k_atten"], [K("P"), "k_probe"], [K("3"), "k_3d"],
+    [K("Z"), "k_atten"], [K("D"), "k_door"], [K("P"), "k_probe"], [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
@@ -2174,6 +2236,53 @@ $("#clientStdSel").addEventListener("change", e => { project.settings.clientStd 
 $("#clientSSSel").addEventListener("change", e => { project.settings.clientSS = +e.target.value; changed({ panel: false }); });
 $("#wavesChk").addEventListener("change", e => { project.settings.waves = e.target.checked; requestRender(); scheduleAutosave(); });
 
+// ---------- user wall materials ----------
+function cleanMaterials(list) {
+  return (Array.isArray(list) ? list : []).filter(m => m && typeof m === "object").slice(0, 100).map(m => {
+    const n = (v, d) => Math.min(60, Math.max(0, numOr(v, d)));
+    const key = /^u_[a-z0-9]{1,16}$/.test(m.key) ? m.key : "u_" + Math.random().toString(36).slice(2, 8);
+    return { key, name: strOr(m.name, "Material", 40) || "Material", db24: n(m.db24, 5), db5: n(m.db5, 7), db6: n(m.db6, 8),
+             thick: Math.min(200, Math.max(0, numOr(m.thick, 10))), color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : "#8899aa", door: !!m.door, window: !!m.window };
+  });
+}
+function openMaterialManager() {
+  const list = project.materials || (project.materials = []);
+  const builtins = BUILTIN_MATERIALS.map(k => `<tr><td><span class="dot" style="background:${MATERIALS[k].color}"></span> ${esc(matName(k))}</td><td>${MATERIALS[k].db24}</td><td>${MATERIALS[k].db5}</td><td>${MATERIALS[k].db6}</td><td></td></tr>`).join("");
+  const row = (m, i) => `<tr data-i="${i}"><td><input type="color" data-f="color" value="${m.color}"> <input type="text" data-f="name" value="${esc(m.name)}" class="w-name"></td>
+    ${["db24", "db5", "db6"].map(f => `<td><input type="number" data-f="${f}" min="0" max="60" step="0.5" value="${m[f]}"></td>`).join("")}
+    <td><input type="number" data-f="thick" min="0" max="200" step="1" value="${m.thick}" title="cm"> <button class="link-btn danger" data-del="${i}">${t("deleteShort")}</button></td></tr>`;
+  openModal(`<h2>${t("matTitle")}</h2><p class="unit">${t("matHelp")}</p>
+    <div class="tbl-wrap"><table class="calib-tbl mat-tbl"><thead><tr><th>${t("material")}</th><th>2.4 GHz</th><th>5 GHz</th><th>6 GHz</th><th>${t("matThick")}</th></tr></thead>
+      <tbody>${list.map(row).join("") || `<tr><td colspan="5" class="unit">${t("matNone")}</td></tr>`}</tbody>
+      <tbody class="mat-builtin"><tr><th colspan="5">${t("matBuiltin")} (dB)</th></tr>${builtins}</tbody></table></div>
+    <div class="btns inline"><button data-act="add">+ ${t("matAdd")}</button><button class="primary" data-act="close">${t("close")}</button></div>`, () => changed(), "xwide");
+  const box = $("#modalBox");
+  setTimeout(() => box.querySelector("[data-act=close]")?.focus(), 0);
+  const apply = () => { registerMaterials(project.materials); heatDirty = true; requestRender(); };
+  box.querySelectorAll("tr[data-i]").forEach(tr => {
+    const m = list[+tr.dataset.i];
+    tr.querySelectorAll("[data-f]").forEach(inp => inp.addEventListener("change", () => {
+      const f = inp.dataset.f;
+      if (f === "name") m.name = inp.value.trim().slice(0, 40) || m.name;
+      else if (f === "color") m.color = inp.value;
+      else { const v = parseFloat(inp.value); if (v >= 0) m[f] = Math.min(f === "thick" ? 200 : 60, v); }
+      apply();
+    }));
+  });
+  box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    const m = list[+b.dataset.del];
+    if (project.floors.some(f => (f === project.floors[project.floorIdx] ? project.walls : f.walls || []).some(w => w.mat === m.key))) {
+      flash(t("matInUse")); return;
+    }
+    list.splice(+b.dataset.del, 1); apply(); openMaterialManager();
+  });
+  box.querySelector("[data-act=add]").onclick = () => {
+    list.push({ key: "u_" + Math.random().toString(36).slice(2, 8), name: t("matNew") + " " + (list.length + 1), db24: 6, db5: 9, db6: 10, thick: 10, color: "#8899aa" });
+    apply(); openMaterialManager();
+  };
+  box.querySelector("[data-act=close]").onclick = closeModal;
+}
+
 // ---------- AI assistant ----------
 function renderAiModel() {
   const sel = $("#aiModel");
@@ -2278,7 +2387,9 @@ function strOr(v, d = "", max = 120) { return typeof v === "string" ? v.slice(0,
 function chOr(v) { return v == null || v === "" ? null : numOr(v, null); }
 // Multi-floor files: each floor is checked like a one-floor project; meta fields per floor.
 function sanitizeProject(data) {
+  registerMaterials(cleanMaterials(data.materials));       // before the walls are checked: they may use them
   const one = sanitizeOneFloor(data);
+  one.materials = cleanMaterials(data.materials);
   const raw = Array.isArray(data.floors) ? data.floors.filter(f => f && typeof f === "object" && f.plan).slice(0, 60) : [];
   if (!raw.length) {
     one.floors = [Object.assign(floorMeta("1", "f1"), pickFloor(one))];
@@ -2470,7 +2581,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   syncActive();
-  return JSON.stringify([project.bom, patternsRev(project)]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
+  return JSON.stringify([project.bom, patternsRev(project), project.materials]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };
@@ -2497,6 +2608,7 @@ window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault
 
 // ---------- top bar ----------
 function startBlank() {
+  registerMaterials([]);
   project = newProject(); planImg = null; selection = null; areaDraft = null; clearProbes(); undoStack = []; redoStack = [];
   renderFloorBar();
   View3D.reset();

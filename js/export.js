@@ -116,7 +116,7 @@ async function buildSummaryXlsx(onProgress = () => {}) {
   F.forEach(f => {
     const by = {};
     for (const w of f.walls || []) { const e = by[w.mat] || (by[w.mat] = { n: 0, len: 0 }); e.n++; e.len += Math.hypot(w.x2 - w.x1, w.y2 - w.y1) * (+f.mPerPx); }
-    for (const [k, e] of Object.entries(by)) { const m = MATERIALS[k] || MATERIALS.brick; walls.push([f.name, t("mat_" + k), e.n, r1(e.len), m.db24, m.db5, m.db6]); }
+    for (const [k, e] of Object.entries(by)) { const m = MATERIALS[k] || MATERIALS.brick; walls.push([f.name, matName(k), e.n, r1(e.len), m.db24, m.db5, m.db6]); }
   });
 
   // Survey

@@ -224,7 +224,7 @@ async function buildReport(opts, onProgress) {
     e.n++; e.len += Math.hypot(w.x2 - w.x1, w.y2 - w.y1) * (+f.mPerPx);
   }
   const wallTbl = Object.keys(byMat).length ? `<h3>${esc(t("pdfWalls"))}</h3><table class="r-tbl"><thead><tr><th>${esc(t("material"))}</th><th>${esc(t("pdfCount"))}</th><th>${esc(t("totalLength"))}</th><th>dB 2.4 / 5 / 6 GHz</th></tr></thead>
-    <tbody>${Object.entries(byMat).map(([k, e]) => { const m = MATERIALS[k] || MATERIALS.brick; return `<tr><td>${esc(t("mat_" + k))}</td><td>${e.n}</td><td>${e.len.toFixed(1)} m</td><td>${m.db24} / ${m.db5} / ${m.db6}</td></tr>`; }).join("")}</tbody></table>` : "";
+    <tbody>${Object.entries(byMat).map(([k, e]) => { const m = MATERIALS[k] || MATERIALS.brick; return `<tr><td>${esc(matName(k))}</td><td>${e.n}</td><td>${e.len.toFixed(1)} m</td><td>${m.db24} / ${m.db5} / ${m.db6}</td></tr>`; }).join("")}</tbody></table>` : "";
 
   // ---- calibration ----
   const calRows = F.map(f => {

@@ -155,7 +155,7 @@ async function loadDxfPlan(file) {
     <div class="model-form">
       <label class="field"><span>${t("dxfUnit")}${DXF_UNITS[dxf.units] ? "" : ` <span class="warn-text">(${t("dxfUnitGuess")})</span>`}</span><select id="dxUnit">
         ${[[4, "mm"], [5, "cm"], [6, "m"], [1, "inch"], [2, "feet"]].map(([k, l]) => `<option value="${k}" ${k === unit ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="field"><span>${t("dxfMat")}</span><select id="dxMat">${Object.keys(MATERIALS).map(k => `<option value="${k}" ${k === project.newWallMat ? "selected" : ""}>${esc(t("mat_" + k))}</option>`).join("")}</select></label>
+      <label class="field"><span>${t("dxfMat")}</span><select id="dxMat">${Object.keys(MATERIALS).map(k => `<option value="${k}" ${k === project.newWallMat ? "selected" : ""}>${esc(matName(k))}</option>`).join("")}</select></label>
     </div>
     <label class="check"><input type="checkbox" id="dxMerge" checked> ${t("dxfMerge")}</label>
     <h3 class="modal-sub">${t("dxfLayers")}</h3>
@@ -284,7 +284,7 @@ function openDetectWalls() {
     <p class="unit">${t("detectHelp")}</p>
     ${project.scaleSet ? "" : `<p class="warn-text">${t("detectNeedScale")}</p>`}
     <div class="model-form">
-      <label class="field"><span>${t("dxfMat")}</span><select id="dtMat">${Object.keys(MATERIALS).map(k => `<option value="${k}" ${k === project.newWallMat ? "selected" : ""}>${esc(t("mat_" + k))}</option>`).join("")}</select></label>
+      <label class="field"><span>${t("dxfMat")}</span><select id="dtMat">${Object.keys(MATERIALS).map(k => `<option value="${k}" ${k === project.newWallMat ? "selected" : ""}>${esc(matName(k))}</option>`).join("")}</select></label>
       <label class="field"><span>${t("detectThick")} (cm)</span><input id="dtThick" type="number" min="2" max="40" step="1" value="6"></label>
       <label class="field"><span>${t("detectLen")} (m)</span><input id="dtLen" type="number" min="0.3" max="10" step="0.1" value="0.8"></label>
       <label class="field"><span>${t("detectDark")}</span><input id="dtDark" type="range" min="40" max="200" value="110"></label>

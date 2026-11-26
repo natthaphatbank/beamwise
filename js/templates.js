@@ -386,6 +386,7 @@ async function applyTemplate(key, vals, { auto, model, layout = "same" }, onProg
   const margin = 1, Wm = g.W + 2 * margin, Hm = g.H + 2 * margin;
   const ppm = Math.min(40, 3000 / Math.max(Wm, Hm));
   // fresh project, like New
+  registerMaterials([]);
   project = newProject(); planImg = null; selection = null; areaDraft = null; clearProbes(); undoStack = []; redoStack = [];
   floorImgs.clear();
   project.plan = { image: null, width: Math.round(Wm * ppm), height: Math.round(Hm * ppm) };
