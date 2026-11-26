@@ -1011,6 +1011,7 @@ function showHint(text) {
 const hintKey = k => (touchUI && I18N.en[k + "Touch"] ? k + "Touch" : k);
 
 function setTool(name) {
+  if (name !== "select") emptyDismissed = true;
   if (name !== "measure" && typeof measure !== "undefined") measure = null;
   if (name !== tool) finishArea();
   tool = name;
@@ -2101,16 +2102,15 @@ function reqSetText(set) {
 function renderLegend() {
   const st = project.settings, v = curView(), def = VIEW_DEFS[v];
   const item = (rgb, lbl) => `<div class="item"><span class="sw" style="background:rgb(${rgb})"></span><span class="lbl">${lbl}</span></div>`;
+  // compact legend for the box on the plan: a colour strip with values (strongest / best first)
+  const seg = (rgb, lbl, title = "") => `<span class="lg-seg" title="${esc(title)}"><i style="background:rgb(${rgb})"></i><span>${lbl}</span></span>`;
   let html = "";
-  if (v === "signal" || v === "secondary" || v === "tertiary") html = SIGNAL_STOPS.map(s => item(s.rgb, `<b>${s.label}</b> dBm · ${t(s.key)}`)).join("");
-  else if (v === "serving") html = project.aps.slice(0, 16).map((a, i) => item(apColor(i), `<b>${esc(a.name || "AP")}</b>`)).join("") +
-    (project.aps.length > 16 ? `<div class="unit">+${project.aps.length - 16}</div>` : "");
-  else if (v === "health") html = def.stops.map((s, i) => item(s.rgb, i ? tf(i === 3 ? "healthFailN3" : i === 1 ? "healthFail1" : "healthFailN", { n: i }) : t("healthPassAll"))).join("") +
-    `<div class="unit">${reqSetText(areaReqSet(project, null))}</div>`;
-  else html = def.stops.map(s => item(s.rgb, `<b>${s.label}</b>${def.unit ? " " + def.unit : ""}`)).join("");
-  $("#legend").innerHTML = `<div class="view-name">${t("view_" + v)} · ${st.band} GHz</div>` + html +
-    `<p class="unit view-help">${t("viewHelp_" + v)}</p>` +
-    `<div class="req-line">${t("requirement")}: <b>${reqText()}</b>${st.req === "auto" ? ` (${t("autoShort")})` : ""}</div>`;
+  if (v === "signal" || v === "secondary" || v === "tertiary") html = SIGNAL_STOPS.map(s => seg(s.rgb, s.label.replace("≥ ", ""), t(s.key))).join("") + `<span class="lg-unit">dBm</span>`;
+  else if (v === "serving") html = project.aps.slice(0, 8).map((a, i) => seg(apColor(i), esc(a.name || "AP"))).join("") + (project.aps.length > 8 ? `<span class="lg-unit">+${project.aps.length - 8}</span>` : "");
+  else if (v === "health") html = def.stops.map((s, i) => seg(s.rgb, s.label, i ? tf(i === 3 ? "healthFailN3" : i === 1 ? "healthFail1" : "healthFailN", { n: i }) : t("healthPassAll"))).join("") + `<span class="lg-unit">${esc(t("healthFailShort"))}</span>`;
+  else html = def.stops.map(s => seg(s.rgb, s.label.replace("≥ ", ""))).join("") + (def.unit ? `<span class="lg-unit">${def.unit}</span>` : "");
+  $("#legend").innerHTML = `<div class="lg-strip">${html}</div>`;
+  $("#viewDock").title = t("viewHelp_" + v) + (v === "health" ? "\n" + reqSetText(areaReqSet(project, null)).replace(/<[^>]+>/g, "") : "");
 }
 
 function renderSettings() {
@@ -2180,8 +2180,45 @@ function renderPanelCards() {
   $("#summaryCard").hidden = !revealed.summary;
   $("#aiCard").hidden = !revealed.ai;
   $("#displayCard").hidden = !revealed.display;
-  $("#legendCard").hidden = !revealed.legend;
+  $("#pTabs").hidden = !revealed.summary;
+  document.querySelector('#pTabs [data-ptab="ai"]').hidden = !revealed.ai;
+  if (!revealed.ai && panelTab === "ai") setPanelTab("results");
+  $("#viewDock").hidden = !revealed.legend;
+  $("#ctrlDock").hidden = !started && !project.plan.image;
+  updateEmptyState();
 }
+
+// ---------- side panel tabs: Results / Settings / AI ----------
+let panelTab = "results";
+try { panelTab = ["results", "settings", "ai"].includes(localStorage.getItem("bw-ptab")) ? localStorage.getItem("bw-ptab") : "results"; } catch (e) {}
+function setPanelTab(tb) {
+  panelTab = tb;
+  try { localStorage.setItem("bw-ptab", tb); } catch (e) {}
+  document.querySelector(".panel").dataset.tab = tb;
+  document.querySelectorAll("#pTabs [data-ptab]").forEach(b => { b.classList.toggle("active", b.dataset.ptab === tb); b.setAttribute("aria-selected", String(b.dataset.ptab === tb)); });
+}
+$("#pTabs").addEventListener("click", e => { const b = e.target.closest("[data-ptab]"); if (b) setPanelTab(b.dataset.ptab); });
+
+// ---------- empty project: three ways to start, in the middle of the plan ----------
+let emptyDismissed = false;
+function updateEmptyState() {
+  const empty = !hasWork() && !emptyDismissed && tool === "select";
+  $("#emptyState").hidden = !empty;
+}
+$("#emptyState").addEventListener("click", e => {
+  const b = e.target.closest("[data-es]");
+  if (!b) return;
+  const a = b.dataset.es;
+  if (a === "plan") pickPlan();
+  else if (a === "tpl") openTemplates();
+  else if (a === "demo") guardUnsaved(loadSample);
+  else if (a === "draw") { emptyDismissed = true; openPanel(); setTool("wall"); }
+  updateEmptyState();
+});
+
+// ---------- File menu (top bar) ----------
+$("#fileMenu").addEventListener("click", e => { if (e.target.closest(".menu-pop button")) $("#fileMenu").open = false; });
+document.addEventListener("pointerdown", e => { if (!e.target.closest("#fileMenu")) $("#fileMenu").open = false; });
 
 // Keyboard shortcuts: listed in the Help window only (folded), not in the side panel.
 function shortcutsHtml() {
@@ -2224,7 +2261,7 @@ function renderStats() {
     ${areaTableHtml()}
     ${project.aps.length ? `<div class="models"><b>${t("apModels")}:</b><br>${Object.entries(counts).map(([k, n]) => `${n} × ${esc(k)}`).join("<br>")}</div>` : ""}`;
   renderCalib();
-  if (!$("#legendCard").hidden) renderLegend();
+  if (!$("#viewDock").hidden) renderLegend();
   $("#stScale").textContent = project.scaleSet || !project.plan.image
     ? `1 m = ${(1 / project.mPerPx).toFixed(1)} px` : t("noScale");
 }
@@ -2742,6 +2779,7 @@ window.addEventListener("beforeunload", e => { if (isDirty()) { e.preventDefault
 
 // ---------- top bar ----------
 function startBlank() {
+  emptyDismissed = false;
   registerMaterials([]);
   project = newProject(); planImg = null; selection = null; areaDraft = null; clearProbes(); undoStack = []; redoStack = [];
   renderFloorBar();
@@ -2911,6 +2949,7 @@ if (window.ResizeObserver) new ResizeObserver(() => {
 registerCustomModels(customLibrary());
 try { localStorage.removeItem("wpth-ai-key"); } catch (e) {}   // key saved by the removed AI review feature
 applyI18n();
+setPanelTab(panelTab);
 wireFloorBar();
 wireTables();
 setTheme(uiTheme);

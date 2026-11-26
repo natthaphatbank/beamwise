@@ -4,6 +4,10 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    emptyDemo: "ลองโปรเจกต์ตัวอย่าง", fileMenu: "ไฟล์", tabResults: "ผลลัพธ์", tabSettings: "ตั้งค่า", tabAi: "ผู้ช่วย AI", healthFailShort: "ข้อไม่ผ่าน",
+    emptyTitle: "เริ่มออกแบบ Wi-Fi", emptyBody: "เลือกวิธีเริ่ม หรือลากไฟล์แบบแปลน (รูป, PDF, DXF) มาวางที่นี่",
+    emptyPlanD: "รูป, PDF หรือ CAD (DXF) ของอาคาร", emptyTplD: "หอพัก ออฟฟิศ ร้าน โกดัง และอื่น ๆ ใส่ขนาดแล้วได้แบบทันที", emptyDemoD: "หอพัก 14 ห้องพร้อม AP ลองเล่นได้เลย",
+    emptyDraw: "หรือเริ่มวาดผนังบนแผ่นว่าง",
     docxCreate: "สร้าง Word (.docx)", expDocx: "รายงาน Word (.docx)", expDocxD: "รายงานเดียวกับ PDF แต่แก้ไขต่อใน Word / Google Docs ได้",
     tplOrderHint: "(ติ๊กเลือก • ↑↓ เรียงลำดับ)", tplBrand: "เทมเพลตและแบรนด์ (โลโก้ บริษัท สี ข้อความ)", tplCompany: "ชื่อบริษัท", tplContact: "ติดต่อ (ที่อยู่ โทร อีเมล)",
     tplAccent: "สีหลัก", tplFooter: "ข้อความท้ายหน้า", tplLogo: "ใส่โลโก้", tplIntro: "ข้อความเปิด (หน้าปก)", tplOutro: "ข้อความปิด / ข้อสรุป", tplOutroH: "ข้อสรุป",
@@ -56,6 +60,10 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    emptyDemo: "Try the sample", fileMenu: "File", tabResults: "Results", tabSettings: "Settings", tabAi: "AI assistant", healthFailShort: "criteria failing",
+    emptyTitle: "Start a Wi-Fi design", emptyBody: "Pick a way to start, or drop a floor plan (image, PDF, DXF) here",
+    emptyPlanD: "An image, PDF or CAD (DXF) plan of the building", emptyTplD: "Dorm, office, shop, warehouse and more: enter sizes, get a plan", emptyDemoD: "A 14-room dorm with APs to try things out",
+    emptyDraw: "Or start drawing walls on a blank sheet",
     docxCreate: "Create Word (.docx)", expDocx: "Word report (.docx)", expDocxD: "The same report as the PDF, editable in Word / Google Docs",
     tplOrderHint: "(tick to include • ↑↓ to reorder)", tplBrand: "Template and branding (logo, company, colour, text)", tplCompany: "Company name", tplContact: "Contact (address, phone, e-mail)",
     tplAccent: "Accent colour", tplFooter: "Footer text", tplLogo: "Add a logo", tplIntro: "Introduction (cover)", tplOutro: "Closing text / conclusion", tplOutroH: "Conclusion",

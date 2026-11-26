@@ -180,3 +180,19 @@ Object.assign(I18N.zh, {
   critApsN: "听到 {n} 个 AP", critCci: "同信道 AP", critSec: "第 2 个 AP", critOff: "关闭",
   healthPassAll: "满足全部要求", healthFail1: "1 项未通过", healthFailN: "{n} 项未通过", healthFailN3: "3 项或以上未通过", healthFailList: "未通过：{c}",
 });
+
+// layout (v3)
+Object.assign(I18N.zh, {
+  fileMenu: "文件",
+  tabResults: "结果",
+  tabSettings: "设置",
+  tabAi: "AI 助手",
+  healthFailShort: "未通过项",
+  emptyTitle: "开始 Wi-Fi 设计",
+  emptyBody: "选择开始方式，或把平面图（图片、PDF、DXF）拖到这里",
+  emptyPlanD: "建筑的图片、PDF 或 CAD (DXF) 平面图",
+  emptyTplD: "宿舍、办公室、商店、仓库等：输入尺寸即得平面",
+  emptyDemo: "试用示例项目",
+  emptyDemoD: "14 间房的宿舍，已放好 AP，可直接试用",
+  emptyDraw: "或在空白页上开始画墙",
+});

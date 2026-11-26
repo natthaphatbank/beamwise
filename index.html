@@ -32,14 +32,16 @@
     </div>
     <button id="btnMenu" class="menu-btn" aria-expanded="false" aria-controls="actions" data-i18n-title="menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span data-i18n="menu"></span></button>
     <div class="actions" id="actions">
-      <div class="group">
-        <button id="btnNew" data-i18n="new"></button>
-        <button id="btnTemplates" data-i18n="tplBtn"></button>
-        <button id="btnOpen" data-i18n="open"></button>
-        <button id="btnSave" data-i18n="save"></button>
-      </div>
-      <span class="vsep"></span>
-      <button id="btnPlan" data-i18n="loadPlan"></button>
+      <details class="filemenu" id="fileMenu">
+        <summary><span data-i18n="fileMenu"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+        <div class="menu-pop">
+          <button id="btnNew" data-i18n="new"></button>
+          <button id="btnTemplates" data-i18n="tplBtn"></button>
+          <button id="btnOpen" data-i18n="open"></button>
+          <button id="btnPlan" data-i18n="loadPlan"></button>
+        </div>
+      </details>
+      <button id="btnSave" data-i18n="save"></button>
       <button id="btnExportMenu" class="primary" data-i18n="expBtn"></button>
       <span class="vsep"></span>
       <button id="btnInstall" class="primary-outline" data-i18n="installApp" hidden></button>
@@ -59,26 +61,50 @@
     <nav class="tools" id="tools">
       <button data-tool="select" data-i18n-title="toolSelect"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z"/></svg><span class="tl" data-i18n="tlSelect"></span></button>
       <button data-tool="pan" data-i18n-title="toolPan"><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M12 2l-3 3M12 2l3 3M12 22l-3-3M12 22l3-3M2 12l3-3M2 12l3 3M22 12l-3-3M22 12l-3 3"/></svg><span class="tl" data-i18n="tlPan"></span></button>
+      <div class="sep"></div>
       <button data-tool="scale" data-i18n-title="toolScale"><svg viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span class="tl" data-i18n="tlScale"></span></button>
       <button data-tool="wall" data-i18n-title="toolWall"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3zM3 12h18M9 5v7M15 12v7"/></svg><span class="tl" data-i18n="tlWall"></span></button>
       <button data-tool="door" data-i18n-title="toolDoor"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 20V4h9v16"/><path d="M15 4a9 9 0 0 1 0 16" stroke-dasharray="2.5 2"/><circle cx="12.5" cy="12" r="0.9"/></svg><span class="tl" data-i18n="tlDoor"></span></button>
       <button data-tool="area" data-i18n-title="toolArea"><svg viewBox="0 0 24 24"><path d="M4 6l7-3 9 5-2 11-12 2z" stroke-dasharray="3 2.5"/><circle cx="4" cy="6" r="1.6"/><circle cx="20" cy="8" r="1.6"/><circle cx="6" cy="21" r="1.6"/></svg><span class="tl" data-i18n="tlArea"></span></button>
       <button data-tool="opening" data-i18n-title="toolOpening"><svg viewBox="0 0 24 24"><path d="M3 8l9-4 9 4-9 4z"/><path d="M3 16l9-4 9 4-9 4z"/><path d="M9 10.5l6 3M15 10.5l-6 3" stroke-dasharray="2 1.5"/></svg><span class="tl" data-i18n="tlOpening"></span></button>
       <button data-tool="atten" data-i18n-title="toolAtten"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 11l6-6M4 17l12-12M8 19l12-12M14 19l6-6"/></svg><span class="tl" data-i18n="tlAtten"></span></button>
+      <div class="sep"></div>
       <button data-tool="ap" data-i18n-title="toolAp"><svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="2"/><path d="M8 11a6 6 0 0 1 8 0M5 8a10 10 0 0 1 14 0"/></svg><span class="tl" data-i18n="tlAp"></span></button>
+      <button data-tool="probe" data-i18n-title="toolProbe"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span class="tl" data-i18n="tlProbe"></span></button>
+      <div class="sep"></div>
       <button data-tool="note" data-i18n-title="toolNote"><svg viewBox="0 0 24 24"><path d="M12 22s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><path d="M9 9h6M9 12h4"/></svg><span class="tl" data-i18n="tlNote"></span></button>
       <button data-tool="measure" data-i18n-title="toolMeasure"><svg viewBox="0 0 24 24"><path d="M2 16l14-14 6 6-14 14z"/><path d="M6 12l2 2M9 9l3 3M12 6l2 2"/></svg><span class="tl" data-i18n="tlMeasure"></span></button>
       <button data-tool="survey" data-i18n-title="toolSurvey"><svg viewBox="0 0 24 24"><path d="M12 3l6 6-6 6-6-6z"/><path d="M12 15v6M8 21h8"/></svg><span class="tl" data-i18n="tlSurvey"></span></button>
-      <button data-tool="probe" data-i18n-title="toolProbe"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span class="tl" data-i18n="tlProbe"></span></button>
-      <div class="sep"></div>
-      <button id="btnUndo" data-i18n-title="undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg><span class="tl" data-i18n="tlUndo"></span></button>
-      <button id="btnRedo" data-i18n-title="redo"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg><span class="tl" data-i18n="tlRedo"></span></button>
-      <button id="btnFit" data-i18n-title="fit"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="tl" data-i18n="tlFit"></span></button>
-      <button id="btnView3d" data-i18n-title="view3d"><svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg><span class="tl" data-i18n="tl3d"></span></button>
     </nav>
 
     <section class="stage" id="stage">
       <canvas id="canvas"></canvas>
+      <div class="viewdock" id="viewDock">
+        <div class="vd-row">
+          <div class="seg" id="bandSeg">
+            <button data-band="2.4">2.4</button>
+            <button data-band="5">5</button>
+            <button data-band="6">6 GHz</button>
+          </div>
+          <select id="viewSel" data-i18n-title="viewLbl"></select>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="ctrldock" id="ctrlDock"><button id="btnUndo" data-i18n-title="undo"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+      <button id="btnRedo" data-i18n-title="redo"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+      <button id="btnFit" data-i18n-title="fit"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button id="btnView3d" data-i18n-title="view3d"><svg viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.75v9.5L12 21.5l-8.5-4.75v-9.5z"/><path d="M3.5 7.25L12 12l8.5-4.75M12 12v9.5"/></svg></button>
+      </div>
+      <div class="empty-state" id="emptyState" hidden>
+        <h2 data-i18n="emptyTitle"></h2>
+        <p data-i18n="emptyBody"></p>
+        <div class="es-actions">
+          <button class="es-btn primary" data-es="plan"><b data-i18n="loadPlan"></b><small data-i18n="emptyPlanD"></small></button>
+          <button class="es-btn" data-es="tpl"><b data-i18n="tplBtn"></b><small data-i18n="emptyTplD"></small></button>
+          <button class="es-btn" data-es="demo"><b data-i18n="emptyDemo"></b><small data-i18n="emptyDemoD"></small></button>
+        </div>
+        <button class="link-btn" data-es="draw" data-i18n="emptyDraw"></button>
+      </div>
       <div class="floorbar" id="floorBar"></div>
       <div class="hint" id="hint"></div>
       <button class="finish-wall" id="btnFinishWall" hidden></button>
@@ -91,7 +117,12 @@
         <div id="props"></div>
       </section>
 
-      <section class="card" id="summaryCard">
+      <nav class="ptabs" id="pTabs" role="tablist">
+        <button data-ptab="results" role="tab" data-i18n="tabResults"></button>
+        <button data-ptab="settings" role="tab" data-i18n="tabSettings"></button>
+        <button data-ptab="ai" role="tab" data-i18n="tabAi"></button>
+      </nav>
+      <section class="card" id="summaryCard" data-tab="results">
         <h3 data-i18n="summary"></h3>
         <div class="stats" id="stats"></div>
         <div class="btn-row2">
@@ -100,12 +131,12 @@
         </div>
       </section>
 
-      <section class="card" id="calibCard" hidden>
+      <section class="card" id="calibCard" data-tab="results" hidden>
         <h3 data-i18n="calibTitle"></h3>
         <div id="calib"></div>
       </section>
 
-      <section class="card" id="aiCard">
+      <section class="card" id="aiCard" data-tab="ai">
         <h3 data-i18n="aiTitle"></h3>
         <label class="row"><span data-i18n="aiModelUsed"></span><select id="aiModel"></select></label>
         <div id="aiModelSearchBox"></div>
@@ -120,16 +151,8 @@
         <button class="btn" id="btnCapacity" data-i18n="aiCapacity"></button>
       </section>
 
-      <section class="card" id="displayCard">
+      <section class="card" id="displayCard" data-tab="settings">
         <h3 data-i18n="display"></h3>
-        <label class="row"><span data-i18n="band"></span>
-          <div class="seg" id="bandSeg">
-            <button data-band="2.4">2.4 GHz</button>
-            <button data-band="5">5 GHz</button>
-            <button data-band="6">6 GHz</button>
-          </div>
-        </label>
-        <label class="row"><span data-i18n="viewLbl"></span><select id="viewSel"></select></label>
         <label class="row"><span data-i18n="environment"></span>
           <select id="envSel"></select>
         </label>
@@ -164,12 +187,8 @@
         </details>
       </section>
 
-      <section class="card" id="legendCard">
-        <h3 data-i18n="legend"></h3>
-        <div class="legend" id="legend"></div>
-      </section>
 
-      <p class="disclaimer" data-i18n="disclaimer"></p>
+      <p class="disclaimer" data-tab="results" data-i18n="disclaimer"></p>
     </aside>
   </main>
 

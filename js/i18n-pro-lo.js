@@ -180,3 +180,19 @@ Object.assign(I18N.lo, {
   critApsN: "ໄດ້ຍິນ {n} AP", critCci: "AP ຊ່ອງຊົນກັນ", critSec: "AP ໂຕທີ 2", critOff: "ບໍ່ໃຊ້",
   healthPassAll: "ຜ່ານທຸກເກນ", healthFail1: "ບໍ່ຜ່ານ 1 ຂໍ້", healthFailN: "ບໍ່ຜ່ານ {n} ຂໍ້", healthFailN3: "ບໍ່ຜ່ານ 3 ຂໍ້ຂຶ້ນໄປ", healthFailList: "ບໍ່ຜ່ານ: {c}",
 });
+
+// layout (v3)
+Object.assign(I18N.lo, {
+  fileMenu: "ໄຟລ໌",
+  tabResults: "ຜົນລັບ",
+  tabSettings: "ຕັ້ງຄ່າ",
+  tabAi: "ຜູ້ຊ່ວຍ AI",
+  healthFailShort: "ຂໍ້ບໍ່ຜ່ານ",
+  emptyTitle: "ເລີ່ມອອກແບບ Wi-Fi",
+  emptyBody: "ເລືອກວິທີເລີ່ມ ຫຼື ລາກໄຟລ໌ແຜນຜັງ (ຮູບ, PDF, DXF) ມາວາງບ່ອນນີ້",
+  emptyPlanD: "ຮູບ, PDF ຫຼື CAD (DXF) ຂອງອາຄານ",
+  emptyTplD: "ຫໍພັກ ຫ້ອງການ ຮ້ານ ສາງ ແລະ ອື່ນໆ ໃສ່ຂະໜາດແລ້ວໄດ້ແບບທັນທີ",
+  emptyDemo: "ລອງໂປຣເຈັກຕົວຢ່າງ",
+  emptyDemoD: "ຫໍພັກ 14 ຫ້ອງພ້ອມ AP ລອງໄດ້ເລີຍ",
+  emptyDraw: "ຫຼື ເລີ່ມແຕ້ມຝາເທິງແຜ່ນວ່າງ",
+});

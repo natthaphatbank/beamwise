@@ -180,3 +180,19 @@ Object.assign(I18N.ko, {
   critApsN: "AP {n}대", critCci: "동일 채널 AP", critSec: "두 번째 AP", critOff: "사용 안 함",
   healthPassAll: "모든 기준 통과", healthFail1: "1개 항목 실패", healthFailN: "{n}개 항목 실패", healthFailN3: "3개 이상 실패", healthFailList: "실패: {c}",
 });
+
+// layout (v3)
+Object.assign(I18N.ko, {
+  fileMenu: "파일",
+  tabResults: "결과",
+  tabSettings: "설정",
+  tabAi: "AI 도우미",
+  healthFailShort: "실패 항목",
+  emptyTitle: "Wi-Fi 설계 시작",
+  emptyBody: "시작 방법을 고르거나 평면도(이미지, PDF, DXF)를 여기에 끌어다 놓으세요",
+  emptyPlanD: "건물의 이미지, PDF 또는 CAD(DXF) 평면도",
+  emptyTplD: "기숙사, 사무실, 상점, 창고 등: 크기만 넣으면 평면도",
+  emptyDemo: "샘플 써 보기",
+  emptyDemoD: "AP가 배치된 14실 기숙사로 바로 써 보기",
+  emptyDraw: "또는 빈 도면에 벽 그리기 시작",
+});

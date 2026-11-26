@@ -180,3 +180,19 @@ Object.assign(I18N.my, {
   critApsN: "AP {n} ခု ကြား", critCci: "ချန်နယ်တူ AP", critSec: "ဒုတိယ AP", critOff: "ပိတ်",
   healthPassAll: "လိုအပ်ချက်အားလုံး အောင်", healthFail1: "စံ 1 ခု မအောင်", healthFailN: "စံ {n} ခု မအောင်", healthFailN3: "3 ခု နှင့်အထက် မအောင်", healthFailList: "မအောင်: {c}",
 });
+
+// layout (v3)
+Object.assign(I18N.my, {
+  fileMenu: "ဖိုင်",
+  tabResults: "ရလဒ်",
+  tabSettings: "ဆက်တင်",
+  tabAi: "AI အကူ",
+  healthFailShort: "မအောင်သော စံ",
+  emptyTitle: "Wi-Fi ဒီဇိုင်း စတင်ရန်",
+  emptyBody: "စတင်ပုံ ရွေးပါ သို့မဟုတ် အထပ်ပုံ (ပုံ၊ PDF၊ DXF) ကို ဤနေရာသို့ ဆွဲချပါ",
+  emptyPlanD: "အဆောက်အအုံ၏ ပုံ၊ PDF သို့မဟုတ် CAD (DXF) အထပ်ပုံ",
+  emptyTplD: "အဆောင်၊ ရုံး၊ ဆိုင်၊ ဂိုဒေါင် စသည်: အရွယ်ထည့်လျှင် အထပ်ပုံ ရ",
+  emptyDemo: "နမူနာ စမ်းရန်",
+  emptyDemoD: "AP ချပြီးသား အခန်း 14 ခန်း အဆောင်ဖြင့် ချက်ချင်း စမ်းနိုင်",
+  emptyDraw: "သို့မဟုတ် စာရွက်အလွတ်ပေါ် နံရံ စဆွဲပါ",
+});

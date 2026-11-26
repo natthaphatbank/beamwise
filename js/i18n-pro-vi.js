@@ -180,3 +180,19 @@ Object.assign(I18N.vi, {
   critApsN: "nghe {n} AP", critCci: "AP cùng kênh", critSec: "AP thứ 2", critOff: "tắt",
   healthPassAll: "Đạt mọi yêu cầu", healthFail1: "1 tiêu chí không đạt", healthFailN: "{n} tiêu chí không đạt", healthFailN3: "3 tiêu chí trở lên không đạt", healthFailList: "Không đạt: {c}",
 });
+
+// layout (v3)
+Object.assign(I18N.vi, {
+  fileMenu: "Tệp",
+  tabResults: "Kết quả",
+  tabSettings: "Cài đặt",
+  tabAi: "Trợ lý AI",
+  healthFailShort: "tiêu chí không đạt",
+  emptyTitle: "Bắt đầu thiết kế Wi-Fi",
+  emptyBody: "Chọn cách bắt đầu, hoặc kéo bản vẽ (ảnh, PDF, DXF) thả vào đây",
+  emptyPlanD: "Ảnh, PDF hoặc bản vẽ CAD (DXF) của tòa nhà",
+  emptyTplD: "Ký túc xá, văn phòng, cửa hàng, nhà kho…: nhập kích thước là có mặt bằng",
+  emptyDemo: "Thử dự án mẫu",
+  emptyDemoD: "Ký túc xá 14 phòng đã có AP để thử ngay",
+  emptyDraw: "Hoặc bắt đầu vẽ tường trên trang trống",
+});

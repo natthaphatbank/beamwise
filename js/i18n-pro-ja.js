@@ -180,3 +180,19 @@ Object.assign(I18N.ja, {
   critApsN: "AP {n} 台", critCci: "同一チャネル AP", critSec: "2 番目の AP", critOff: "なし",
   healthPassAll: "すべての基準に合格", healthFail1: "1 項目不合格", healthFailN: "{n} 項目不合格", healthFailN3: "3 項目以上不合格", healthFailList: "不合格：{c}",
 });
+
+// layout (v3)
+Object.assign(I18N.ja, {
+  fileMenu: "ファイル",
+  tabResults: "結果",
+  tabSettings: "設定",
+  tabAi: "AI アシスタント",
+  healthFailShort: "不合格の数",
+  emptyTitle: "Wi-Fi 設計を始める",
+  emptyBody: "始め方を選ぶか、図面（画像、PDF、DXF）をここにドロップ",
+  emptyPlanD: "建物の画像、PDF、CAD (DXF) 図面",
+  emptyTplD: "寮、オフィス、店舗、倉庫など：サイズを入れるだけで図面",
+  emptyDemo: "サンプルを試す",
+  emptyDemoD: "AP 配置済みの 14 室の寮ですぐ試せます",
+  emptyDraw: "または白紙に壁を描き始める",
+});
