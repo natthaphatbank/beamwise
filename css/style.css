@@ -53,7 +53,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text); }
 .brand img { display: block; }
-.brand b { color: var(--accent); }
+.brand { font-weight: 700; letter-spacing: -.2px; }
+.brand b { font-weight: 400; color: var(--muted); }
 .actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .actions .group { display: flex; gap: 6px; }
 .actions .vsep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
