@@ -50,7 +50,7 @@ On iPhone, iPad and Android the top-bar actions move into a **Menu** button (als
 
 | Shortcut | Action |
 |---|---|
-| V / H / S / W / B / Z / A / M / P | Select, Pan, Scale, Wall, Boundary, Attenuation zone, AP, Survey point, Check signal |
+| V / H / S / W / D / B / X / Z / A / N / R / M / P | Select, Pan, Scale, Wall, Door / window, Boundary, Floor opening, Attenuation zone, AP, Note, Measure, Survey point, Check signal |
 | 3 | 3D view on/off (Esc goes back to 2D) |
 | O | Straight lines on/off (walls and boundaries go only horizontal / vertical; on by default) |
 | Hold Shift while drawing | Flip straight lines for that point (any angle while on, straight while off) |
@@ -64,6 +64,18 @@ On iPhone, iPad and Android the top-bar actions move into a **Menu** button (als
 | Mouse wheel | Zoom |
 
 Every start (opening the app or refreshing the page) is a blank project. Use **Save** to keep your work as a `.json` file and **Open project** to continue later. Before New, Import floor plan, Open project or the sample replaces unsaved work, the app asks **Save first / Don't save / Cancel**; refreshing or closing the tab with unsaved work shows the browser's standard "Leave site?" warning.
+
+## More planning tools
+
+- **Network health and requirement sets**: pick a requirement set (basic, data, video, voice / roaming, high density, IoT, or custom) for the project and per boundary area. Each spot must pass signal, SNR, data rate, number of APs, co-channel APs and secondary signal; the **Network health** view shows how many criteria fail, and the signal check lists which.
+- **More views**: tertiary signal (3rd AP, for location), expected throughput (airtime shared with co-channel APs), packet loss and round-trip time (estimated from SINR and contention).
+- **Device mix, band steering, MLO**: each area's devices split into phones, laptops, tablets, TVs / signage, VoIP handsets, scanners / POS and 2.4 GHz IoT, each with its own standard, streams, bands and traffic. Band steering and Wi-Fi 7 MLO decide how they spread over 2.4 / 5 / 6 GHz for the capacity calculation.
+- **Wall materials and doors**: create your own materials (loss per band, colour, thickness); built-ins now include concrete block, double brick, elevator shaft, wooden / glass / fire doors and windows. The **Door / window tool (D)** cuts a wall and inserts a door, window or plain opening; 3D shows doors to 2.1 m and windows between 0.9 and 2.1 m.
+- **Floor openings (X)**: atriums, voids and stair wells in a floor's slab; signal from another floor passing through an opening loses nothing to that slab. Boundary areas can have their own **ceiling height** for ceiling APs.
+- **External antennas and tilt**: omni, patch, panel, sector and narrow-beam antennas replace the AP's internal gain and pattern; downtilt for directional / measured / external patterns. 6 GHz supports **320 MHz** channels.
+- **Country rules**: Thailand, Laos, Cambodia, Myanmar, Vietnam, Malaysia, Singapore, Indonesia, Philippines, China, Japan, South Korea, India, Australia, EU, UK and US: allowed channels and EIRP limits per sub-band (6 GHz with PSD). Simplified typical values: check the current national rules.
+- **Notes (N)** with a category and a photo, pinned on the plan, in the report, Excel and ZIP; **Measure (R)** for distances.
+- **Report templates and Word**: choose and reorder report sections, add your company, contact, logo, colour, introduction, conclusion and footer (optionally saved as your default in this browser), and export the report as **PDF** or **Word (.docx)**.
 
 ## AP models
 
@@ -161,6 +173,9 @@ js/floors.js    multiple floors: switching, settings, alignment, channels across
 js/tables.js    AP table, quote / BOM
 js/report-pdf.js PDF report (print to PDF)
 js/export.js    export menu, Excel summary, heatmap images ZIP
+js/docx.js      Word (.docx) report from the report HTML
+js/notes.js     map notes with photos, measuring tool
+js/i18n-pro2.js UI text for the second batch of features (Thai, English; other languages in i18n-pro-*.js)
 js/xlsx.js      small ZIP / XLSX writer (no library)
 js/cad.js       DXF import, wall detection from plan images
 js/templates.js building templates (dorm, condo, hotel, house, shop, office, school, warehouse, hall …)
