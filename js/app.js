@@ -448,6 +448,10 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
     if (isSel) for (const q of a.pts) handle(c, px, q.x, q.y);
   }
 
+  // notes, measuring line
+  drawNotes(c, px, interactive);
+  if (interactive && tool === "measure") drawMeasure(c, px);
+
   // broadcast waves (screen only)
   if (interactive && project.settings.waves) drawWaves(c, px);
 
@@ -1007,13 +1011,14 @@ function showHint(text) {
 const hintKey = k => (touchUI && I18N.en[k + "Touch"] ? k + "Touch" : k);
 
 function setTool(name) {
+  if (name !== "measure" && typeof measure !== "undefined") measure = null;
   if (name !== tool) finishArea();
   tool = name;
   wallChain = null;
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { opening: "hintOpening", select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe", door: "hintDoor" };
+  const hints = { note: "hintNote", measure: "hintMeasure", opening: "hintOpening", select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe", door: "hintDoor" };
   showHint(t(hintKey(hints[name])));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
@@ -1041,6 +1046,7 @@ function deleteSelection() {
   else if (selection.type === "area") project.areas = project.areas.filter(a => a !== o);
   else if (selection.type === "atten") project.attens = project.attens.filter(a => a !== o);
   else if (selection.type === "opening") project.openings = project.openings.filter(a => a !== o);
+  else if (selection.type === "note") project.notes = project.notes.filter(a => a !== o);
   else if (selection.type === "survey") project.survey = project.survey.filter(q => q !== o);
   else project.walls = project.walls.filter(w => w !== o);
   selection = null;
@@ -1109,6 +1115,13 @@ canvas.addEventListener("pointerdown", e => {
     if (ap) {
       if (!isApSelected(ap)) selection = { type: "ap", id: ap.id };   // dragging a selected item moves the whole group
       drag = { type: "group", aps: selectedAps(), walls: selection.type === "mixed" ? selectedWalls() : [], last: p, pushed: false };
+      renderPanel(); requestRender();
+      return;
+    }
+    const nt = hitNote(p);
+    if (nt && !multi) {
+      selection = { type: "note", id: nt.id };
+      drag = { type: "survey", pt: nt, last: p, pushed: false };
       renderPanel(); requestRender();
       return;
     }
@@ -1299,6 +1312,13 @@ canvas.addEventListener("pointercancel", endPointer);
 function tapAction({ p, shift }) {
   if (tool === "ap") { addAp(p); return; }
   if (tool === "door") { insertDoor(p); return; }
+  if (tool === "measure") { measureTap(p); return; }
+  if (tool === "note") {
+    const hit = hitNote(p);
+    if (hit) { selection = { type: "note", id: hit.id }; renderPanel(); requestRender(); }
+    else addNote(p);
+    return;
+  }
   if (tool === "probe") {
     if (inProbeX(p)) { deleteProbe(probeActive); return; }
     const i = hitProbe(p);
@@ -1418,7 +1438,7 @@ function updateFinishBtn() {
 }
 $("#btnFinishWall").addEventListener("click", () => { if (isPolyTool()) finishArea(); else finishWall(); });
 
-canvas.addEventListener("dblclick", () => { if (tool === "wall") finishWall(); if (isPolyTool()) finishArea(); });
+canvas.addEventListener("dblclick", () => { if (tool === "wall") finishWall(); if (isPolyTool()) finishArea(); if (tool === "measure" && measure) { measure.done = true; renderPanel(); requestRender(); } });
 
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
@@ -1444,13 +1464,13 @@ window.addEventListener("keydown", e => {
   if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
   if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
     if (e.key === "Escape") View3D.close();
-    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
+    const map3 = { n: "note", r: "measure", v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
     if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
     View3D.close();
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
+  const map = { n: "note", r: "measure", v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
@@ -1464,6 +1484,7 @@ window.addEventListener("keydown", e => {
   }
   if (e.key === "Delete" || e.key === "Backspace") { deleteSelection(); return; }
   if (e.key === "Escape") {
+    if (tool === "measure" && measure) { measure = null; renderPanel(); requestRender(); return; }
     if (areaDraft) cancelArea();
     else if (wallChain) finishWall();
     else if (scaleLine) { scaleLine = null; renderPanel(); }
@@ -1632,6 +1653,9 @@ function panelTitle(o) {
   if (o && selection.type === "area") return t("areaBoundary");
   if (o && selection.type === "atten") return t("attenZone");
   if (o && selection.type === "opening") return t("openingZone");
+  if (o && selection.type === "note") return `${t("noteTitle")} #${project.notes.indexOf(o) + 1}`;
+  if (tool === "note") return noKey(t("toolNote"));
+  if (tool === "measure") return noKey(t("toolMeasure"));
   if (tool === "opening") return noKey(t("toolOpening"));
   if (tool === "atten") return noKey(t("toolAtten"));
   if (tool === "door") return noKey(t("toolDoor"));
@@ -1850,6 +1874,12 @@ function renderPanel() {
     }));
   } else if (tool === "survey") {
     el.innerHTML = `<p class="empty">${t("surveyHelp")}</p>`;
+  } else if (o && selection.type === "note") {
+    renderNotePanel(el, o);
+  } else if (tool === "note") {
+    el.innerHTML = `<p class="empty">${t("noteHelp")}</p>`;
+  } else if (tool === "measure") {
+    renderMeasurePanel(el);
   } else if (o && selection.type === "opening") {
     const above = project.floors.length - 1 - project.floorIdx;
     el.innerHTML = `<div class="row"><span>${t("area")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
@@ -2158,7 +2188,7 @@ function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
-    [K("Z"), "k_atten"], [K("D"), "k_door"], [K("X"), "k_opening"], [K("P"), "k_probe"], [K("3"), "k_3d"],
+    [K("Z"), "k_atten"], [K("D"), "k_door"], [K("X"), "k_opening"], [K("N"), "k_note"], [K("R"), "k_measure"], [K("P"), "k_probe"], [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
@@ -2540,6 +2570,8 @@ function sanitizeOneFloor(data) {
                                        reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project",
                                        ceil: a.ceil == null || a.ceil === "" ? null : Math.min(30, Math.max(2, numOr(a.ceil, 2.7))),
                                        mix: a.mix && typeof a.mix === "object" ? Object.fromEntries(DEVICE_KEYS.map(k => [k, Math.min(100, Math.max(0, numOr(a.mix[k], 0)))])) : null })),
+    notes: arr(data.notes).slice(0, 500).map(n => ({ id: strOr(n.id, uid()), x: numOr(n.x, 0), y: numOr(n.y, 0), text: strOr(n.text, "", 1000),
+      cat: NOTE_CATS[n.cat] ? n.cat : "info", photo: typeof n.photo === "string" && /^data:image\/(jpeg|png|webp);base64,/i.test(n.photo) && n.photo.length < 3e6 ? n.photo : null })),
     openings: arr(data.openings).slice(0, 200).map(z => ({ id: strOr(z.id, uid()), pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
     attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),

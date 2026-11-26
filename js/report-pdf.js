@@ -233,6 +233,15 @@ async function buildReport(opts, onProgress) {
   }).filter(Boolean);
   const calTbl = calRows.length ? `<h3>${esc(t("calibTitle"))}</h3><table class="r-tbl"><thead><tr><th>${esc(t("floorLbl"))}</th><th>${esc(t("calibPoints"))}</th><th>RMS</th><th>${esc(t("pdfModel"))}</th></tr></thead><tbody>${calRows.join("")}</tbody></table>` : "";
 
+  // ---- notes on the plan (with photos) ----
+  const noteItems = F.flatMap((f, i) => (f.notes || []).map((n, k) => ({ f, n, k })));
+  const notesSec = noteItems.length ? `<section class="r-page r-flow"><h2>${esc(t("pdfNotes2"))} (${noteItems.length})</h2>
+    <div class="r-notes-grid">${noteItems.map(({ f, n, k }) => `<div class="r-note-item">
+      <div class="r-note-h"><span class="r-note-dot" style="background:${(NOTE_CATS[n.cat] || NOTE_CATS.info).color}">${k + 1}</span>
+        <b>${esc(t("noteCat_" + n.cat))}</b>${F.length > 1 ? ` · ${esc(t("floorLbl"))} ${esc(f.name)}` : ""} · x ${(n.x * f.mPerPx).toFixed(1)} m, y ${(n.y * f.mPerPx).toFixed(1)} m</div>
+      ${n.text ? `<div class="r-note-t">${esc(n.text).replace(/\n/g, "<br>")}</div>` : ""}
+      ${n.photo ? `<img src="${n.photo}" alt="">` : ""}</div>`).join("")}</div></section>` : "";
+
   // ---- quote ----
   let quote = "";
   if (opts.quote) {
@@ -272,6 +281,7 @@ async function buildReport(opts, onProgress) {
   </section>
   ${floorSecs}
   ${apTbl}
+  ${opts.notes !== false ? notesSec : ""}
   ${opts.details !== false && (wallTbl || calTbl) ? `<section class="r-page r-flow"><h2>${esc(t("pdfDetails"))}</h2>${wallTbl}${calTbl}</section>` : ""}
   ${quote}`;
 }

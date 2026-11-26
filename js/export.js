@@ -136,6 +136,9 @@ async function buildSummaryXlsx(onProgress = () => {}) {
   if (cap.length > 1) sheets.push({ name: t("capTitle"), rows: cap, widths: [12, 10, 16, 10, 16, 12, 14] });
   if (weak.length > 1) sheets.push({ name: t("xlsWeak"), rows: weak, widths: [12, 10, 10, 10, 12, 12] });
   if (walls.length > 1) sheets.push({ name: t("pdfWalls"), rows: walls, widths: [12, 24, 10, 16, 9, 9, 9] });
+  const notesRows = [[B(t("floorLbl")), B("#"), B(t("noteCat")), B(t("xlsNotes")), B("x (m)"), B("y (m)"), B(t("notePhotoTag"))]];
+  F.forEach(f => (f.notes || []).forEach((n, k) => notesRows.push([f.name, k + 1, t("noteCat_" + n.cat), n.text || "", r1(n.x * f.mPerPx), r1(n.y * f.mPerPx), n.photo ? "✓" : ""])));
+  if (notesRows.length > 1) sheets.push({ name: t("xlsNotes"), rows: notesRows, widths: [12, 5, 16, 60, 9, 9, 8] });
   if (sur.length > 1) sheets.push({ name: t("calibTitle"), rows: sur, widths: [12, 6, 10, 10, 10, 16, 16, 14] });
   // 3D pictures, one per floor
   const pics = F.map((f, i) => ({ f, url: S[i][bands[0]].url3d })).filter(p => p.url);
@@ -176,6 +179,8 @@ async function buildImagesZip(onProgress = () => {}) {
     onProgress(++done / total);
     await tickUi();
   }
+  // note photos
+  F.forEach(f => (f.notes || []).forEach((n, k) => { if (n.photo) files.push({ name: `notes/${F.length > 1 ? `floor-${safe(f.name)}_` : ""}note-${k + 1}.${/png/.test(n.photo.slice(0, 20)) ? "png" : "jpg"}`, data: dataUrlBytes(n.photo) }); }));
   changed();
   return makeZip(files);
 }
