@@ -192,6 +192,7 @@ Object.assign(I18N.ko, {
   emptyBody: "시작 방법을 고르거나 평면도(이미지, PDF, DXF)를 여기에 끌어다 놓으세요",
   emptyPlanD: "건물의 이미지, PDF 또는 CAD(DXF) 평면도",
   emptyTplD: "기숙사, 사무실, 상점, 창고 등: 크기만 넣으면 평면도",
+  dockMove: "드래그하여 이동 (더블클릭하면 원위치)", dockHide: "접기", dockShow: "펼치기",
   emptyDemo: "샘플 써 보기",
   emptyDemoD: "AP가 배치된 14실 기숙사로 바로 써 보기",
   emptyDraw: "또는 빈 도면에 벽 그리기 시작",

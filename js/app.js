@@ -2938,6 +2938,56 @@ $("#actions").addEventListener("click", e => { if (e.target.closest("button")) s
 document.addEventListener("pointerdown", e => { if (!e.target.closest(".topbar")) setMenu(false); });
 window.addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); });
 
+// ---------- heatmap box on the plan: drag it out of the way, or fold it down ----------
+// Where it sits and whether it is folded is a UI preference (wpth-dock), not project data.
+(() => {
+  const dock = $("#viewDock"), stage = $("#stage"), grip = $("#vdGrip"), fold = $("#vdFold");
+  let pref = { x: null, y: null, folded: false };
+  try { Object.assign(pref, JSON.parse(localStorage.getItem("wpth-dock") || "{}")); } catch (e) {}
+  const save = () => { try { localStorage.setItem("wpth-dock", JSON.stringify(pref)); } catch (e) {} };
+  const place = () => {
+    if (pref.x == null || dock.hidden) return;
+    const maxX = Math.max(0, stage.clientWidth - dock.offsetWidth - 4), maxY = Math.max(0, stage.clientHeight - dock.offsetHeight - 4);
+    dock.style.left = Math.round(Math.min(Math.max(4, pref.x), maxX)) + "px";
+    dock.style.top = Math.round(Math.min(Math.max(4, pref.y), maxY)) + "px";
+  };
+  const setMoved = on => {
+    dock.classList.toggle("moved", on);
+    if (!on) { pref.x = pref.y = null; dock.style.left = dock.style.top = ""; }
+    else place();
+  };
+  const setFolded = on => {
+    pref.folded = on;
+    dock.classList.toggle("folded", on);
+    fold.setAttribute("aria-expanded", String(!on));
+    fold.dataset.i18nTitle = on ? "dockShow" : "dockHide";
+    fold.title = t(fold.dataset.i18nTitle);
+  };
+  fold.addEventListener("click", () => { setFolded(!pref.folded); save(); });
+  // drag by the grip, or by the box's own background (not its buttons, select or legend)
+  dock.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || (e.target !== dock && !e.target.closest(".vd-grip") && !e.target.classList.contains("vd-row"))) return;
+    e.preventDefault();
+    const s = stage.getBoundingClientRect(), d = dock.getBoundingClientRect();
+    const dx = e.clientX - d.left, dy = e.clientY - d.top;
+    dock.setPointerCapture(e.pointerId);
+    dock.classList.add("dragging");
+    const move = ev => { pref.x = ev.clientX - s.left - dx; pref.y = ev.clientY - s.top - dy; setMoved(true); };
+    const up = () => {
+      dock.classList.remove("dragging");
+      dock.removeEventListener("pointermove", move); dock.removeEventListener("pointerup", up); dock.removeEventListener("pointercancel", up);
+      if (pref.x != null) save();
+    };
+    dock.addEventListener("pointermove", move); dock.addEventListener("pointerup", up); dock.addEventListener("pointercancel", up);
+  });
+  grip.addEventListener("dblclick", () => { setMoved(false); save(); });
+  setFolded(!!pref.folded);
+  if (pref.x != null) setMoved(true);
+  // keep it inside the plan area when the window, the panel or the box itself changes size
+  if (window.ResizeObserver) { const ro = new ResizeObserver(place); ro.observe(stage); ro.observe(dock); }
+  window.addEventListener("resize", place);
+})();
+
 // ---------- start ----------
 window.addEventListener("resize", () => { resize(); });
 // The canvas also changes size without a window resize (top bar wrapping once fonts load,

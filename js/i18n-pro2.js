@@ -4,7 +4,7 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
-    emptyDemo: "ลองโปรเจกต์ตัวอย่าง", fileMenu: "ไฟล์", tabResults: "ผลลัพธ์", tabSettings: "ตั้งค่า", tabAi: "ผู้ช่วย AI", healthFailShort: "ข้อไม่ผ่าน",
+    emptyDemo: "ลองโปรเจกต์ตัวอย่าง", dockMove: "ลากเพื่อย้ายกล่องนี้ (ดับเบิลคลิกเพื่อกลับที่เดิม)", dockHide: "ย่อกล่อง", dockShow: "ขยายกล่อง", fileMenu: "ไฟล์", tabResults: "ผลลัพธ์", tabSettings: "ตั้งค่า", tabAi: "ผู้ช่วย AI", healthFailShort: "ข้อไม่ผ่าน",
     emptyTitle: "เริ่มออกแบบ Wi-Fi", emptyBody: "เลือกวิธีเริ่ม หรือลากไฟล์แบบแปลน (รูป, PDF, DXF) มาวางที่นี่",
     emptyPlanD: "รูป, PDF หรือ CAD (DXF) ของอาคาร", emptyTplD: "หอพัก ออฟฟิศ ร้าน โกดัง และอื่น ๆ ใส่ขนาดแล้วได้แบบทันที", emptyDemoD: "หอพัก 14 ห้องพร้อม AP ลองเล่นได้เลย",
     emptyDraw: "หรือเริ่มวาดผนังบนแผ่นว่าง",
@@ -60,7 +60,7 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
-    emptyDemo: "Try the sample", fileMenu: "File", tabResults: "Results", tabSettings: "Settings", tabAi: "AI assistant", healthFailShort: "criteria failing",
+    emptyDemo: "Try the sample", dockMove: "Drag to move this box (double-click to put it back)", dockHide: "Collapse", dockShow: "Expand", fileMenu: "File", tabResults: "Results", tabSettings: "Settings", tabAi: "AI assistant", healthFailShort: "criteria failing",
     emptyTitle: "Start a Wi-Fi design", emptyBody: "Pick a way to start, or drop a floor plan (image, PDF, DXF) here",
     emptyPlanD: "An image, PDF or CAD (DXF) plan of the building", emptyTplD: "Dorm, office, shop, warehouse and more: enter sizes, get a plan", emptyDemoD: "A 14-room dorm with APs to try things out",
     emptyDraw: "Or start drawing walls on a blank sheet",

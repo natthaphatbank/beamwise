@@ -280,3 +280,17 @@
 .viewdock { z-index: 7; }
 .view3d ~ .viewdock, .stage .viewdock { z-index: 7; }
 .stage:has(.view3d:not([hidden])) .viewdock { top: 74px; }
+
+/* heatmap box: drag it by the grip (or its empty edge), fold it down to the band switch */
+.viewdock .vd-grip { display: grid; place-items: center; width: 16px; height: 28px; margin: 0 -2px 0 -4px; color: var(--muted); cursor: grab; touch-action: none; flex-shrink: 0; }
+.viewdock .vd-grip:hover { color: var(--text); }
+.viewdock .vd-grip svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.viewdock.dragging, .viewdock.dragging .vd-grip { cursor: grabbing; user-select: none; }
+.viewdock.dragging { box-shadow: 0 10px 30px rgba(10, 18, 32, .35); }
+.viewdock .vd-fold { width: 28px; height: 28px; flex-shrink: 0; display: grid; place-items: center; padding: 0; background: transparent; border: 1px solid transparent; border-radius: 7px; color: var(--muted); cursor: pointer; }
+.viewdock .vd-fold:hover { background: var(--panel-2); color: var(--text); }
+.viewdock .vd-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.viewdock.folded { padding: 4px 6px; gap: 0; }
+.viewdock.folded #viewSel, .viewdock.folded .legend { display: none; }
+.viewdock.folded .vd-fold svg { transform: rotate(180deg); }
+.viewdock.moved { right: auto; }

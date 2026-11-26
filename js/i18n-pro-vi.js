@@ -192,6 +192,7 @@ Object.assign(I18N.vi, {
   emptyBody: "Chọn cách bắt đầu, hoặc kéo bản vẽ (ảnh, PDF, DXF) thả vào đây",
   emptyPlanD: "Ảnh, PDF hoặc bản vẽ CAD (DXF) của tòa nhà",
   emptyTplD: "Ký túc xá, văn phòng, cửa hàng, nhà kho…: nhập kích thước là có mặt bằng",
+  dockMove: "Kéo để di chuyển (nhấp đúp để đưa về chỗ cũ)", dockHide: "Thu gọn", dockShow: "Mở rộng",
   emptyDemo: "Thử dự án mẫu",
   emptyDemoD: "Ký túc xá 14 phòng đã có AP để thử ngay",
   emptyDraw: "Hoặc bắt đầu vẽ tường trên trang trống",

@@ -192,6 +192,7 @@ Object.assign(I18N.ja, {
   emptyBody: "始め方を選ぶか、図面（画像、PDF、DXF）をここにドロップ",
   emptyPlanD: "建物の画像、PDF、CAD (DXF) 図面",
   emptyTplD: "寮、オフィス、店舗、倉庫など：サイズを入れるだけで図面",
+  dockMove: "ドラッグで移動（ダブルクリックで元の位置へ）", dockHide: "折りたたむ", dockShow: "広げる",
   emptyDemo: "サンプルを試す",
   emptyDemoD: "AP 配置済みの 14 室の寮ですぐ試せます",
   emptyDraw: "または白紙に壁を描き始める",

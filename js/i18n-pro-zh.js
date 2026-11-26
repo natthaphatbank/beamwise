@@ -192,6 +192,7 @@ Object.assign(I18N.zh, {
   emptyBody: "选择开始方式，或把平面图（图片、PDF、DXF）拖到这里",
   emptyPlanD: "建筑的图片、PDF 或 CAD (DXF) 平面图",
   emptyTplD: "宿舍、办公室、商店、仓库等：输入尺寸即得平面",
+  dockMove: "拖动以移动此框（双击恢复原位）", dockHide: "收起", dockShow: "展开",
   emptyDemo: "试用示例项目",
   emptyDemoD: "14 间房的宿舍，已放好 AP，可直接试用",
   emptyDraw: "或在空白页上开始画墙",
