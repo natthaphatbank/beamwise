@@ -144,3 +144,9 @@
 @media (max-width: 520px) { .tpl-form .model-form { grid-template-columns: 1fr 1fr; } }
 .tpl-prev { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius); margin: 6px 0; }
 .tpl-form .row select { width: 220px; }
+
+/* network health */
+.probe-health { margin-top: 8px; padding: 6px 8px; border-radius: var(--radius); font-size: 12px; line-height: 1.5; border: 1px solid var(--line); }
+.probe-health.good { background: color-mix(in srgb, var(--good) 12%, transparent); }
+.probe-health.bad { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+#reqSetEdit { margin: -2px 0 6px; }

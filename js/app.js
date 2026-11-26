@@ -35,7 +35,9 @@ function newProject() {
       view: "signal",              // heatmap view (VIEW_DEFS in views.js)
       clientStd: "Wi-Fi 6",        // client device Wi-Fi standard (data rate view)
       clientSS: 2,                 // client spatial streams
+      reqSet: "data",              // requirement set for network health (REQ_SETS in views.js)
     },
+    reqCustom: null,               // the "custom" requirement set {snr, rate, aps, cci, sec}
     newWallMat: "brick",
     newApModel: "generic-ax",
     newAttenPreset: "shelving",
@@ -650,9 +652,11 @@ function viewReadout(p) {
 }
 function fmtViewNum(v, x) {
   if (!Number.isFinite(x)) return "—";
-  if (v === "signal" || v === "secondary") return fmtDbm(x);
-  if (v === "rate") return `${x >= 100 ? Math.round(x) : x.toFixed(1)} Mbps`;
-  if (v === "cci" || v === "apcount") return String(Math.round(x * 10) / 10);
+  if (v === "signal" || v === "secondary" || v === "tertiary") return fmtDbm(x);
+  if (v === "rate" || v === "throughput") return `${x >= 100 ? Math.round(x) : x.toFixed(1)} Mbps`;
+  if (v === "cci" || v === "apcount" || v === "health") return String(Math.round(x * 10) / 10);
+  if (v === "loss") return `${x < 10 ? x.toFixed(1) : Math.round(x)}%`;
+  if (v === "rtt") return `${Math.round(x)} ms`;
   if (v === "capacity") return `${Math.round(x)}%`;
   return `${Math.round(x)} dB`;
 }
@@ -1790,6 +1794,12 @@ function probeMetricsHtml(pt) {
     <div class="row"><span>SINR</span><b>${sw("sinr", m.sinr)}${db(m.sinr)}</b></div>
     <div class="row"><span>${t("view_cci")}</span><b>${sw("cci", m.cci)}${m.cci}</b></div>
     <div class="row"><span>${t("view_rate")}</span><b>${sw("rate", m.rate)}${m.rate >= 100 ? Math.round(m.rate) : m.rate.toFixed(1)} Mbps</b></div>
+    <div class="row"><span>${t("view_tertiary")}</span><b>${sw("tertiary", m.tertiary)}${fmtDbm(m.tertiary)}</b></div>
+    <div class="row"><span>${t("view_throughput")}</span><b>${sw("throughput", m.throughput)}${fmtViewNum("throughput", m.throughput)}</b></div>
+    <div class="row"><span>${t("view_loss")}</span><b>${sw("loss", m.loss)}${fmtViewNum("loss", m.loss)}</b></div>
+    <div class="row"><span>${t("view_rtt")}</span><b>${sw("rtt", m.rtt)}${fmtViewNum("rtt", m.rtt)}</b></div>
+    <div class="probe-health ${m.health.fails ? "bad" : "good"}"><b>${t("view_health")}</b> · ${t("reqSet_" + m.health.set)}<br>
+      ${m.health.fails ? tf("healthFailList", { c: HEALTH_BITS.filter((_, i) => m.health.fails & (1 << i)).map(k => t("crit_" + k)).join(", ") }) : t("healthPassAll")}</div>
   </div>`;
 }
 
@@ -1801,6 +1811,8 @@ function renderAreaPanel(el, o) {
   el.innerHTML = `
     <label class="row"><span>${t("areaName")}</span><input type="text" id="arName" value="${esc(o.name || "")}" placeholder="${esc(t("areaNamePh"))}"></label>
     <label class="row"><span>${t("requirement")}</span><select id="arReq">${reqOpts}</select></label>
+    <label class="row"><span>${t("reqSetLbl")}</span><select id="arReqSet"><option value="project" ${!o.reqSet || o.reqSet === "project" ? "selected" : ""}>${t("areaReqProject")} (${t("reqSet_" + (project.settings.reqSet || "data"))})</option>
+      ${REQ_SET_KEYS.map(k => `<option value="${k}" ${o.reqSet === k ? "selected" : ""}>${t("reqSet_" + k)}</option>`).join("")}</select></label>
     <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
     <h4 class="sub-h">${t("capTitle")}</h4>
     <label class="row"><span>${t("capDevicesLbl")}</span><input type="number" id="arDev" min="0" max="5000" step="1" value="${+o.devices || 0}"></label>
@@ -1813,6 +1825,7 @@ function renderAreaPanel(el, o) {
   $("#arName").addEventListener("focus", pushHistory);
   $("#arName").addEventListener("input", e => { o.name = e.target.value.slice(0, 60); renderStats(); });
   $("#arReq").addEventListener("change", e => { pushHistory(); set("req", e.target.value === "auto" ? "auto" : +e.target.value); });
+  $("#arReqSet").addEventListener("change", e => { pushHistory(); set("reqSet", e.target.value); });
   $("#arDev").addEventListener("focus", pushHistory);
   $("#arDev").addEventListener("input", e => { const v = parseInt(e.target.value, 10); if (v >= 0) set("devices", Math.min(5000, v)); });
   $("#arApp").addEventListener("change", e => { pushHistory(); set("app", e.target.value, true); });
@@ -1885,13 +1898,26 @@ function renderProbePanel(el) {
 }
 
 // Legend for the heatmap view being shown.
+// "Voice: SNR ≥ 25 dB · rate ≥ 24 Mbps · 2 APs · co-channel ≤ 1 · 2nd ≥ -75 dBm" (signal is the requirement line)
+function reqSetText(set) {
+  const d = set.def, p = [];
+  if (d.snr != null) p.push(`SNR ≥ ${d.snr} dB`);
+  if (d.rate != null) p.push(`${t("view_rate")} ≥ ${d.rate} Mbps`);
+  if (d.aps != null && d.aps > 1) p.push(tf("critApsN", { n: d.aps }));
+  if (d.cci != null) p.push(`${t("critCci")} ≤ ${d.cci}`);
+  if (d.sec != null) p.push(`${t("critSec")} ≥ ${d.sec} dBm`);
+  return `<b>${t("reqSet_" + set.key)}</b>: ${p.join(" · ")}`;
+}
+
 function renderLegend() {
   const st = project.settings, v = curView(), def = VIEW_DEFS[v];
   const item = (rgb, lbl) => `<div class="item"><span class="sw" style="background:rgb(${rgb})"></span><span class="lbl">${lbl}</span></div>`;
   let html = "";
-  if (v === "signal" || v === "secondary") html = SIGNAL_STOPS.map(s => item(s.rgb, `<b>${s.label}</b> dBm · ${t(s.key)}`)).join("");
+  if (v === "signal" || v === "secondary" || v === "tertiary") html = SIGNAL_STOPS.map(s => item(s.rgb, `<b>${s.label}</b> dBm · ${t(s.key)}`)).join("");
   else if (v === "serving") html = project.aps.slice(0, 16).map((a, i) => item(apColor(i), `<b>${esc(a.name || "AP")}</b>`)).join("") +
     (project.aps.length > 16 ? `<div class="unit">+${project.aps.length - 16}</div>` : "");
+  else if (v === "health") html = def.stops.map((s, i) => item(s.rgb, i ? tf(i === 3 ? "healthFailN3" : i === 1 ? "healthFail1" : "healthFailN", { n: i }) : t("healthPassAll"))).join("") +
+    `<div class="unit">${reqSetText(areaReqSet(project, null))}</div>`;
   else html = def.stops.map(s => item(s.rgb, `<b>${s.label}</b>${def.unit ? " " + def.unit : ""}`)).join("");
   $("#legend").innerHTML = `<div class="view-name">${t("view_" + v)} · ${st.band} GHz</div>` + html +
     `<p class="unit view-help">${t("viewHelp_" + v)}</p>` +
@@ -1928,6 +1954,8 @@ function renderSettings() {
   $("#clientStdSel").value = st.clientStd || "Wi-Fi 6";
   $("#clientSSSel").innerHTML = [1, 2, 3, 4].map(n => `<option value="${n}">${n}</option>`).join("");
   $("#clientSSSel").value = String(clientStreams(st));
+  $("#reqSetSel").innerHTML = REQ_SET_KEYS.map(k => `<option value="${k}">${t("reqSet_" + k)}</option>`).join("");
+  $("#reqSetSel").value = REQ_SETS[st.reqSet] !== undefined ? st.reqSet : "data";
   renderAiModel();
   const ls = $("#langSel");
   if (!ls.options.length) ls.innerHTML = LANGS.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
@@ -1997,7 +2025,7 @@ function renderStats() {
     <span class="k">${t("meetsReq")} (${heatReq ? t("perArea") : `≥ ${req}`})</span><span class="v ${cls(cov.meet, 0.95, 0.8)}">${pct(cov.meet)}</span>
     <span class="k">${t("covNone")}</span><span class="v ${cov.none < 0.02 ? "good" : cov.none < 0.1 ? "warn" : "bad"}">${pct(cov.none)}</span>` : ""}
     ${vst ? `<span class="k">${tf("viewGood_" + v, { n: def.good ?? def.goodMax })}</span><span class="v ${cls(vst.good, 0.9, 0.7)}">${pct(vst.good)}</span>
-    ${Number.isFinite(vst.avg) && v !== "cci" && v !== "apcount" && v !== "capacity" ? `<span class="k">${t("viewAvg")}</span><span class="v">${fmtViewNum(v, vst.avg)}</span>` : ""}` : ""}
+    ${Number.isFinite(vst.avg) && !["cci", "apcount", "capacity", "health"].includes(v) ? `<span class="k">${t("viewAvg")}</span><span class="v">${fmtViewNum(v, vst.avg)}</span>` : ""}` : ""}
     ${noRadio ? `<div class="models warn-text">${tf("noBandRadio", { b: project.settings.band })}</div>` : ""}
     ${capacitySummaryHtml()}
     ${areaTableHtml()}
@@ -2096,6 +2124,34 @@ $("#marginSel").addEventListener("change", e => { project.settings.margin = +e.t
 $("#pathsChk").addEventListener("change", e => { project.settings.paths = e.target.checked; changed({ panel: false }); });
 $("#rulersChk").addEventListener("change", e => { project.settings.rulers = e.target.checked; fit(); scheduleAutosave(); });
 $("#dfsChk").addEventListener("change", e => { project.settings.dfs = e.target.checked; });
+$("#reqSetSel").addEventListener("change", e => {
+  const k = e.target.value, def = reqSetDef(project, k);
+  project.settings.reqSet = k;
+  if (def.signal != null) project.settings.req = def.signal;      // a set suggests its signal level
+  renderSettings(); changed({ panel: false });
+  if (k === "custom") openReqCustom();
+});
+$("#reqSetEdit").addEventListener("click", () => openReqCustom());
+// Edit the custom requirement set.
+function openReqCustom() {
+  const d = reqSetDef(project, "custom");
+  const f = (k, lbl, step, ph) => `<label class="field"><span>${lbl}</span><input type="number" data-k="${k}" step="${step}" value="${d[k] ?? ""}" placeholder="${ph}"></label>`;
+  openModal(`<h2>${t("reqCustomTitle")}</h2><p class="unit">${t("reqCustomHelp")}</p>
+    <div class="model-form">
+      ${f("signal", t("crit_signal") + " (dBm)", 1, "-67")}${f("snr", "SNR (dB)", 1, "25")}${f("rate", t("view_rate") + " (Mbps)", 1, "24")}
+      ${f("aps", t("crit_aps"), 1, "1")}${f("cci", t("critCci") + " (max)", 1, "1")}${f("sec", t("crit_sec") + " (dBm)", 1, t("critOff"))}
+    </div>
+    <div class="btns inline"><button data-act="cancel">${t("cancel")}</button><button class="primary" data-act="ok">${t("apply")}</button></div>`, null, "wide");
+  const box = $("#modalBox");
+  box.querySelector("[data-act=cancel]").onclick = closeModal;
+  box.querySelector("[data-act=ok]").onclick = () => {
+    const c = {};
+    box.querySelectorAll("[data-k]").forEach(i => { const v = parseFloat(i.value); c[i.dataset.k] = Number.isFinite(v) ? v : null; });
+    project.reqCustom = c; project.settings.reqSet = "custom";
+    if (c.signal != null) project.settings.req = Math.min(-30, Math.max(-95, c.signal));
+    closeModal(); renderSettings(); changed({ panel: false });
+  };
+}
 $("#viewSel").addEventListener("change", e => { project.settings.view = e.target.value; renderLegend(); changed({ panel: false }); });
 $("#clientStdSel").addEventListener("change", e => { project.settings.clientStd = e.target.value; changed({ panel: false }); });
 $("#clientSSSel").addEventListener("change", e => { project.settings.clientSS = +e.target.value; changed({ panel: false }); });
@@ -2253,7 +2309,8 @@ function sanitizeOneFloor(data) {
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                        name: strOr(a.name, "", 60), req: a.req == null || a.req === "auto" ? "auto" : Math.min(-30, Math.max(-95, numOr(a.req, -67))),
                                        devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),
-                                       app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))) })),
+                                       app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))),
+                                       reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project" })),
     attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                          db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),
@@ -2283,7 +2340,9 @@ function sanitizeOneFloor(data) {
       view: VIEW_DEFS[s.view] ? s.view : bs.view,
       clientStd: WIFI_STDS.includes(s.clientStd) ? s.clientStd : bs.clientStd,
       clientSS: Math.min(4, Math.max(1, Math.round(numOr(s.clientSS, bs.clientSS)))),
+      reqSet: REQ_SETS[s.reqSet] !== undefined ? s.reqSet : bs.reqSet,
     },
+    reqCustom: data.reqCustom && typeof data.reqCustom === "object" ? Object.fromEntries(["signal", "snr", "rate", "aps", "cci", "sec"].map(k => [k, numOr(data.reqCustom[k], null)])) : null,
     newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),
     newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,

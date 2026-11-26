@@ -30,13 +30,31 @@ const VIEW_DEFS = {
     { v: 0, rgb: [230, 60, 60], label: "0" }, { v: 1, rgb: [250, 170, 40], label: "1" },
     { v: 2, rgb: [110, 210, 70], label: "2" }, { v: 3, rgb: [0, 180, 120], label: "3+" }] },
   serving: { unit: "", stops: null },
+  tertiary: { unit: "dBm", stops: null },
+  throughput: { unit: "Mbps", good: 50, stops: [
+    { v: 400, rgb: [0, 170, 140], label: "≥ 400" }, { v: 200, rgb: [0, 200, 110], label: "200" },
+    { v: 100, rgb: [110, 210, 70], label: "100" }, { v: 50, rgb: [200, 220, 50], label: "50" },
+    { v: 20, rgb: [250, 170, 40], label: "20" }, { v: 5, rgb: [230, 60, 60], label: "5" },
+    { v: 0, rgb: [150, 30, 60], label: "0" }] },
+  loss: { unit: "%", goodMax: 1, stops: [
+    { v: 20, rgb: [150, 30, 60], label: "≥ 20" }, { v: 10, rgb: [230, 60, 60], label: "10" },
+    { v: 5, rgb: [250, 170, 40], label: "5" }, { v: 2, rgb: [200, 220, 50], label: "2" },
+    { v: 0.5, rgb: [70, 210, 80], label: "0.5" }, { v: 0, rgb: [0, 190, 110], label: "0" }] },
+  rtt: { unit: "ms", goodMax: 30, stops: [
+    { v: 150, rgb: [150, 30, 60], label: "≥ 150" }, { v: 80, rgb: [230, 60, 60], label: "80" },
+    { v: 40, rgb: [250, 170, 40], label: "40" }, { v: 20, rgb: [200, 220, 50], label: "20" },
+    { v: 10, rgb: [70, 210, 80], label: "10" }, { v: 0, rgb: [0, 190, 110], label: "< 5" }] },
+  health: { unit: "", discrete: true, goodMax: 0, stops: [
+    { v: 0, rgb: [0, 190, 110], label: "✓" }, { v: 1, rgb: [250, 200, 40], label: "1" },
+    { v: 2, rgb: [245, 130, 40], label: "2" }, { v: 3, rgb: [220, 50, 60], label: "3+" }] },
   capacity: { unit: "%", goodMax: 80, stops: [
     { v: 120, rgb: [150, 30, 60], label: "> 100" }, { v: 100, rgb: [230, 60, 60], label: "100" },
     { v: 80, rgb: [250, 170, 40], label: "80" }, { v: 50, rgb: [200, 220, 50], label: "50" },
     { v: 0, rgb: [0, 190, 110], label: "0" }], ascending: true },
 };
 VIEW_DEFS.sinr.stops = VIEW_DEFS.snr.stops;
-const VIEW_KEYS = Object.keys(VIEW_DEFS);
+// order in the view menu
+const VIEW_KEYS = ["signal", "secondary", "tertiary", "snr", "sinr", "cci", "rate", "throughput", "loss", "rtt", "apcount", "serving", "health", "capacity"];
 
 // Distinct colours for "serving AP" zones.
 const AP_PALETTE = [[66, 133, 244], [234, 67, 53], [251, 188, 5], [52, 168, 83], [171, 71, 188], [0, 172, 193],
@@ -44,7 +62,7 @@ const AP_PALETTE = [[66, 133, 244], [234, 67, 53], [251, 188, 5], [52, 168, 83],
 const apColor = i => AP_PALETTE[((i % AP_PALETTE.length) + AP_PALETTE.length) % AP_PALETTE.length];
 
 function viewColor(view, v) {
-  if (view === "signal" || view === "secondary") return signalColor(v);
+  if (view === "signal" || view === "secondary" || view === "tertiary") return signalColor(v);
   if (view === "serving") return apColor(v);
   const s = VIEW_DEFS[view].stops;
   if (VIEW_DEFS[view].discrete) {
@@ -61,6 +79,44 @@ function viewColor(view, v) {
   }
   return s[s.length - 1].rgb;
 }
+
+// ---------- requirement sets (network health) ----------
+// Like a planning tool's requirement profiles: every criterion must pass for a spot to be
+// healthy. The signal criterion is the project's / area's required signal (margin included);
+// the set adds SNR, data rate, number of APs, co-channel APs and a secondary-signal minimum.
+// `signal` is suggested when a set is chosen.
+const REQ_SETS = {
+  basic: { signal: -72, snr: 15, rate: 12, aps: 1, cci: 3, sec: null },
+  data:  { signal: -70, snr: 20, rate: 24, aps: 1, cci: 2, sec: null },
+  video: { signal: -67, snr: 25, rate: 54, aps: 1, cci: 1, sec: null },
+  voice: { signal: -67, snr: 25, rate: 24, aps: 2, cci: 1, sec: -75 },
+  dense: { signal: -65, snr: 28, rate: 100, aps: 2, cci: 1, sec: -72 },
+  iot:   { signal: -75, snr: 15, rate: 6, aps: 1, cci: 3, sec: null },
+  custom: null,                                   // project.reqCustom
+};
+const REQ_SET_KEYS = Object.keys(REQ_SETS);
+function reqSetDef(project, key) {
+  if (key === "custom") return { ...REQ_SETS.data, ...(project.reqCustom || {}) };
+  return REQ_SETS[key] || REQ_SETS.data;
+}
+// The set for an area (or the project's when the area follows the project).
+function areaReqSet(project, area) {
+  const k = area && area.reqSet && area.reqSet !== "project" ? area.reqSet : (project.settings?.reqSet || "data");
+  return { key: k, def: reqSetDef(project, k) };
+}
+// Which criteria fail (bitmask): 1 signal, 2 SNR, 4 data rate, 8 number of APs, 16 co-channel, 32 secondary.
+const HEALTH_BITS = ["signal", "snr", "rate", "aps", "cci", "sec"];
+function healthFails(m, reqSig, def) {
+  let f = 0;
+  if (!(m.best >= reqSig)) f |= 1;
+  if (def.snr != null && !(m.snr >= def.snr)) f |= 2;
+  if (def.rate != null && !(m.rate >= def.rate)) f |= 4;
+  if (def.aps != null && !(m.heardAt(reqSig) >= def.aps)) f |= 8;
+  if (def.cci != null && m.cci > def.cci) f |= 16;
+  if (def.sec != null && !(m.second >= def.sec)) f |= 32;
+  return f;
+}
+const popcount = x => { let n = 0; while (x) { n += x & 1; x >>= 1; } return n; };
 
 // ---------- area requirements and capacity ----------
 // A boundary area can carry its own requirement and a demand:
@@ -150,13 +206,15 @@ function computeApGrids(project, band, cellPx) {
 // Metrics at one cell (or point) from the per-AP signals `sig` (dBm array, one per source).
 // ctx: { band, info, reqDbm, clientStd, ss }
 function cellMetrics(sig, ctx) {
-  let s1 = -Infinity, s2 = -Infinity, i1 = -1, heard = 0;
+  let s1 = -Infinity, s2 = -Infinity, s3 = -Infinity, i1 = -1, heard = 0;
   for (let j = 0; j < sig.length; j++) {
     const v = sig[j];
-    if (v > s1) { s2 = s1; s1 = v; i1 = j; } else if (v > s2) s2 = v;
+    if (v > s1) { s3 = s2; s2 = s1; s1 = v; i1 = j; } else if (v > s2) { s3 = s2; s2 = v; } else if (v > s3) s3 = v;
     if (v >= ctx.reqDbm) heard++;
   }
-  if (i1 < 0 || !Number.isFinite(s1)) return { best: -Infinity, second: -Infinity, serving: -1, snr: -Infinity, sinr: -Infinity, cci: 0, rate: 0, heard: 0 };
+  const heardAt = lvl => { let n = 0; for (let j = 0; j < sig.length; j++) if (sig[j] >= lvl) n++; return n; };
+  if (i1 < 0 || !Number.isFinite(s1)) return { best: -Infinity, second: -Infinity, tertiary: -Infinity, serving: -1, snr: -Infinity, sinr: -Infinity, cci: 0, rate: 0, heard: 0,
+    throughput: 0, loss: 100, rtt: Infinity, heardAt };
   const me = ctx.info[i1];
   let iMw = 0, cci = 0;
   for (let j = 0; j < sig.length; j++) {
@@ -170,7 +228,12 @@ function cellMetrics(sig, ctx) {
   const snr = s1 - me.noise;
   const sinr = s1 - 10 * Math.log10(nMw + iMw);
   const rate = phyRate(sinr, ctx.band, me.w, me.std, ctx.clientStd, ctx.ss).mbps;
-  return { best: s1, second: s2, serving: i1, snr, sinr, cci, rate, heard };
+  // Expected (estimated) user experience: throughput shares airtime with co-channel APs; packet
+  // loss follows SINR (frame error curve); round-trip time = base + frame airtime + contention + retries.
+  const throughput = rate * AIRTIME_EFF / (1 + cci);
+  const loss = Math.min(100, 100 / (1 + Math.exp((sinr - 8) / 2.5)));
+  const rtt = rate > 0 ? 3 + 2 * 12 / (rate * AIRTIME_EFF) + 5 * cci + 0.5 * loss : Infinity;
+  return { best: s1, second: s2, tertiary: s3, serving: i1, snr, sinr, cci, rate, heard, throughput, loss, rtt, heardAt };
 }
 
 function viewCtx(project, band, aps) {
@@ -196,20 +259,33 @@ function computeViewGrids(project, band, cellPx, view) {
   const serving = new Int16Array(n), rate = new Float32Array(n);
   const ctx = viewCtx(project, band, g.aps);
   const sig = new Float32Array(g.per.length);
+  const shape = { cols: g.cols, rows: g.rows, cell: g.cell };
+  // network health: requirement per cell (area or project) and the area's requirement set
+  let hIdx = null, hReq = null, hDefs = null, fails = null;
+  if (view === "health") {
+    const A = projectAreas(project), margin = +project.settings?.margin || 0;
+    hIdx = areaIndexGrid(project, shape);
+    hReq = reqGrid(project, shape, typeof reqDbm === "function" ? reqDbm() : -67, margin, hIdx);
+    hDefs = A.map(a => areaReqSet(project, a).def);
+    hDefs.project = areaReqSet(project, null).def;
+    fails = new Uint8Array(n);
+  }
   for (let k = 0; k < n; k++) {
     for (let j = 0; j < g.per.length; j++) sig[j] = g.per[j][k];
     const m = cellMetrics(sig, ctx);
     bestData[k] = m.best; serving[k] = m.serving; rate[k] = m.rate;
-    data[k] = view === "secondary" ? m.second : view === "apcount" ? m.heard : view === "capacity" ? 0 : m[view];
+    if (view === "health") {
+      const f = healthFails(m, hReq[k], hIdx[k] >= 0 ? hDefs[hIdx[k]] : hDefs.project);
+      fails[k] = f; data[k] = popcount(f);
+    } else data[k] = view === "apcount" ? m.heard : view === "capacity" ? 0 : m[view];
   }
-  const shape = { cols: g.cols, rows: g.rows, cell: g.cell };
   let loads = null;
   if (hasDemand(project)) {
     const aIdx = areaIndexGrid(project, shape);
     loads = capacityLoads(project, shape, serving, rate, aIdx, g.per.length);
     if (view === "capacity") for (let k = 0; k < n; k++) data[k] = serving[k] >= 0 ? loads[serving[k]].airtime * 100 : NaN;
   } else if (view === "capacity") data.fill(0);
-  return { best: { ...shape, data: bestData }, view: { ...shape, data }, per: g, serving, rate, loads };
+  return { best: { ...shape, data: bestData }, view: { ...shape, data }, per: g, serving, rate, loads, fails };
 }
 
 // Canvas image of a view. Cells below the display floor (no usable signal) stay transparent.
@@ -219,7 +295,7 @@ function viewToCanvas(grids, view, minDbm) {
   cv.width = vg.cols; cv.height = vg.rows;
   const ctx = cv.getContext("2d");
   const img = ctx.createImageData(vg.cols, vg.rows);
-  const sec = view === "secondary";
+  const sec = view === "secondary" || view === "tertiary";
   for (let i = 0; i < vg.data.length; i++) {
     const s = sec ? vg.data[i] : best.data[i];
     if (!(s >= minDbm)) continue;
@@ -248,7 +324,7 @@ function viewStats(grids, view, box, mask, minDbm) {
   return { good: good / (total || 1), avg: nSum ? sum / nSum : NaN };
 }
 
-// All metrics at a world point for the signal check panel.
+// All metrics at a world point for the signal check panel, with the network-health result.
 function pointMetrics(project, band, x, y) {
   if (!project.aps.length) return null;
   const { rf, sources, aps } = modelFor(project, band);
@@ -256,5 +332,11 @@ function pointMetrics(project, band, x, y) {
   const list = aps || project.aps;
   const m = cellMetrics(sig, viewCtx(project, band, list));
   m.servingAp = list[m.serving] || null;
+  const A = projectAreas(project);
+  let area = null;
+  for (let i = A.length - 1; i >= 0; i--) if (pointInPoly(x, y, A[i].pts)) { area = A[i]; break; }
+  const set = areaReqSet(project, area);
+  const reqSig = typeof areaReqAt === "function" ? areaReqAt(x, y) : -67;
+  m.health = { set: set.key, def: set.def, reqSig, fails: healthFails(m, reqSig, set.def) };
   return m;
 }

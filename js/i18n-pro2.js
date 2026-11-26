@@ -1,0 +1,38 @@
+// UI text for the second batch of planning features (network health, extra views, device mix,
+// custom materials, doors / windows, openings, antennas, regulatory domains, notes, measuring,
+// report templates, Word). Thai and English here; other languages in i18n-pro-<lang>.js.
+const I18N_PRO2 = {
+  th: {
+    apply: "ใช้",
+    view_tertiary: "สัญญาณ AP ตัวที่ 3", view_throughput: "ความเร็วใช้งานจริง (คาดการณ์)", view_loss: "Packet loss (คาดการณ์)", view_rtt: "เวลาตอบสนอง RTT (คาดการณ์)", view_health: "Network health (ผ่านทุกเกณฑ์)",
+    viewHelp_tertiary: "สัญญาณจาก AP ที่แรงเป็นอันดับ 3 • ใช้กับงานระบุตำแหน่ง (location/RTLS) ที่ต้องได้ยิน 3 AP ขึ้นไป",
+    viewHelp_throughput: "ความเร็วที่ผู้ใช้หนึ่งคนน่าจะได้: ความเร็ว PHY × ประสิทธิภาพ MAC ÷ จำนวน AP ที่ต้องแบ่งเวลาส่งกัน • เป็นค่าประมาณ",
+    viewHelp_loss: "โอกาสที่แพ็กเก็ตหายคาดจาก SINR • ต่ำกว่า 1% เหมาะกับเสียงและวิดีโอคอล • เป็นค่าประมาณจากแบบจำลอง",
+    viewHelp_rtt: "เวลาไป-กลับของแพ็กเก็ตในส่วน Wi-Fi โดยประมาณ (ระยะเวลาส่ง การแย่งช่อง และการส่งซ้ำ) • ต่ำกว่า 30 ms เหมาะกับเสียง/เกม",
+    viewHelp_health: "ตรวจทุกเกณฑ์ในชุดเกณฑ์ของพื้นที่นั้นพร้อมกัน สีเขียว = ผ่านทุกข้อ, สีอื่น = ไม่ผ่านกี่ข้อ • คลิกจุดด้วยเครื่องมือเช็คสัญญาณเพื่อดูว่าข้อไหนไม่ผ่าน",
+    viewGood_throughput: "ความเร็วใช้งาน ≥ {n} Mbps", viewGood_loss: "Packet loss ≤ {n}%", viewGood_rtt: "RTT ≤ {n} ms", viewGood_health: "ผ่านทุกเกณฑ์",
+    reqSetLbl: "ชุดเกณฑ์", reqSetEdit: "แก้ชุดเกณฑ์กำหนดเอง", reqCustomTitle: "ชุดเกณฑ์กำหนดเอง",
+    reqCustomHelp: "จุดหนึ่งผ่านเมื่อผ่านทุกข้อ • เว้นว่าง = ไม่ใช้ข้อนั้น • ค่าสัญญาณจะตั้งเป็น “สัญญาณขั้นต่ำ” ของโปรเจกต์ด้วย",
+    reqSet_basic: "ใช้งานพื้นฐาน", reqSet_data: "ข้อมูลทั่วไป (เว็บ/อีเมล)", reqSet_video: "วิดีโอ / สตรีมมิ่ง", reqSet_voice: "เสียง VoIP / โรมมิ่ง", reqSet_dense: "หนาแน่นสูง", reqSet_iot: "IoT / สแกนเนอร์", reqSet_custom: "กำหนดเอง",
+    crit_signal: "สัญญาณ", crit_snr: "SNR", crit_rate: "ความเร็ว", crit_aps: "จำนวน AP", crit_cci: "AP ช่องชนกัน", crit_sec: "สัญญาณ AP ตัวที่ 2",
+    critApsN: "ได้ยิน {n} AP", critCci: "AP ช่องชนกัน", critSec: "AP ตัวที่ 2", critOff: "ไม่ใช้",
+    healthPassAll: "ผ่านทุกเกณฑ์", healthFail1: "ไม่ผ่าน 1 ข้อ", healthFailN: "ไม่ผ่าน {n} ข้อ", healthFailN3: "ไม่ผ่าน 3 ข้อขึ้นไป", healthFailList: "ไม่ผ่าน: {c}",
+  },
+  en: {
+    apply: "Apply",
+    view_tertiary: "Tertiary signal (3rd AP)", view_throughput: "Expected throughput", view_loss: "Packet loss (estimated)", view_rtt: "Round-trip time (estimated)", view_health: "Network health (all requirements)",
+    viewHelp_tertiary: "Signal from the third-strongest AP • For location / RTLS, which needs 3 or more APs heard",
+    viewHelp_throughput: "What one user can expect: PHY rate × MAC efficiency ÷ the APs sharing the channel's airtime • An estimate",
+    viewHelp_loss: "Expected packet loss from SINR • Below 1% suits voice and video calls • A model estimate",
+    viewHelp_rtt: "Estimated Wi-Fi round-trip time (frame airtime, contention and retries) • Below 30 ms suits voice and gaming",
+    viewHelp_health: "Checks every criterion of the area's requirement set at once: green = all pass, other colours = how many fail • Click a spot with Check signal to see which",
+    viewGood_throughput: "Throughput ≥ {n} Mbps", viewGood_loss: "Packet loss ≤ {n}%", viewGood_rtt: "RTT ≤ {n} ms", viewGood_health: "Passes all requirements",
+    reqSetLbl: "Requirement set", reqSetEdit: "Edit the custom set", reqCustomTitle: "Custom requirement set",
+    reqCustomHelp: "A spot passes when every criterion passes • Leave a field empty to skip it • The signal value also becomes the project's required signal",
+    reqSet_basic: "Basic connectivity", reqSet_data: "Data (web / e-mail)", reqSet_video: "Video / streaming", reqSet_voice: "Voice (VoIP) / roaming", reqSet_dense: "High density", reqSet_iot: "IoT / scanners", reqSet_custom: "Custom",
+    crit_signal: "Signal", crit_snr: "SNR", crit_rate: "Data rate", crit_aps: "Number of APs", crit_cci: "Co-channel APs", crit_sec: "Secondary signal",
+    critApsN: "{n} APs heard", critCci: "co-channel APs", critSec: "2nd AP", critOff: "off",
+    healthPassAll: "Passes all requirements", healthFail1: "1 criterion fails", healthFailN: "{n} criteria fail", healthFailN3: "3 or more fail", healthFailList: "Fails: {c}",
+  },
+};
+for (const [code, extra] of Object.entries(I18N_PRO2)) Object.assign(I18N[code], extra);
