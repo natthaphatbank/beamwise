@@ -1,8 +1,8 @@
 {
   "name": "Beamwise",
   "short_name": "Beamwise",
-  "description": "ออกแบบตำแหน่ง Access Point และดู Heatmap สัญญาณ Wi-Fi บนแบบแปลน",
-  "lang": "th",
+  "description": "Place access points on a floor plan and see the Wi-Fi signal heatmap",
+  "lang": "en",
   "id": "./",
   "start_url": "./",
   "categories": ["productivity", "utilities"],

@@ -843,19 +843,19 @@ I18N.my.rulers = "ပေတံ ပြရန် (မီတာ)";
 // t() with {placeholders}
 function tf(key, vars = {}) { return t(key).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`)); }
 
-// First visit: use the browser language if supported, otherwise Thai.
+// First visit: use the browser language if supported, otherwise English.
 function detectLang() {
   const supported = LANGS.map(l => l.code);
   for (const l of navigator.languages || [navigator.language || ""]) {
     const code = l.toLowerCase().split("-")[0];
     if (supported.includes(code)) return code;
   }
-  return "th";
+  return "en";
 }
 
-let LANG = "th";
+let LANG = "en";
 try { LANG = localStorage.getItem("wpth-lang") || detectLang(); } catch (e) { LANG = detectLang(); }
-if (!I18N[LANG]) LANG = "th";
+if (!I18N[LANG]) LANG = "en";
 
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || I18N.en[key] || key; }
 function langLocale() { return (LANGS.find(l => l.code === LANG) || LANGS[0]).locale; }
