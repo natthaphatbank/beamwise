@@ -3,7 +3,7 @@
 // syncActive() writes the active floor's current fields back into its record.
 // Loaded before app.js; everything here runs only after app.js has started.
 
-const FLOOR_FIELDS = ["plan", "mPerPx", "scaleSet", "walls", "aps", "areas", "attens", "survey", "probes", "calib"];
+const FLOOR_FIELDS = ["plan", "mPerPx", "scaleSet", "walls", "aps", "areas", "attens", "openings", "notes", "survey", "probes", "calib"];
 const FLOOR_H_DEFAULT = 3;              // m, floor to floor
 const floorImgs = new Map();            // floor id -> HTMLImageElement of its plan
 

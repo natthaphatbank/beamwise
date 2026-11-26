@@ -4,6 +4,12 @@
 const I18N_PRO2 = {
   th: {
     apply: "ใช้",
+    toolOpening: "ช่องโล่งทะลุชั้น / atrium (X)", tlOpening: "ช่องโล่ง", openingZone: "ช่องโล่งในพื้น", k_opening: "ช่องโล่งทะลุชั้น (atrium, โถงบันได)",
+    hintOpening: "คลิกรอบช่องที่พื้นชั้นนี้เปิดโล่ง (atrium, โถงสูง, ช่องบันได) • คลิกจุดแรก ดับเบิลคลิก หรือ Enter เพื่อปิด",
+    openingHelp: "วาดตรงที่พื้นของชั้นนี้ไม่มีแผ่นพื้น (ช่องโล่งระหว่างชั้นนี้กับชั้นล่าง) สัญญาณจาก AP ชั้นอื่นที่วิ่งผ่านช่องนี้จะไม่ถูกหักค่าพื้น",
+    openingNote: "ช่องนี้อยู่ในพื้นของชั้นนี้ (ระหว่างชั้นนี้กับชั้นล่าง) • atrium สูงหลายชั้น ให้ใส่ช่องในทุกชั้นที่โล่ง",
+    openingAdded: "เพิ่มช่องโล่งแล้ว", openingCopyUp: "คัดลอกไปชั้นบนทั้งหมด ({n} ชั้น)", openingCopied: "คัดลอกช่องโล่งไป {n} ชั้นแล้ว",
+    ceilLbl: "ความสูงเพดาน", ceilAuto: "ตามปกติ", ceilApply: "ตั้ง AP ติดเพดานในพื้นที่นี้ให้สูงเท่านี้", ceilApplied: "ปรับ AP {n} ตัวเป็น {h} ม. แล้ว",
     mat_block: "บล็อกคอนกรีต", mat_brickDouble: "อิฐสองชั้น", mat_elevator: "ช่องลิฟต์", mat_doorWood: "ประตูไม้", mat_doorGlass: "ประตูกระจก", mat_fireDoor: "ประตูหนีไฟ (เหล็ก)", mat_window: "หน้าต่างกระจก",
     matManage: "+ วัสดุของฉัน / ค่าวัสดุทั้งหมด", matTitle: "วัสดุผนัง", matHelp: "สร้างวัสดุของงานนี้เอง ใส่ค่าลดทอนต่อการทะลุหนึ่งครั้ง (dB) แยกแต่ละย่าน ความหนาไว้อ้างอิง • วัสดุเก็บในไฟล์โปรเจกต์ • ด้านล่างคือค่าวัสดุสำเร็จรูป",
     matThick: "หนา (ซม.)", matNone: "ยังไม่มีวัสดุของฉัน", matBuiltin: "วัสดุสำเร็จรูป", matAdd: "เพิ่มวัสดุ", matNew: "วัสดุใหม่", matInUse: "ยังมีผนังใช้วัสดุนี้อยู่ เปลี่ยนวัสดุผนังเหล่านั้นก่อน",
@@ -30,6 +36,12 @@ const I18N_PRO2 = {
   },
   en: {
     apply: "Apply",
+    toolOpening: "Floor opening / atrium (X)", tlOpening: "Opening", openingZone: "Floor opening", k_opening: "Floor opening (atrium, stair well)",
+    hintOpening: "Click around where this floor's slab is open (atrium, double-height space, stair well) • Click the first point, double-click or press Enter to close it",
+    openingHelp: "Draw where this floor has no slab (open to the floor below). Signal from APs on other floors that passes through it loses nothing to the slab",
+    openingNote: "The opening is in this floor's slab (between this floor and the one below) • For an atrium over several floors, add it on every open floor",
+    openingAdded: "Floor opening added", openingCopyUp: "Copy to every floor above ({n})", openingCopied: "Opening copied to {n} floor(s)",
+    ceilLbl: "Ceiling height", ceilAuto: "default", ceilApply: "Set ceiling APs in this area to this height", ceilApplied: "{n} AP(s) set to {h} m",
     mat_block: "Concrete block", mat_brickDouble: "Double brick", mat_elevator: "Elevator shaft", mat_doorWood: "Wooden door", mat_doorGlass: "Glass door", mat_fireDoor: "Fire door (steel)", mat_window: "Window (glass)",
     matManage: "+ My materials / all material values", matTitle: "Wall materials", matHelp: "Create materials for this job with their loss per crossing (dB) on each band; thickness is for reference • Saved in the project file • Built-in values are listed below",
     matThick: "Thickness (cm)", matNone: "No materials of your own yet", matBuiltin: "Built-in materials", matAdd: "Add material", matNew: "Material", matInUse: "Walls still use this material; change them first",

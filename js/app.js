@@ -17,6 +17,8 @@ function newProject() {
     aps: [],                       // {id, name, x, y, model, tx24/5/6, gain24/5/6, ch24/5/6, w24/5/6 (MHz), mount, h, az, bw}
     areas: [],                     // coverage boundary polygons {id, pts: [{x, y}]}
     attens: [],                    // attenuation zones {id, pts, preset, db24, db5, db6 (dB/m)} (model.js)
+    openings: [],                  // holes in this floor's slab (atrium, void, stair well) {id, pts}
+    notes: [],                     // map notes {id, x, y, text, cat, photo (data URL)}
     survey: [],                    // measured points {id, x, y, dbm, band} (survey.js)
     probes: [],                    // signal check pins {id, x, y}
     calib: null,                   // fitted model correction {n, off24, off5, off6, ...} or null
@@ -88,10 +90,14 @@ function normalizeAp(ap) {
 }
 function makeAp(p, spec) {
   spec = spec || AP_BY_ID[project.newApModel] || AP_BY_ID["generic-ax"];
+  // a ceiling AP inside an area with its own ceiling height goes up there
+  const ceilArea = (project.areas || []).slice().reverse().find(a => a.ceil && a.pts?.length >= 3 && pointInPoly(p.x, p.y, a.pts));
+  const mnt = mountForModel(spec);
+  if (ceilArea && mnt.mount === "ceiling") mnt.h = ceilArea.ceil;
   return { id: uid(), name: "AP-" + (project.aps.length + 1), x: p.x, y: p.y,
            model: spec.id, tx24: spec.tx24, tx5: spec.tx5, tx6: spec.tx6 || 0, gain24: spec.gain24, gain5: spec.gain5, gain6: spec.gain6 || 0,
            ch24: null, ch5: null, ch6: null, w24: DEFAULT_WIDTH["2.4"], w5: DEFAULT_WIDTH["5"], w6: DEFAULT_WIDTH["6"],
-           ...mountForModel(spec), az: 0, bw: DEFAULT_BW };
+           ...mnt, az: 0, bw: DEFAULT_BW };
 }
 
 // UI theme: "dark" (default) or "light"; the <head> script applies it before first paint.
@@ -139,7 +145,7 @@ const uid = () => (nextId++).toString(36) + Date.now().toString(36).slice(-4);
 
 // ---------- history ----------
 function snapshot() {
-  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, attens: project.attens, survey: project.survey, probes: project.probes, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
+  return JSON.stringify({ walls: project.walls, aps: project.aps, areas: project.areas, attens: project.attens, openings: project.openings, notes: project.notes, survey: project.survey, probes: project.probes, calib: project.calib, mPerPx: project.mPerPx, scaleSet: project.scaleSet });
 }
 function pushHistory() {
   undoStack.push(snapshot());
@@ -219,6 +225,7 @@ function findSel() {
   if (selection.type === "walls") { const l = selectedWalls(); return l.length ? l : null; }
   if (selection.type === "mixed") { const a = selectedAps(), w = selectedWalls(); return a.length || w.length ? { aps: a, walls: w } : null; }
   const list = selection.type === "ap" ? project.aps : selection.type === "area" ? project.areas : selection.type === "atten" ? (project.attens || [])
+    : selection.type === "opening" ? (project.openings || []) : selection.type === "note" ? (project.notes || [])
     : selection.type === "survey" ? (project.survey || []) : project.walls;
   return list.find(o => o.id === selection.id) || null;
 }
@@ -389,6 +396,21 @@ function drawScene(c, px, { interactive = true, theme = uiTheme } = {}) {
       c.beginPath(); c.moveTo(w.x1, w.y1); c.lineTo(w.x2, w.y2); c.stroke();
     }
     if (isSel && selection.type === "wall") for (const [x, y] of [[w.x1, w.y1], [w.x2, w.y2]]) handle(c, px, x, y);
+  }
+
+  // floor openings (atrium, void): dark dashed outline with an X
+  for (const z of project.openings || []) {
+    if (!z.pts || z.pts.length < 3) continue;
+    const isSel = interactive && selection?.type === "opening" && selection.id === z.id;
+    c.save();
+    c.beginPath(); z.pts.forEach((q, i) => i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y)); c.closePath();
+    c.fillStyle = "rgba(20,30,50,0.18)"; c.fill();
+    c.strokeStyle = isSel ? P.sel : P.text; c.globalAlpha = isSel ? 1 : 0.7; c.lineWidth = (isSel ? 2.5 : 1.5) * px; c.setLineDash([7 * px, 4 * px]); c.stroke(); c.setLineDash([]);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const q of z.pts) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+    c.clip(); c.lineWidth = 1 * px; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.moveTo(x1, y0); c.lineTo(x0, y1); c.stroke();
+    c.restore();
+    if (isSel) for (const q of z.pts) handle(c, px, q.x, q.y);
   }
 
   // attenuation zones: tinted, hatched polygons
@@ -898,7 +920,8 @@ function hitWall(p) {
   }
   return best;
 }
-const isPolyTool = () => tool === "area" || tool === "atten";
+const isPolyTool = () => tool === "area" || tool === "atten" || tool === "opening";
+const hitOpening = p => hitArea(p, project.openings) || (project.openings || []).slice().reverse().find(z => z.pts?.length >= 3 && pointInPoly(p.x, p.y, z.pts)) || null;
 const hitAtten = p => hitArea(p, project.attens) || (project.attens || []).slice().reverse().find(z => z.pts?.length >= 3 && pointInPoly(p.x, p.y, z.pts)) || null;
 function hitArea(p, list = project.areas) {
   const tol = 8 * touchK / view.s;
@@ -989,7 +1012,7 @@ function setTool(name) {
   updateFinishBtn();
   if (name !== "scale") scaleLine = null;
   document.querySelectorAll("#tools [data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === name));
-  const hints = { select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe", door: "hintDoor" };
+  const hints = { opening: "hintOpening", select: "hintSelect", pan: "hintPan", scale: "hintScale", wall: "hintWall", ap: "hintAp", area: "hintArea", atten: "hintAtten", survey: "hintSurvey", probe: "hintProbe", door: "hintDoor" };
   showHint(t(hintKey(hints[name])));
   updateOrthoBtn();
   if (typeof renderCalib === "function" && $("#calibCard")) renderCalib();
@@ -1016,6 +1039,7 @@ function deleteSelection() {
   else if (selection.type === "mixed") { project.aps = project.aps.filter(a => !o.aps.includes(a)); project.walls = project.walls.filter(w => !o.walls.includes(w)); }
   else if (selection.type === "area") project.areas = project.areas.filter(a => a !== o);
   else if (selection.type === "atten") project.attens = project.attens.filter(a => a !== o);
+  else if (selection.type === "opening") project.openings = project.openings.filter(a => a !== o);
   else if (selection.type === "survey") project.survey = project.survey.filter(q => q !== o);
   else project.walls = project.walls.filter(w => w !== o);
   selection = null;
@@ -1068,7 +1092,7 @@ canvas.addEventListener("pointerdown", e => {
       const end = hitWallEnd(p, sel);
       if (end) { drag = { type: "wallEnd", wall: sel, end, pushed: false }; return; }
     }
-    if (sel && (selection.type === "area" || selection.type === "atten")) {
+    if (sel && (selection.type === "area" || selection.type === "atten" || selection.type === "opening")) {
       const i = hitAreaPt(p, sel);
       if (i >= 0) { drag = { type: "areaPt", area: sel, i, pushed: false }; return; }
     }
@@ -1129,6 +1153,13 @@ canvas.addEventListener("pointerdown", e => {
     if (zn) {
       selection = { type: "atten", id: zn.id };
       drag = { type: "area", area: zn, last: p, pushed: false };
+      renderPanel(); requestRender();
+      return;
+    }
+    const op = hitOpening(p);
+    if (op) {
+      selection = { type: "opening", id: op.id };
+      drag = { type: "area", area: op, last: p, pushed: false };
       renderPanel(); requestRender();
       return;
     }
@@ -1351,7 +1382,13 @@ function finishArea() {
   areaDraft = null;
   if (pts.length >= 3 && Math.abs(polyArea(pts)) * view.s * view.s > 25) {
     pushHistory();
-    if (tool === "atten") {
+    if (tool === "opening") {
+      const z = { id: uid(), pts };
+      project.openings = [...(project.openings || []), z];
+      selection = { type: "opening", id: z.id };
+      changed();
+      flash(t("openingAdded"));
+    } else if (tool === "atten") {
       const pr = ATTEN_PRESETS[project.newAttenPreset] ? project.newAttenPreset : "shelving";
       const P0 = ATTEN_PRESETS[pr];
       const z = { id: uid(), pts, preset: pr, db24: P0.db24, db5: P0.db5, db6: P0.db6 };
@@ -1406,13 +1443,13 @@ window.addEventListener("keydown", e => {
   if (e.key === "3" && !e.ctrlKey && !e.metaKey && !e.altKey) { View3D.toggle(); return; }
   if (View3D.isOpen()) {                                     // 2D editing keys do nothing while the plan is hidden
     if (e.key === "Escape") View3D.close();
-    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door" };
+    const map3 = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
     if (!map3[e.key.toLowerCase()] || e.ctrlKey || e.metaKey) return;
     View3D.close();
   }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); selectAllAps(); return; }
   if (e.code === "Space") { spaceDown = true; canvas.style.cursor = "grab"; e.preventDefault(); return; }
-  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door" };
+  const map = { v: "select", h: "pan", s: "scale", w: "wall", a: "ap", b: "area", z: "atten", m: "survey", p: "probe", d: "door", x: "opening" };
   if (map[e.key.toLowerCase()] && !e.ctrlKey && !e.metaKey) { openPanel(); setTool(map[e.key.toLowerCase()]); return; }
   if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey) { setOrtho(!orthoOn); return; }
   if (areaDraft && e.key === "Enter") { finishArea(); return; }
@@ -1593,6 +1630,8 @@ function panelTitle(o) {
   if (o && selection.type === "mixed") return tf("itemsSelected", { a: o.aps.length, w: o.walls.length });
   if (o && selection.type === "area") return t("areaBoundary");
   if (o && selection.type === "atten") return t("attenZone");
+  if (o && selection.type === "opening") return t("openingZone");
+  if (tool === "opening") return noKey(t("toolOpening"));
   if (tool === "atten") return noKey(t("toolAtten"));
   if (tool === "door") return noKey(t("toolDoor"));
   if (o && selection.type === "survey") return `${t("surveyPoint")} #${project.survey.indexOf(o) + 1}`;
@@ -1805,6 +1844,23 @@ function renderPanel() {
     }));
   } else if (tool === "survey") {
     el.innerHTML = `<p class="empty">${t("surveyHelp")}</p>`;
+  } else if (o && selection.type === "opening") {
+    const above = project.floors.length - 1 - project.floorIdx;
+    el.innerHTML = `<div class="row"><span>${t("area")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
+      <p class="unit">${t("openingNote")}</p>
+      ${above > 0 ? `<button class="btn" id="opCopyUp">${tf("openingCopyUp", { n: above })}</button>` : ""}
+      <button class="btn danger" id="delBtn">${t("deleteItem")}</button>`;
+    $("#opCopyUp")?.addEventListener("click", () => {
+      syncActive();
+      const F = project.floors, me = F[project.floorIdx], m0 = +me.mPerPx;
+      for (let j = project.floorIdx + 1; j < F.length; j++) {
+        const f = F[j], fm = +f.mPerPx || m0;
+        f.openings = [...(f.openings || []), { id: uid(), pts: o.pts.map(q => ({ x: (q.x * m0 + (+me.ox || 0) - (+f.ox || 0)) / fm, y: (q.y * m0 + (+me.oy || 0) - (+f.oy || 0)) / fm })) }];
+      }
+      changed(); flash(tf("openingCopied", { n: F.length - 1 - project.floorIdx }));
+    });
+  } else if (tool === "opening") {
+    el.innerHTML = `<p class="empty">${t("openingHelp")}</p>`;
   } else if (o && selection.type === "atten") {
     renderAttenPanel(el, o);
   } else if (tool === "door") {
@@ -1878,6 +1934,8 @@ function renderAreaPanel(el, o) {
     <label class="row"><span>${t("reqSetLbl")}</span><select id="arReqSet"><option value="project" ${!o.reqSet || o.reqSet === "project" ? "selected" : ""}>${t("areaReqProject")} (${t("reqSet_" + (project.settings.reqSet || "data"))})</option>
       ${REQ_SET_KEYS.map(k => `<option value="${k}" ${o.reqSet === k ? "selected" : ""}>${t("reqSet_" + k)}</option>`).join("")}</select></label>
     <div class="row"><span>${t("areaBoundary")}</span><b>${fmtArea(Math.abs(polyArea(o.pts)))}</b></div>
+    <label class="row"><span>${t("ceilLbl")} <span class="u">(m)</span></span><input type="number" id="arCeil" min="2" max="30" step="0.1" value="${o.ceil ?? ""}" placeholder="${t("ceilAuto")}"></label>
+    ${o.ceil ? `<button class="btn" id="arCeilAps">${t("ceilApply")}</button>` : ""}
     <h4 class="sub-h">${t("capTitle")}</h4>
     <label class="row"><span>${t("capDevicesLbl")}</span><input type="number" id="arDev" min="0" max="5000" step="1" value="${+o.devices || 0}"></label>
     <div class="row"><span>${t("devMixLbl")} <span class="u">(%)</span></span></div>
@@ -1892,6 +1950,14 @@ function renderAreaPanel(el, o) {
   $("#arName").addEventListener("input", e => { o.name = e.target.value.slice(0, 60); renderStats(); });
   $("#arReq").addEventListener("change", e => { pushHistory(); set("req", e.target.value === "auto" ? "auto" : +e.target.value); });
   $("#arReqSet").addEventListener("change", e => { pushHistory(); set("reqSet", e.target.value); });
+  $("#arCeil").addEventListener("focus", pushHistory);
+  $("#arCeil").addEventListener("change", e => { const v = parseFloat(e.target.value); o.ceil = v >= 2 ? Math.min(30, v) : null; changed(); });
+  $("#arCeilAps")?.addEventListener("click", () => {
+    pushHistory();
+    let n = 0;
+    for (const ap of project.aps) if (ap.mount === "ceiling" && pointInPoly(ap.x, ap.y, o.pts)) { ap.h = o.ceil; n++; }
+    changed(); flash(tf("ceilApplied", { n, h: o.ceil }));
+  });
   el.querySelectorAll("[data-mix]").forEach(inp => {
     inp.addEventListener("focus", pushHistory);
     inp.addEventListener("input", () => {
@@ -2072,7 +2138,7 @@ function shortcutsHtml() {
   const K = k => `<kbd>${k}</kbd>`;
   const rows = [
     [K("W"), "k_wall"], [K("A"), "k_ap"], [K("S"), "k_scale"], [`${K("B")} ${K("M")}`, "k_area"], [K("V"), "k_select"],
-    [K("Z"), "k_atten"], [K("D"), "k_door"], [K("P"), "k_probe"], [K("3"), "k_3d"],
+    [K("Z"), "k_atten"], [K("D"), "k_door"], [K("X"), "k_opening"], [K("P"), "k_probe"], [K("3"), "k_3d"],
     [t("k_drag"), "k_box"], [t("k_click"), "k_shift"], [t("k_rdrag"), "k_pan"],
     [`${K("O")} / Shift`, "k_ortho"], [K("Delete"), "k_del"], [`${K("Ctrl+Z")} ${K("Ctrl+Y")}`, "k_undo"], [K("Ctrl+S"), "k_save"],
   ];
@@ -2439,7 +2505,9 @@ function sanitizeOneFloor(data) {
                                        devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),
                                        app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))),
                                        reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project",
+                                       ceil: a.ceil == null || a.ceil === "" ? null : Math.min(30, Math.max(2, numOr(a.ceil, 2.7))),
                                        mix: a.mix && typeof a.mix === "object" ? Object.fromEntries(DEVICE_KEYS.map(k => [k, Math.min(100, Math.max(0, numOr(a.mix[k], 0)))])) : null })),
+    openings: arr(data.openings).slice(0, 200).map(z => ({ id: strOr(z.id, uid()), pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
     attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                          db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),
@@ -2524,7 +2592,7 @@ function loadPlanFile(file) {
       project.plan = { image: dataUrl, width: w, height: h };
       project.mPerPx = 30 / Math.max(w, h);
       project.scaleSet = false;
-      project.walls = []; project.aps = []; project.areas = []; project.attens = []; project.survey = []; project.calib = null;
+      project.walls = []; project.aps = []; project.areas = []; project.attens = []; project.openings = []; project.notes = []; project.survey = []; project.calib = null;
       undoStack = []; redoStack = [];
       selection = null;
       planImg = plan; clearProbes();
@@ -2581,7 +2649,7 @@ function exportPng() {
 // Work counts as unsaved when it differs from the last saved / opened state.
 function workSnapshot() {
   syncActive();
-  return JSON.stringify([project.bom, patternsRev(project), project.materials]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
+  return JSON.stringify([project.bom, patternsRev(project), project.materials]) + JSON.stringify(project.floors.map(f => [f.name, f.height, f.slab, f.ox, f.oy, f.plan.image, f.walls, f.aps, f.areas, f.attens, f.openings, f.notes, f.survey, f.probes, f.calib, f.mPerPx, f.scaleSet]));
 }
 let savedSnap = "";
 const markSaved = () => { savedSnap = workSnapshot(); };

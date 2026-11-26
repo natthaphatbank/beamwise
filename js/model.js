@@ -479,14 +479,14 @@ function nodeLinks(rf) {
  * (Dijkstra over node-to-node links, so paths can turn several times).
  * `ap` needs x, y, tx/gain fields and optionally mount, h, az, bw.
  */
-function buildSource(rf, ap, { extraLoss = 0, noPaths = false } = {}) {
+function buildSource(rf, ap, { extraLoss = 0, noPaths = false, slabs = null } = {}) {
   const e = apEirp(ap, rf.band, rf.cap);
   const mount = MOUNTS[ap.mount] ? ap.mount : "ceiling";
   const h = ap.h !== null && ap.h !== "" && Number.isFinite(+ap.h) ? +ap.h : MOUNTS[mount].h;
   const src = {
     x: ap.x, y: ap.y, dead: !Number.isFinite(e),
     eff: e + (rf.offset || 0) + rf.clientOff - extraLoss,   // everything that does not depend on the path
-    dh: Math.abs(h - rf.clientH), down: h >= rf.clientH, mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
+    dh: Math.abs(h - rf.clientH), down: h >= rf.clientH, zA: h, slabs, mount, az: +ap.az || 0, bw: +ap.bw || DEFAULT_BW,
     pat: (() => { const p = rf.patterns?.[ap.model]?.[rf.band]; return p && p.h?.length === 360 && p.v?.length === 360 ? p : null; })(),
     order: [],
   };
@@ -564,6 +564,7 @@ function sourceRssi(rf, src, cx, cy, floor = -Infinity) {
   const dx = cx - src.x, dy = cy - src.y, dm = Math.hypot(dx, dy) * mpp;
   const pat = srcPattern(src, dx, dy, Math.atan2(src.dh, dm) * 180 / Math.PI);
   let best = src.eff - rf.pl1 - n10 * Math.log10(Math.max(0.5, Math.hypot(dm, src.dh))) + pat;
+  if (src.slabs) best -= slabPathLoss(src, rf.clientH, cx, cy);
   if (best > floor) best -= wallLoss(rf, src.x, src.y, cx, cy, best - floor);
   sourceRssi.win = sourceRssi.win2 = -1;
   if (!src.order.length) return best;
@@ -653,7 +654,7 @@ function modelFor(project, band, override = null) {
   }
   const used = new Map();
   const make = (ap, opt) => {
-    const k = JSON.stringify([ap.model, ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, opt && opt.extraLoss]);
+    const k = JSON.stringify([ap.model, ap.x, ap.y, apTx(ap, band), apGain(ap, band), ap.ch5, ap.mount, ap.h, ap.az, ap.bw, ap.tilt, ap.antenna, opt && opt.extraLoss, opt && opt.sig]);
     const s = used.get(k) || rf.srcCache.get(k) || buildSource(rf, ap, opt);
     used.set(k, s);
     return s;
@@ -685,6 +686,21 @@ function floorElevations(F) {
   return el;
 }
 // Loss through the slabs between floor a and floor b on a band.
+// Slab loss on the straight line from an AP on another floor to a point: a slab whose opening
+// (atrium, void) the line passes through costs nothing. Biggest slab full, the others 40%.
+function slabPathLoss(src, zC, x, y) {
+  const zA = src.zA, L = [];
+  for (const sl of src.slabs) {
+    if (sl.open.length) {
+      const t = (sl.z - zA) / ((zC - zA) || 1e-9);
+      const px = src.x + (x - src.x) * t, py = src.y + (y - src.y) * t;
+      if (sl.open.some(poly => pointInPoly(px, py, poly))) continue;
+    }
+    L.push(sl.loss);
+  }
+  L.sort((a, b) => b - a);
+  return L.reduce((s, v, i) => s + (i ? EXTRA_FLOOR_SHARE * v : v), 0);
+}
 function slabLoss(F, a, b, band) {
   const lo = Math.min(a, b), hi = Math.max(a, b);
   const losses = [];
@@ -706,12 +722,19 @@ function crossFloorAps(project, band) {
     for (const ap of f.aps || []) {
       const mount = MOUNTS[ap.mount] ? ap.mount : "ceiling";
       const h = (Number.isFinite(+ap.h) && ap.h !== null && ap.h !== "" ? +ap.h : MOUNTS[mount].h) + el[j] - el[me];
-      let loss = slabLoss(F, j, me, band);
-      if (j < me && mount === "ceiling") loss += UPWARD_CEILING_DB;
+      const extra = j < me && mount === "ceiling" ? UPWARD_CEILING_DB : 0;
+      // slabs between the two floors, at their height relative to this floor, with their openings
+      // (atriums, voids, stair wells) moved into this floor's plan coordinates
+      const slabs = [];
+      for (let k = Math.min(j, me) + 1; k <= Math.max(j, me); k++) {
+        const fk = F[k], km = +fk.mPerPx || mpp, kox = +fk.ox || 0, koy = +fk.oy || 0;
+        slabs.push({ z: el[k] - el[me], loss: matLoss(SLABS[fk.slab] || SLABS.concrete, band),
+          open: ((k === me ? project.openings : fk.openings) || []).filter(o => o.pts?.length >= 3).map(o => o.pts.map(q => ({ x: (q.x * km + kox - ox) / mpp, y: (q.y * km + koy - oy) / mpp }))) });
+      }
       out.push({
         orig: ap,
         ap: { ...ap, x: (ap.x * fm + fox - ox) / mpp, y: (ap.y * fm + foy - oy) / mpp, h },
-        opt: { extraLoss: loss, noPaths: true },
+        opt: { extraLoss: extra, noPaths: true, slabs, sig: JSON.stringify(slabs) },
       });
     }
   });
