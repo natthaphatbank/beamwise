@@ -89,7 +89,10 @@ function apTableCsv(rows) {
 // openModal focuses the first button; in these tables that could be a delete ×.
 const focusClose = () => setTimeout(() => $("#modalBox [data-act=close]")?.focus(), 0);
 
-const csvCell = v => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+// A cell that starts with = + - @ (or tab / CR) is run as a formula by Excel, so a crafted AP or area
+// name could run commands on the reader's PC. Prefix text like that with ' (numbers stay numbers).
+const csvSafe = v => { const s = String(v ?? ""); return typeof v !== "number" && /^[=+\-@\t\r]/.test(s) && !/^[-+]?\d+(\.\d+)?$/.test(s) ? "'" + s : s; };
+const csvCell = v => { const s = csvSafe(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 function downloadCsv(rows, name) {
   const txt = "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
   download(new Blob([txt], { type: "text/csv;charset=utf-8" }), `${name}-${stamp()}.csv`);

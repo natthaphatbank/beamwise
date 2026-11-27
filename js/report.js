@@ -178,7 +178,7 @@ function buildDesignCsv() {
   labels.forEach((lb, i) => rows.push([lb, ...csvBands().map(b => dist[b][i])]));
 
   const cell = v => {
-    const s = String(v ?? "");
+    const s = csvSafe(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return "﻿" + rows.map(r => r.map(cell).join(",")).join("\r\n") + "\r\n";   // BOM so Excel reads UTF-8 (Thai)

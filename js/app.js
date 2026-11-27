@@ -2550,6 +2550,8 @@ function saveProject() {
 function numOr(v, d) { const n = +v; return v !== null && v !== "" && Number.isFinite(n) ? n : d; }
 function strOr(v, d = "", max = 120) { return typeof v === "string" ? v.slice(0, max) : typeof v === "number" ? String(v) : d; }
 function chOr(v) { return v == null || v === "" ? null : numOr(v, null); }
+// Only a key the table really defines: "constructor" or "__proto__" from a crafted file must not pass.
+function own(o, k) { return (typeof k === "string" || typeof k === "number") && Object.prototype.hasOwnProperty.call(o, k); }
 // Multi-floor files: each floor is checked like a one-floor project; meta fields per floor.
 function sanitizeProject(data) {
   registerMaterials(cleanMaterials(data.materials));       // before the walls are checked: they may use them
@@ -2564,7 +2566,7 @@ function sanitizeProject(data) {
       const s = sanitizeOneFloor({ ...data, ...f, floors: null });
       const meta = floorMeta(strOr(f.name, String(i + 1), 30) || String(i + 1), strOr(f.id, "", 20) || undefined);
       meta.height = Math.min(20, Math.max(2, numOr(f.height, FLOOR_H_DEFAULT)));
-      meta.slab = SLABS[f.slab] ? f.slab : "concrete";
+      meta.slab = own(SLABS, f.slab) ? f.slab : "concrete";
       meta.ox = Math.min(1000, Math.max(-1000, numOr(f.ox, 0))); meta.oy = Math.min(1000, Math.max(-1000, numOr(f.oy, 0)));
       return Object.assign(meta, pickFloor(s));
     });
@@ -2591,26 +2593,26 @@ function sanitizeOneFloor(data) {
     mPerPx: numOr(data.mPerPx, 0) > 0 ? +data.mPerPx : base.mPerPx,
     scaleSet: !!data.scaleSet,
     walls: arr(data.walls).map(w => ({ id: strOr(w.id, uid()), x1: numOr(w.x1, 0), y1: numOr(w.y1, 0), x2: numOr(w.x2, 0), y2: numOr(w.y2, 0),
-                                      mat: MATERIALS[w.mat] ? w.mat : "brick" })),
+                                      mat: own(MATERIALS, w.mat) ? w.mat : "brick" })),
     aps: arr(data.aps).map(a => ({ id: strOr(a.id, uid()), name: strOr(a.name, "AP"), x: numOr(a.x, 0), y: numOr(a.y, 0), model: strOr(a.model, "custom"),
                                    tx24: numOr(a.tx24, 0), tx5: numOr(a.tx5, 0), tx6: a.tx6 == null ? null : numOr(a.tx6, 0),
                                    gain24: numOr(a.gain24 ?? a.gain, 3), gain5: numOr(a.gain5 ?? a.gain, 3), gain6: numOr(a.gain6, 0),
                                    ch24: chOr(a.ch24), ch5: chOr(a.ch5), ch6: chOr(a.ch6),
                                    w24: numOr(a.w24, null), w5: numOr(a.w5, null), w6: numOr(a.w6, null),
-                                   mount: MOUNTS[a.mount] ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
+                                   mount: own(MOUNTS, a.mount) ? a.mount : null, h: a.h == null ? null : Math.min(30, Math.max(0, numOr(a.h, 2.7))),
                                    az: numOr(a.az, 0), bw: Math.min(360, Math.max(10, numOr(a.bw, DEFAULT_BW))),
-                                   tilt: Math.min(90, Math.max(-90, numOr(a.tilt, 0))), antenna: ANTENNAS[a.antenna] ? a.antenna : null })),
+                                   tilt: Math.min(90, Math.max(-90, numOr(a.tilt, 0))), antenna: own(ANTENNAS, a.antenna) ? a.antenna : null })),
     areas: arr(data.areas).map(a => ({ id: strOr(a.id, uid()), pts: arr(a.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                        name: strOr(a.name, "", 60), req: a.req == null || a.req === "auto" ? "auto" : Math.min(-30, Math.max(-95, numOr(a.req, -67))),
                                        devices: Math.min(5000, Math.max(0, Math.round(numOr(a.devices, 0)))),
-                                       app: APP_PROFILES[a.app] !== undefined ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))),
-                                       reqSet: REQ_SETS[a.reqSet] !== undefined ? a.reqSet : "project",
+                                       app: own(APP_PROFILES, a.app) ? a.app : "web", mbps: Math.min(1000, Math.max(0, numOr(a.mbps, 2))),
+                                       reqSet: own(REQ_SETS, a.reqSet) ? a.reqSet : "project",
                                        ceil: a.ceil == null || a.ceil === "" ? null : Math.min(30, Math.max(2, numOr(a.ceil, 2.7))),
                                        mix: a.mix && typeof a.mix === "object" ? Object.fromEntries(DEVICE_KEYS.map(k => [k, Math.min(100, Math.max(0, numOr(a.mix[k], 0)))])) : null })),
     notes: arr(data.notes).slice(0, 500).map(n => ({ id: strOr(n.id, uid()), x: numOr(n.x, 0), y: numOr(n.y, 0), text: strOr(n.text, "", 1000),
-      cat: NOTE_CATS[n.cat] ? n.cat : "info", photo: typeof n.photo === "string" && /^data:image\/(jpeg|png|webp);base64,/i.test(n.photo) && n.photo.length < 3e6 ? n.photo : null })),
+      cat: own(NOTE_CATS, n.cat) ? n.cat : "info", photo: typeof n.photo === "string" && /^data:image\/(jpeg|png|webp);base64,/i.test(n.photo) && n.photo.length < 3e6 ? n.photo : null })),
     openings: arr(data.openings).slice(0, 200).map(z => ({ id: strOr(z.id, uid()), pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })) })),
-    attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: ATTEN_PRESETS[z.preset] ? z.preset : "custom",
+    attens: arr(data.attens).map(z => ({ id: strOr(z.id, uid()), preset: own(ATTEN_PRESETS, z.preset) ? z.preset : "custom",
                                          pts: arr(z.pts).map(p => ({ x: numOr(p.x, 0), y: numOr(p.y, 0) })),
                                          db24: Math.min(20, Math.max(0, numOr(z.db24, 1))), db5: Math.min(20, Math.max(0, numOr(z.db5, 1.5))), db6: Math.min(20, Math.max(0, numOr(z.db6, 1.7))) })),
     survey: arr(data.survey).map(p => ({ id: strOr(p.id, uid()), x: numOr(p.x, 0), y: numOr(p.y, 0), dbm: numOr(p.dbm, null),
@@ -2624,29 +2626,29 @@ function sanitizeOneFloor(data) {
     settings: {
       ...bs,
       band: BAND_LIST.includes(s.band) ? s.band : bs.band,
-      env: ENVIRONMENTS[s.env] ? +s.env : bs.env,
+      env: Number.isInteger(+s.env) && ENVIRONMENTS[+s.env] ? +s.env : bs.env,
       opacity: Math.min(0.9, Math.max(0.1, numOr(s.opacity, bs.opacity))),
       minDbm: autoOrNum(s.minDbm, bs.minDbm),
       req: autoOrNum(s.req, bs.req),
       capNbtc: s.capNbtc == null ? bs.capNbtc : !!s.capNbtc,
-      country: REG[s.country] ? s.country : bs.country,
-      client: CLIENTS[s.client] != null ? s.client : bs.client,
+      country: own(REG, s.country) ? s.country : bs.country,
+      client: own(CLIENTS, s.client) ? s.client : bs.client,
       clientH: Math.min(10, Math.max(0, numOr(s.clientH, bs.clientH))),
       margin: Math.min(20, Math.max(0, numOr(s.margin, bs.margin))),
       paths: s.paths == null ? bs.paths : !!s.paths,
       waves: s.waves == null ? bs.waves : !!s.waves,
       rulers: s.rulers == null ? bs.rulers : !!s.rulers,
       dfs: !!s.dfs,
-      view: VIEW_DEFS[s.view] ? s.view : bs.view,
+      view: own(VIEW_DEFS, s.view) ? s.view : bs.view,
       clientStd: WIFI_STDS.includes(s.clientStd) ? s.clientStd : bs.clientStd,
       clientSS: Math.min(4, Math.max(1, Math.round(numOr(s.clientSS, bs.clientSS)))),
-      reqSet: REQ_SETS[s.reqSet] !== undefined ? s.reqSet : bs.reqSet,
+      reqSet: own(REQ_SETS, s.reqSet) ? s.reqSet : bs.reqSet,
       steer: s.steer == null ? bs.steer : !!s.steer, mlo: !!s.mlo,
     },
     reqCustom: data.reqCustom && typeof data.reqCustom === "object" ? Object.fromEntries(["signal", "snr", "rate", "aps", "cci", "sec"].map(k => [k, numOr(data.reqCustom[k], null)])) : null,
-    newWallMat: MATERIALS[data.newWallMat] ? data.newWallMat : base.newWallMat,
+    newWallMat: own(MATERIALS, data.newWallMat) ? data.newWallMat : base.newWallMat,
     newApModel: strOr(data.newApModel, base.newApModel),
-    newAttenPreset: ATTEN_PRESETS[data.newAttenPreset] ? data.newAttenPreset : base.newAttenPreset,
+    newAttenPreset: own(ATTEN_PRESETS, data.newAttenPreset) ? data.newAttenPreset : base.newAttenPreset,
     bom: cleanBom(data.bom),
     patterns: cleanPatterns(data.patterns),
     report: data.report && typeof data.report === "object" ? { title: strOr(data.report.title, "", 120), customer: strOr(data.report.customer, "", 120),

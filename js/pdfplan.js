@@ -51,7 +51,8 @@ async function loadPdfPlan(file) {
   flash(t("pdfLoading"));
   try {
     const lib = await loadPdfJs();
-    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    // isEvalSupported: false closes CVE-2024-4367 (a crafted PDF font could run code in this page).
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
     const pageNo = doc.numPages > 1 ? await askPdfPage(doc.numPages) : 1;
     if (!pageNo) { flash(""); return; }
     const page = await doc.getPage(pageNo);

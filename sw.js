@@ -3,7 +3,7 @@
 // VERSION only names the cache; bumping it is not needed to ship an update.
 const VERSION = "wpth-v21";
 const ASSETS = [
-  "./", "index.html", "css/style.css", "css/pro.css",
+  "./", "index.html", "js/theme.js", "css/style.css", "css/pro.css",
   "js/i18n.js", "js/i18n-pro.js", "js/i18n-pro2.js", "js/i18n-pro-zh.js", "js/i18n-pro-ja.js", "js/i18n-pro-ko.js", "js/i18n-pro-vi.js", "js/i18n-pro-lo.js", "js/i18n-pro-my.js", "js/catalog.js", "js/radio.js", "js/antenna.js", "js/model.js", "js/views.js", "js/optimizer.js", "js/survey.js", "js/report.js", "js/pdfplan.js", "js/vendor/pdfjs/pdf.min.js", "js/vendor/pdfjs/pdf.worker.min.js", "js/sample.js", "js/view3d.js", "js/floors.js", "js/tables.js", "js/report-pdf.js", "js/xlsx.js", "js/docx.js", "js/export.js", "js/cad.js", "js/templates.js", "js/notes.js", "js/vendor/three/three.module.min.js", "js/app.js",
   "manifest.webmanifest", "icons/favicon.svg", "icons/icon-192.png", "icons/icon-512.png",
 ];
